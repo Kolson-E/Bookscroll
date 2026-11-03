@@ -20,6 +20,9 @@ final class Book {
     var paragraphSegmentCount: Int
     var passageSegmentCount: Int
     var importNote: String?
+    /// Set when the user deletes the book. The book is hidden at once and its rows are
+    /// removed in the background; a deletion cut short (the app was closed) resumes at launch.
+    var deletionPending: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \Segment.book) var segments: [Segment]? = []
     @Relationship(deleteRule: .cascade, inverse: \Mark.book) var marks: [Mark]? = []
 

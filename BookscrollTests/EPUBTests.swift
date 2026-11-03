@@ -245,8 +245,15 @@ final class EPUBTests: XCTestCase {
             XCTAssertEqual(store.indexContaining(offset: segment.charEnd - 1, book: feedBook, style: .passage), segment.index)
         }
 
-        // A second import gets its own keys and does not collide.
-        let secondID = try BookImporter.importBook(at: url, into: container)
+        // The same book again is rejected as a duplicate.
+        XCTAssertThrowsError(try BookImporter.importBook(at: url, into: container)) { error in
+            XCTAssertEqual(error as? BookImportError, .duplicate("The Harbour Tales"))
+        }
+
+        // A different book gets its own keys and does not collide.
+        var other = parsed
+        other.title = "Another Book"
+        let secondID = try BookWriter.write(parsed: other, segmented: segmented, into: ModelContext(container))
         XCTAssertNotEqual(secondID, bookID)
         XCTAssertEqual(store.allBooks().count, 2)
 

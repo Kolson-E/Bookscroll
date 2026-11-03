@@ -38,9 +38,14 @@ struct FeedView: View {
                     ContentUnavailableView {
                         Label("No books yet", systemImage: "books.vertical")
                     } description: {
-                        Text("Import DRM-free EPUB or PDF files in the Library tab.")
+                        Text("Import DRM-free EPUB or PDF files to fill your feed.")
                     } actions: {
-                        Button("Open Library") { app.selectedTab = .library }
+                        Button { app.presentImporter() } label: {
+                            Text("Import Books").foregroundStyle(Theme.background)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityHint("Opens Files to pick EPUB or PDF files")
+                        .accessibilityIdentifier("feed.empty.import")
                     }
                 } else {
                     timeline

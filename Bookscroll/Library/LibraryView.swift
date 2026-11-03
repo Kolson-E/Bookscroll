@@ -1,10 +1,8 @@
 import SwiftData
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct LibraryView: View {
     @Environment(AppModel.self) private var app
-    @State private var showImporter = false
 
     var body: some View {
         NavigationStack {
@@ -15,21 +13,13 @@ struct LibraryView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
-                            showImporter = true
+                            app.presentImporter()
                         } label: {
                             Label("Import", systemImage: "plus")
                         }
                         .accessibilityLabel("Import books")
                         .accessibilityHint("Opens Files to pick EPUB or PDF files")
-                    }
-                }
-                .fileImporter(
-                    isPresented: $showImporter,
-                    allowedContentTypes: [.epub, .pdf],
-                    allowsMultipleSelection: true
-                ) { result in
-                    if case let .success(urls) = result {
-                        app.importer.enqueue(urls)
+                        .accessibilityIdentifier("library.import")
                     }
                 }
         }
@@ -38,7 +28,11 @@ struct LibraryView: View {
 
 private struct BookList: View {
     @Environment(AppModel.self) private var app
-    @Query(sort: \Book.addedAt, order: .reverse) private var books: [Book]
+    @Query(
+        filter: #Predicate<Book> { $0.deletionPending == false },
+        sort: \Book.addedAt,
+        order: .reverse
+    ) private var books: [Book]
 
     var body: some View {
         List {
@@ -69,7 +63,14 @@ private struct BookList: View {
                 ContentUnavailableView {
                     Label("Your library is empty", systemImage: "books.vertical")
                 } description: {
-                    Text("Tap + to import DRM-free EPUB or PDF files from Files, iCloud Drive or any file provider. Apple Books purchases are DRM-protected and cannot be imported.")
+                    Text("Import DRM-free EPUB or PDF files from Files, iCloud Drive or any file provider. You can also share a file to Bookscroll from another app. Apple Books purchases are DRM-protected and cannot be imported.")
+                } actions: {
+                    Button { app.presentImporter() } label: {
+                        Text("Import Books").foregroundStyle(Theme.background)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityHint("Opens Files to pick EPUB or PDF files")
+                    .accessibilityIdentifier("library.empty.import")
                 }
             }
         }

@@ -58,8 +58,11 @@ enum BookImporter {
     }
 }
 
+/// Stores a parsed book. All rows are written in one save, so an import is either complete
+/// or absent: a crash or a failed save never leaves a partial book behind.
 enum BookWriter {
-    static let saveInterval = 4000
+    /// How often progress is reported while segments are inserted.
+    static let progressInterval = 1000
 
     static func write(
         parsed: ParsedBook,
@@ -67,9 +70,8 @@ enum BookWriter {
         into context: ModelContext,
         progress: (Double) -> Void = { _ in }
     ) throws -> UUID {
-        var lastBook = FetchDescriptor<Book>(sortBy: [SortDescriptor(\.ordinal, order: .reverse)])
-        lastBook.fetchLimit = 1
-        let ordinal = ((try context.fetch(lastBook)).first?.ordinal ?? 0) + 1
+        try rejectDuplicate(parsed: parsed, segmented: segmented, in: context)
+        let ordinal = try nextOrdinal(in: context)
 
         let book = Book(
             ordinal: ordinal,
@@ -83,28 +85,51 @@ enum BookWriter {
             importNote: parsed.note
         )
         let bookID = book.id
-        context.insert(book)
 
         do {
+            context.insert(book)
             let drafts = segmented.paragraphs + segmented.passages
             for (n, draft) in drafts.enumerated() {
                 let segment = Segment(bookID: bookID, ordinal: ordinal, draft: draft)
                 context.insert(segment)
                 segment.book = book
-                if (n + 1) % saveInterval == 0 {
-                    try context.save()
-                    progress(Double(n + 1) / Double(drafts.count))
+                if (n + 1) % progressInterval == 0 {
+                    progress(0.8 * Double(n + 1) / Double(drafts.count))
                 }
             }
+            progress(0.8)
             try context.save()
             progress(1)
         } catch {
             context.rollback()
-            try? context.delete(model: Segment.self, where: #Predicate { $0.bookID == bookID })
-            try? context.delete(model: Book.self, where: #Predicate { $0.id == bookID })
-            try? context.save()
             throw BookImportError.unreadable("The book could not be saved (\(error.localizedDescription)).")
         }
         return bookID
+    }
+
+    /// The same title, author and text length means the same book.
+    static func rejectDuplicate(parsed: ParsedBook, segmented: SegmentedBook, in context: ModelContext) throws {
+        let title = parsed.title
+        let author = parsed.author
+        let total = segmented.totalCharacters
+        var descriptor = FetchDescriptor<Book>(predicate: #Predicate {
+            $0.title == title && $0.author == author && $0.totalCharacters == total && $0.deletionPending == false
+        })
+        descriptor.fetchLimit = 1
+        if try context.fetchCount(descriptor) > 0 {
+            throw BookImportError.duplicate(title)
+        }
+    }
+
+    /// One more than the highest ordinal used by any book or segment. Segment keys carry the
+    /// ordinal in their top bits, so leftover segments can never collide with a new book.
+    static func nextOrdinal(in context: ModelContext) throws -> Int {
+        var lastBook = FetchDescriptor<Book>(sortBy: [SortDescriptor(\.ordinal, order: .reverse)])
+        lastBook.fetchLimit = 1
+        let bookOrdinal = try context.fetch(lastBook).first?.ordinal ?? 0
+        var lastSegment = FetchDescriptor<Segment>(sortBy: [SortDescriptor(\.indexKey, order: .reverse)])
+        lastSegment.fetchLimit = 1
+        let segmentOrdinal = try context.fetch(lastSegment).first.map { Int($0.indexKey >> 33) } ?? 0
+        return max(bookOrdinal, segmentOrdinal) + 1
     }
 }

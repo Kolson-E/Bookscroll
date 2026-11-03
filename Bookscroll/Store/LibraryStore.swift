@@ -21,8 +21,12 @@ final class LibraryStore: SegmentSource {
 
     // MARK: Books
 
+    /// Books in the library, newest first. Books being deleted are left out.
     func allBooks() -> [Book] {
-        let descriptor = FetchDescriptor<Book>(sortBy: [SortDescriptor(\.addedAt, order: .reverse)])
+        let descriptor = FetchDescriptor<Book>(
+            predicate: #Predicate { $0.deletionPending == false },
+            sortBy: [SortDescriptor(\.addedAt, order: .reverse)]
+        )
         let books = (try? context.fetch(descriptor)) ?? []
         for book in books { bookCache[book.id] = book }
         return books
@@ -53,11 +57,18 @@ final class LibraryStore: SegmentSource {
         }
     }
 
-    /// Deletes a book with all its segments and marks.
+    /// Deletes a book with all its segments and marks, on this context.
     func deleteBook(id: UUID) throws {
         save()
         try BookDeleter.delete(bookID: id, in: context)
         bookCache[id] = nil
+    }
+
+    /// Hides a book at once. `BookDeleter` then removes its rows.
+    func markForDeletion(id: UUID) {
+        guard let book = book(id: id) else { return }
+        book.deletionPending = true
+        save()
     }
 
     /// Drops the cached object for a book deleted through another context.
@@ -143,30 +154,51 @@ final class LibraryStore: SegmentSource {
 }
 
 /// Deletes a book, its marks and its segments. Segments go in bounded chunks, so a large
-/// book never loads all its segments at once.
+/// book never loads all its segments at once. The book row goes last: if the app stops
+/// half way, the book (still marked `deletionPending`) is found and finished at next launch.
 enum BookDeleter {
-    static let chunkSize = 2000
+    static let defaultChunkSize = 2000
 
-    static func delete(bookID: UUID, in context: ModelContext) throws {
+    static func delete(bookID: UUID, in context: ModelContext, chunkSize: Int = defaultChunkSize) throws {
+        var bookDescriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.id == bookID })
+        bookDescriptor.fetchLimit = 1
+        let book = try context.fetch(bookDescriptor).first
+        if let book, !book.deletionPending {
+            book.deletionPending = true
+            try context.save()
+        }
+
         let marks = try context.fetch(FetchDescriptor<Mark>(predicate: #Predicate { $0.bookID == bookID }))
         for mark in marks { context.delete(mark) }
         try context.save()
 
         while true {
-            var descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.bookID == bookID })
-            descriptor.fetchLimit = chunkSize
+            var descriptor: FetchDescriptor<Segment>
+            if let ordinal = book?.ordinal {
+                // Both styles of a book share the ordinal prefix, so one indexed key range covers them.
+                let lower = SegmentKey.lowerBound(ordinal: ordinal, style: .paragraph)
+                let upper = SegmentKey.lowerBound(ordinal: ordinal + 1, style: .paragraph)
+                descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.indexKey >= lower && $0.indexKey < upper })
+            } else {
+                descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.bookID == bookID })
+            }
+            descriptor.fetchLimit = max(1, chunkSize)
             let chunk = try context.fetch(descriptor)
             if chunk.isEmpty { break }
             for segment in chunk { context.delete(segment) }
             try context.save()
         }
 
-        var bookDescriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.id == bookID })
-        bookDescriptor.fetchLimit = 1
-        if let book = try context.fetch(bookDescriptor).first {
+        if let book {
             context.delete(book)
+            try context.save()
         }
-        try context.save()
+    }
+
+    /// Ids of books whose deletion was started but not finished.
+    static func pendingBookIDs(in context: ModelContext) -> [UUID] {
+        let descriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.deletionPending == true })
+        return ((try? context.fetch(descriptor)) ?? []).map(\.id)
     }
 }
 

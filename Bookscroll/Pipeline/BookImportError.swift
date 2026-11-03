@@ -7,6 +7,7 @@ enum BookImportError: LocalizedError, Equatable {
     case passwordProtected
     case scannedPDF
     case noText
+    case duplicate(String)
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +23,8 @@ enum BookImportError: LocalizedError, Equatable {
             return "This PDF has no text layer. It looks like a scan, so there is no text to show."
         case .noText:
             return "No readable text was found in this book."
+        case let .duplicate(title):
+            return "\u{201C}\(title)\u{201D} is already in your library."
         }
     }
 }

@@ -85,6 +85,8 @@ final class AppModel {
     }
 
     var selectedTab: Tab = .feed
+    /// Shows the Files picker. The Library toolbar and both empty states set it.
+    var isImporterPresented = false
     var readerRequest: ReaderRequest?
     var shareRequest: ShareRequest?
     private(set) var libraryVersion = 0
@@ -95,6 +97,7 @@ final class AppModel {
     let marks: MarkStore
     let feed: FeedViewModel
     let importer: ImportManager
+    @ObservationIgnored private(set) var resumedDeletions: [Task<Void, Never>] = []
 
     init(container: ModelContainer) {
         self.container = container
@@ -106,6 +109,41 @@ final class AppModel {
         importer.onImported = { [weak self] in
             self?.libraryDidChange()
         }
+        // Finish deletions that were cut short when the app last stopped.
+        resumedDeletions = BookDeleter.pendingBookIDs(in: container.mainContext).map { runDeletion(of: $0) }
+    }
+
+    // MARK: Import
+
+    func presentImporter() {
+        readerRequest = nil
+        shareRequest = nil
+        isImporterPresented = true
+    }
+
+    /// Result of the Files picker.
+    func handleImporterResult(_ result: Result<[URL], Error>) {
+        switch result {
+        case let .success(urls):
+            importFiles(urls)
+        case let .failure(error):
+            errorMessage = "Files could not be opened: \(error.localizedDescription)"
+        }
+    }
+
+    /// A file sent to Bookscroll from Files or another app ("Open in", share sheet).
+    func handleOpenURL(_ url: URL) {
+        guard url.isFileURL else { return }
+        readerRequest = nil
+        shareRequest = nil
+        importFiles([url])
+    }
+
+    /// Queues files and shows the Library, where their progress and errors appear.
+    func importFiles(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        selectedTab = .library
+        importer.enqueue(urls)
     }
 
     func libraryDidChange() {
@@ -114,13 +152,21 @@ final class AppModel {
         marks.reload()
     }
 
-    /// Deletes a book off the main thread. Pending changes are saved first and the book leaves
-    /// the feed first, so the main context holds no unsaved edits to the deleted rows.
-    func deleteBook(id: UUID) {
-        store.save()
+    /// Hides the book at once (Library, Feed, Saved) and deletes its rows off the main thread.
+    /// Returns the background deletion, so callers (tests) can wait for it.
+    @discardableResult
+    func deleteBook(id: UUID) -> Task<Void, Never>? {
+        guard store.book(id: id)?.deletionPending == false else { return nil }
+        store.markForDeletion(id: id)
         feed.removeBook(id)
+        marks.reload()
+        return runDeletion(of: id)
+    }
+
+    @discardableResult
+    private func runDeletion(of id: UUID) -> Task<Void, Never> {
         let container = self.container
-        Task {
+        return Task {
             let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
                 let context = ModelContext(container)
                 context.autosaveEnabled = false

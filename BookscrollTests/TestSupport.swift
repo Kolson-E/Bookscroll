@@ -79,6 +79,31 @@ enum Fixtures {
         return try ModelContainer(for: Book.self, Segment.self, Mark.self, configurations: configuration)
     }
 
+    /// Parses nothing: stores generated paragraphs as a book and returns its id.
+    @discardableResult
+    static func writeBook(
+        title: String,
+        author: String = "Tester",
+        paragraphs count: Int,
+        chapterEvery: Int = 10,
+        seed: Int = 1,
+        into context: ModelContext
+    ) throws -> UUID {
+        let parsed = ParsedBook(
+            title: title,
+            author: author,
+            format: .epub,
+            paragraphs: paragraphs(count: count, chapterEvery: chapterEvery, seed: seed),
+            passagesOnly: false,
+            note: nil
+        )
+        return try BookWriter.write(parsed: parsed, segmented: Segmenter.segment(parsed.paragraphs), into: context)
+    }
+
+    static func segmentCount(bookID: UUID, in container: ModelContainer) throws -> Int {
+        try ModelContext(container).fetchCount(FetchDescriptor<Segment>(predicate: #Predicate { $0.bookID == bookID }))
+    }
+
     static func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("BookscrollTests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

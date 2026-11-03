@@ -27,15 +27,17 @@ enum PDFBookParser {
         var letterCount = 0
         for index in 0..<document.pageCount {
             progress(Double(index) / Double(document.pageCount) * 0.9)
-            guard let page = document.page(at: index) else {
-                pages.append(PDFPageLines(lines: [], height: 0))
-                continue
+            // PDFKit returns autoreleased objects; draining per page keeps memory flat on long PDFs.
+            let pageLines: PDFPageLines = autoreleasepool {
+                guard let page = document.page(at: index) else {
+                    return PDFPageLines(lines: [], height: 0)
+                }
+                return PDFPageLines(lines: extractLines(from: page), height: page.bounds(for: .mediaBox).height)
             }
-            let lines = extractLines(from: page)
-            letterCount += lines.reduce(0) { sum, line in
+            letterCount += pageLines.lines.reduce(0) { sum, line in
                 sum + line.text.unicodeScalars.filter { $0.properties.isAlphabetic }.count
             }
-            pages.append(PDFPageLines(lines: lines, height: page.bounds(for: .mediaBox).height))
+            pages.append(pageLines)
         }
         if letterCount < max(20, document.pageCount * 5) {
             throw BookImportError.scannedPDF

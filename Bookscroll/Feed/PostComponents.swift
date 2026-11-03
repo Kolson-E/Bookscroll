@@ -115,17 +115,24 @@ struct PostRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 textGroup
-                if isTruncated {
-                    Button("Show more") { expanded = true }
-                        .font(.subheadline.weight(.semibold))
-                        .buttonStyle(.borderless)
-                        .accessibilityHint("Shows the whole post")
-                }
-                if post.showsThreadButton {
-                    Button("Show thread", action: onOpen)
-                        .font(.subheadline.weight(.semibold))
-                        .buttonStyle(.borderless)
-                        .accessibilityHint("Opens the book around this post")
+                if isTruncated || post.showsThreadButton {
+                    HStack(spacing: 20) {
+                        if isTruncated {
+                            Button("Show more") { expanded = true }
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                                .accessibilityHint("Shows the whole post")
+                                .accessibilityIdentifier("post.showMore")
+                        }
+                        if post.showsThreadButton {
+                            Button("Show thread", action: onOpen)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                                .accessibilityHint("Opens the book around this post")
+                        }
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.borderless)
                 }
                 actionRow
             }
@@ -162,6 +169,7 @@ struct PostRow: View {
         .accessibilityHint("Double-tap to read in context")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, onOpen)
+        .accessibilityIdentifier("post")
     }
 
     private var postText: some View {
@@ -202,7 +210,7 @@ struct PostRow: View {
             Button(action: onLike) {
                 Image(systemName: isLiked ? "heart.fill" : "heart")
                     .foregroundStyle(isLiked ? Color.pink : Color.secondary)
-                    .frame(minWidth: 44, minHeight: 36, alignment: .leading)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(isLiked ? "Unlike" : "Like")
@@ -211,7 +219,7 @@ struct PostRow: View {
             Button(action: onBookmark) {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                     .foregroundStyle(isBookmarked ? Color.accentColor : Color.secondary)
-                    .frame(minWidth: 44, minHeight: 36)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark")
@@ -220,7 +228,7 @@ struct PostRow: View {
             Button(action: onOpen) {
                 Image(systemName: "book")
                     .foregroundStyle(Color.secondary)
-                    .frame(minWidth: 44, minHeight: 36)
+                    .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Read in context")
@@ -235,7 +243,7 @@ struct PostRow: View {
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .foregroundStyle(Color.secondary)
-                    .frame(minWidth: 44, minHeight: 36, alignment: .trailing)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Share")

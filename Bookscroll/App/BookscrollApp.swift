@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct BookscrollApp: App {
@@ -7,22 +8,39 @@ struct BookscrollApp: App {
     @State private var app: AppModel
 
     init() {
+        let container: ModelContainer
+        #if DEBUG
+        if let testContainer = UITestSupport.makeContainerIfRequested() {
+            container = testContainer
+        } else {
+            container = Self.makeContainer()
+        }
+        #else
+        container = Self.makeContainer()
+        #endif
+        FileStaging.removeLeftovers()
+        self.container = container
+        _app = State(initialValue: AppModel(container: container))
+    }
+
+    private static func makeContainer() -> ModelContainer {
         // SwiftData stores the library in Application Support, which does not exist on first launch.
         try? FileManager.default.createDirectory(at: URL.applicationSupportDirectory, withIntermediateDirectories: true)
-        let container: ModelContainer
         do {
-            container = try ModelContainer(for: Book.self, Segment.self, Mark.self)
+            return try ModelContainer(for: Book.self, Segment.self, Mark.self)
         } catch {
             fatalError("The Bookscroll library could not be opened: \(error)")
         }
-        self.container = container
-        _app = State(initialValue: AppModel(container: container))
     }
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(app)
+                .onOpenURL { url in app.handleOpenURL(url) }
+                #if DEBUG
+                .preferredColorScheme(UITestSupport.colorScheme)
+                #endif
         }
         .modelContainer(container)
     }
@@ -44,6 +62,13 @@ struct RootView: View {
             SavedView()
                 .tabItem { Label("Saved", systemImage: "bookmark") }
                 .tag(AppModel.Tab.saved)
+        }
+        .fileImporter(
+            isPresented: $app.isImporterPresented,
+            allowedContentTypes: BookFormat.importableTypes,
+            allowsMultipleSelection: true
+        ) { result in
+            app.handleImporterResult(result)
         }
         .sheet(item: $app.readerRequest) { request in
             ContextReaderView(model: request.model)

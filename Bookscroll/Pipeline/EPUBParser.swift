@@ -101,13 +101,15 @@ enum EPUBBookParser {
         let count = package.spinePaths.count
         for (position, path) in package.spinePaths.enumerated() {
             progress(Double(position) / Double(count))
-            guard let html = try archive.text(at: path) else { continue }
-            let blocks = HTMLTextExtractor.blocks(from: html)
-            paragraphs += paragraphsForDocument(
-                blocks: blocks,
-                navigationLabel: navigationLabels[path],
-                carriedLabel: &label
-            )
+            try autoreleasepool {
+                guard let html = try archive.text(at: path) else { return }
+                let blocks = HTMLTextExtractor.blocks(from: html)
+                paragraphs += paragraphsForDocument(
+                    blocks: blocks,
+                    navigationLabel: navigationLabels[path],
+                    carriedLabel: &label
+                )
+            }
         }
         progress(1)
 

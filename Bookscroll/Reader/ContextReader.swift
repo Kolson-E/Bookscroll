@@ -125,7 +125,9 @@ struct ContextReaderView: View {
                 Button {
                     app.continueInFeed(bookID: model.book.id, offset: model.continueOffset)
                 } label: {
+                    // White on the dark accent in light mode, black on the light accent in dark mode.
                     Label("Continue in feed from here", systemImage: "arrow.down.forward.circle")
+                        .foregroundStyle(Theme.background)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

@@ -1,4 +1,5 @@
 import Foundation
+import UniformTypeIdentifiers
 
 /// How the feed cuts a book into posts.
 enum PostStyle: String, CaseIterable, Identifiable, Sendable {
@@ -29,6 +30,9 @@ enum BookFormat: String, Sendable {
     case pdf
 
     var label: String { rawValue.uppercased() }
+
+    /// File types offered in the Files picker and declared as document types in Info.plist.
+    static let importableTypes: [UTType] = [.epub, .pdf]
 }
 
 enum MarkKind: String, CaseIterable, Sendable {
