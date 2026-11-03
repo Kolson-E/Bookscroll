@@ -9,6 +9,8 @@ enum PaletteHex {
     /// X's light grey.
     static let lightSecondary: UInt32 = 0x536471
     static let lightHighlight: UInt32 = 0xFDE8D9
+    /// Background of the reader's own highlights (a marker pen).
+    static let lightMarker: UInt32 = 0xFFF0A8
 
     static let darkBackground: UInt32 = 0x000000
     static let darkSecondaryBackground: UInt32 = 0x16181C
@@ -16,12 +18,14 @@ enum PaletteHex {
     /// A little lighter than X's dark grey (0x71767B, 4.6:1), for margin.
     static let darkSecondary: UInt32 = 0x7E858B
     static let darkHighlight: UInt32 = 0x452912
+    static let darkMarker: UInt32 = 0x4A3D00
 
     static let sepiaBackground: UInt32 = 0xF8F0E0
     static let sepiaSecondaryBackground: UInt32 = 0xF1E6CF
     static let sepiaPrimary: UInt32 = 0x3D2E1F
     static let sepiaSecondary: UInt32 = 0x6B5A45
     static let sepiaHighlight: UInt32 = 0xEEDCB8
+    static let sepiaMarker: UInt32 = 0xF0D98A
 
     /// WCAG 2 contrast ratio of two sRGB colours.
     static func contrast(_ a: UInt32, _ b: UInt32) -> Double {
@@ -58,6 +62,7 @@ enum Theme {
     private static let systemSeparator = adaptive(light: 0xEFF3F4, dark: 0x2F3336)
     private static let systemThreadLine = adaptive(light: 0xCFD9DE, dark: 0x333639)
     private static let systemHighlight = adaptive(light: PaletteHex.lightHighlight, dark: PaletteHex.darkHighlight)
+    private static let systemMarker = adaptive(light: PaletteHex.lightMarker, dark: PaletteHex.darkMarker)
 
     private static let sepiaBackground = Color(uiColor: UIColor(hex: PaletteHex.sepiaBackground))
     private static let sepiaSecondaryBackground = Color(uiColor: UIColor(hex: PaletteHex.sepiaSecondaryBackground))
@@ -66,6 +71,7 @@ enum Theme {
     private static let sepiaSeparator = Color(uiColor: UIColor(hex: 0xE3D5BC))
     private static let sepiaThreadLine = Color(uiColor: UIColor(hex: 0xD9C9AC))
     private static let sepiaHighlight = Color(uiColor: UIColor(hex: PaletteHex.sepiaHighlight))
+    private static let sepiaMarker = Color(uiColor: UIColor(hex: PaletteHex.sepiaMarker))
 
     /// White, pure black, or sepia paper.
     static var background: Color { isSepia ? sepiaBackground : systemBackground }
@@ -77,6 +83,8 @@ enum Theme {
     static var threadLine: Color { isSepia ? sepiaThreadLine : systemThreadLine }
     /// Background of the tapped post in the reader. Opaque, so text on it keeps full contrast.
     static var highlight: Color { isSepia ? sepiaHighlight : systemHighlight }
+    /// Background of the reader's own highlights. Opaque; primary text keeps 8.8:1 or more.
+    static var marker: Color { isSepia ? sepiaMarker : systemMarker }
     static var accent: Color { AppSettings.shared.accent.color }
     /// X's like colour.
     static let like = adaptive(light: 0xC2135F, dark: 0xF91880)
@@ -188,6 +196,8 @@ struct PostActions {
     var peek: () -> PeekContent? = { nil }
     var lookUp: () -> Void = {}
     var continueHere: () -> Void = {}
+    /// Highlights the whole post, or removes the highlights in it.
+    var highlight: () -> Void = {}
 }
 
 /// Single tap opens the reader. With double-tap to like on, a double tap likes the post and
@@ -216,6 +226,8 @@ struct PostRow: View {
     let post: FeedPost
     let isLiked: Bool
     let isBookmarked: Bool
+    /// The reader's highlights inside this post, as UTF-16 ranges of the post text.
+    var highlights: [NSRange] = []
     let actions: PostActions
 
     @State private var expanded = false
@@ -367,6 +379,7 @@ struct PostRow: View {
         .accessibilityAction(.default, actions.open)
         .accessibilityAction(named: isLiked ? "Unlike" : "Like", actions.like)
         .accessibilityAction(named: isBookmarked ? "Remove bookmark" : "Bookmark", actions.bookmark)
+        .accessibilityAction(named: highlights.isEmpty ? "Highlight" : "Remove highlight", actions.highlight)
         .accessibilityAction(named: "Copy with citation") { actions.copy(true) }
         .accessibilityIdentifier("post")
     }
@@ -379,6 +392,9 @@ struct PostRow: View {
         }
         Button(action: actions.bookmark) {
             Label(isBookmarked ? "Remove bookmark" : "Bookmark", systemImage: isBookmarked ? "bookmark.slash" : "bookmark")
+        }
+        Button(action: actions.highlight) {
+            Label(highlights.isEmpty ? "Highlight" : "Remove highlight", systemImage: "highlighter")
         }
         Button { actions.copy(true) } label: {
             Label("Copy with citation", systemImage: "quote.bubble")
@@ -460,8 +476,18 @@ struct PostRow: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    /// The post text with the reader's highlights marked.
+    private var markedText: AttributedString {
+        var text = AttributedString(post.segment.text)
+        for range in highlights {
+            guard let bounds = Range(range, in: text) else { continue }
+            text[bounds][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Theme.marker
+        }
+        return text
+    }
+
     private var postText: some View {
-        Text(post.segment.text)
+        Text(markedText)
             .font(textFont)
             .lineSpacing(textLineSpacing)
             .foregroundStyle(Theme.primaryText)
@@ -535,7 +561,7 @@ struct PostRow: View {
                     Label("Share as text", systemImage: "text.quote")
                 }
                 Button(action: actions.shareImage) {
-                    Label("Share as image card", systemImage: "photo")
+                    Label("Share as image", systemImage: "photo")
                 }
             } label: {
                 Image(systemName: "square.and.arrow.up")
@@ -579,6 +605,7 @@ struct PostRow: View {
         if post.partCount > 1 { parts.append("Part \(post.part) of \(post.partCount).") }
         if isLiked { parts.append("Liked.") }
         if isBookmarked { parts.append("Bookmarked.") }
+        if !highlights.isEmpty { parts.append("Highlighted.") }
         parts.append(post.segment.text)
         return parts.joined(separator: " ")
     }

@@ -38,6 +38,8 @@ enum BookFormat: String, Sendable {
 enum MarkKind: String, CaseIterable, Sendable {
     case like
     case bookmark
+    /// A range the reader marked, from a selection in the reader or a whole post.
+    case highlight
 }
 
 /// Composite integer keys for segments. Both keys are unique attributes, so SQLite keeps an

@@ -16,7 +16,7 @@ enum UITestSupport {
     static func makeContainerIfRequested() -> ModelContainer? {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains(inMemoryArgument) else { return nil }
-        for key in ["postStyle", "feedMode", "singleBookID", FeedViewModel.mixTopBookKey] + AppSettings.Key.all {
+        for key in ["postStyle", "feedMode", "singleBookID", "savedFilter", "shareCardStyle", "shareCardTheme", FeedViewModel.mixTopBookKey] + AppSettings.Key.all {
             UserDefaults.standard.removeObject(forKey: key)
         }
         let container: ModelContainer

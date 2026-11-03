@@ -71,23 +71,28 @@ Font obfuscation in `encryption.xml` is not DRM and is accepted.
 | Tab | What it does |
 |---|---|
 | Feed | The timeline. Toolbar left: **Mix all books** or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
-| Library | Import, see title, author, format, progress and Mix status, swipe to delete. Touch and hold a book for **Jump to…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). |
-| Saved | Liked and bookmarked posts, newest first, filter All / Liked / Bookmarked. |
+| Library | Import, see title, author, format, progress and Mix status, swipe to delete. Touch and hold a book for **Jump to…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
+| Saved | **Bookmarks** (your saved places, as a feed), **Likes**, and **Highlights**, newest first. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
 | Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. |
 
 On a post:
 
 | Action | Result |
 |---|---|
-| Tap | **Read in context**: the book around the post, the post highlighted. Touch and hold a word there for **Look Up** (system dictionary), Copy or Translate. |
+| Tap | **Read in context**: the book around the post, the post highlighted. Select text there for **Highlight** (or **Remove highlight**), **Look Up** (system dictionary), Copy or Translate. |
 | Double tap | Like, with a heart (it never unlikes). Can be turned off in Settings. |
-| Touch and hold | **Context peek**: two paragraphs before and after the post. Menu: Like, Bookmark, Copy with citation, Look up a word, Read in context, Continue from here. |
+| Touch and hold | **Context peek**: two paragraphs before and after the post. Menu: Like, Bookmark, Highlight, Copy with citation, Look up a word, Read in context, Continue from here. |
 | **⋯** | Show more or less from this book, snooze it for a day or a week, hide it from Mix. |
-| Share | Copy text, copy with citation ("— Title, Author · Chapter 3 · 42%"), share as text or as an image card. |
+| Share | Copy text, copy with citation ("— Title, Author · Chapter 3 · 42%"), share as text, or **Share as image**: a card in the **Post**, **Quote** or **Minimal** style, in Light, Dark or Sepia colours, with a preview. The last choice is remembered. |
 
 **Jump to** (feed toolbar in One book mode, the reader, or a book in the Library) goes to the
 start, a percent, or a chapter. Chapters you have reached are ticked, and the chapter you are
 in is marked.
+
+**Highlights** are marks like bookmarks: a book and a character range. Highlights that overlap
+or touch merge into one. They show on a marker colour in the feed and the reader (text on it
+keeps at least 7:1 contrast). VoiceOver users highlight a whole paragraph with the
+"Highlight paragraph" action in the reader, or a whole post with the "Highlight" action.
 
 ## Appearance
 
@@ -248,7 +253,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 123 tests):
+`BookscrollTests` (XCTest, 137 tests):
 
 | Area | File |
 |---|---|
@@ -265,8 +270,9 @@ property is named `passagesOnly` because that is what it means.
 | FTS5 search index: query escaping, add/search/remove, backup exclusion, backfill | `SearchIndexTests.swift` |
 | Settings defaults and storage, palette and accent contrast (WCAG), citation | `AppearanceTests.swift` |
 | Word-limit splitting, Auto limit, resume inside a split paragraph, chapter starts, Mix filters and weights, Jump to, peek | `SplitAndFilterTests.swift` |
+| Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
 
-`BookscrollUITests` (XCUITest, 14 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 15 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, like and bookmark, Saved tab, read in context, Continue in feed,
@@ -274,6 +280,8 @@ library:
 - Settings: theme, accent and focus mode change the feed.
 - A long paragraph splits into numbered parts; double tap likes a post.
 - Jump to a chapter; long press shows the peek and "Look up a word".
+- Highlight a post, find it in Saved › Highlights and open it in the reader; search the
+  Library text and open a result; the share card sheet in each style.
 - `performAccessibilityAudit()` on the feed, library, Saved, Settings and reader screens in the
   Light, Night and Sepia themes, and in Compact density with focus mode and the serif font.
 - The largest accessibility text size.

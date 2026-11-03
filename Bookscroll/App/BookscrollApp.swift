@@ -91,6 +91,9 @@ struct RootView: View {
         .sheet(item: $app.lookUpPost) { post in
             LookUpSheet(post: post)
         }
+        .sheet(item: $app.shareCardRequest) { request in
+            ShareCardSheet(content: request.content)
+        }
         .sheet(item: $app.shareRequest) { request in
             ActivityView(items: request.items)
                 .presentationDetents([.medium, .large])

@@ -4,26 +4,36 @@ import SwiftUI
 @MainActor
 struct LibraryView: View {
     @Environment(AppModel.self) private var app
+    @State private var query = ""
+
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         NavigationStack {
-            // A new identity re-runs the @Query after a background import has saved.
-            BookList()
-                .id(app.libraryVersion)
-                .navigationTitle("Library")
-                .themedNavigationBar()
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            app.presentImporter()
-                        } label: {
-                            Label("Import", systemImage: "plus")
-                        }
-                        .accessibilityLabel("Import books")
-                        .accessibilityHint("Opens Files to pick EPUB or PDF files")
-                        .accessibilityIdentifier("library.import")
-                    }
+            Group {
+                if trimmedQuery.isEmpty {
+                    // A new identity re-runs the @Query after a background import has saved.
+                    BookList()
+                        .id(app.libraryVersion)
+                } else {
+                    LibrarySearchResults(query: trimmedQuery)
                 }
+            }
+            .searchable(text: $query, prompt: "Titles, authors and text")
+            .navigationTitle("Library")
+            .themedNavigationBar()
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        app.presentImporter()
+                    } label: {
+                        Label("Import", systemImage: "plus")
+                    }
+                    .accessibilityLabel("Import books")
+                    .accessibilityHint("Opens Files to pick EPUB or PDF files")
+                    .accessibilityIdentifier("library.import")
+                }
+            }
         }
     }
 }
@@ -266,5 +276,143 @@ private struct ImportJobRow: View {
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Library search: books whose title or author matches, then paragraphs that contain the
+/// words (full-text index). A paragraph opens the reader there.
+@MainActor
+private struct LibrarySearchResults: View {
+    @Environment(AppModel.self) private var app
+    let query: String
+    @State private var books: [FeedBook] = []
+    @State private var paragraphs: [TextSearchResult] = []
+    @State private var searched = false
+
+    var body: some View {
+        List {
+            if !books.isEmpty {
+                Section {
+                    ForEach(books) { book in
+                        Button {
+                            app.presentJump(bookID: book.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(title: book.title, author: book.author, size: 32)
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(book.title).font(.headline).foregroundStyle(Theme.primaryText)
+                                    Text(book.author).font(.subheadline).foregroundStyle(Theme.secondaryText)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(book.title), by \(book.author)")
+                        .accessibilityHint("Opens Jump to for this book")
+                        .accessibilityAddTraits(.isButton)
+                        .listRowBackground(Theme.background)
+                    }
+                } header: {
+                    Text("Books").foregroundStyle(Theme.secondaryText)
+                }
+            }
+            if !paragraphs.isEmpty {
+                Section {
+                    ForEach(paragraphs) { result in
+                        Button {
+                            app.openReader(bookID: result.bookID, charStart: result.charStart, charEnd: result.charEnd)
+                        } label: {
+                            SearchResultRow(result: result)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(Theme.background)
+                    }
+                } header: {
+                    Text("In the text").foregroundStyle(Theme.secondaryText)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .overlay {
+            if searched && books.isEmpty && paragraphs.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+        .task(id: "\(query)|\(app.libraryVersion)") {
+            // Waits for typing to pause before it searches.
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            books = app.store.feedBooks().filter {
+                $0.title.localizedStandardContains(query) || $0.author.localizedStandardContains(query)
+            }
+            paragraphs = app.searchText(query)
+            searched = true
+        }
+    }
+}
+
+@MainActor
+private struct SearchResultRow: View {
+    let result: TextSearchResult
+
+    private var source: String {
+        var parts = [result.bookTitle]
+        if !result.chapter.isEmpty { parts.append(result.chapter) }
+        parts.append("\(result.percent)%")
+        return parts.joined(separator: " \u{00B7} ")
+    }
+
+    /// The snippet with the matched words in bold.
+    private var snippet: AttributedString {
+        var text = AttributedString()
+        var bold = false
+        var run = ""
+        func flush() {
+            guard !run.isEmpty else { return }
+            var piece = AttributedString(run)
+            if bold { piece.inlinePresentationIntent = .stronglyEmphasized }
+            text += piece
+            run = ""
+        }
+        for character in result.snippet {
+            if character == SearchIndex.markStart {
+                flush(); bold = true
+            } else if character == SearchIndex.markEnd {
+                flush(); bold = false
+            } else {
+                run.append(character)
+            }
+        }
+        flush()
+        return text
+    }
+
+    private var plainSnippet: String {
+        result.snippet.filter { $0 != SearchIndex.markStart && $0 != SearchIndex.markEnd }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(source)
+                .font(.footnote)
+                .foregroundStyle(Theme.secondaryText)
+            Text(snippet)
+                .font(.callout)
+                .foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(plainSnippet). \(source).")
+        .accessibilityHint("Opens the book here")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityIdentifier("search.result")
     }
 }

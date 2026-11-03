@@ -93,10 +93,10 @@ final class AppFlowTests: XCTestCase {
         XCTAssertTrue(app.marks.isMarked(.bookmark, posts[1]))
         XCTAssertEqual(app.store.allMarks().count, 3, "Marks are saved")
 
-        XCTAssertEqual(app.savedPosts(filter: .all, style: .paragraph).map(\.id), [posts[2].id, posts[1].id, posts[0].id], "Newest first")
-        XCTAssertEqual(app.savedPosts(filter: .liked, style: .paragraph).map(\.id), [posts[2].id, posts[0].id])
+        XCTAssertEqual(app.savedPosts(filter: .liked, style: .paragraph).map(\.id), [posts[2].id, posts[0].id], "Newest first")
         XCTAssertEqual(app.savedPosts(filter: .bookmarked, style: .paragraph).map(\.id), [posts[1].id])
-        XCTAssertTrue(app.savedPosts(filter: .all, style: .paragraph).allSatisfy(\.showsThreadButton))
+        XCTAssertTrue(app.savedPosts(filter: .highlights, style: .paragraph).isEmpty)
+        XCTAssertTrue(app.savedPosts(filter: .liked, style: .paragraph).allSatisfy(\.showsThreadButton))
 
         // In Passages style the same marks show as the passages that overlap them.
         let passages = app.savedPosts(filter: .liked, style: .passage)
@@ -120,14 +120,14 @@ final class AppFlowTests: XCTestCase {
         let (app, ids) = try makeApp(books: [("Keep", 30), ("Drop", 50)])
         let dropPost = try XCTUnwrap(app.feed.posts.first { $0.bookID == ids[1] })
         app.marks.toggle(.like, dropPost)
-        XCTAssertEqual(app.savedPosts(filter: .all, style: .paragraph).count, 1)
+        XCTAssertEqual(app.savedPosts(filter: .liked, style: .paragraph).count, 1)
 
         let task = app.deleteBook(id: ids[1])
         XCTAssertNotNil(task)
         XCTAssertEqual(app.feed.books.map(\.id), [ids[0]], "Gone from the feed before the rows are deleted")
         XCTAssertFalse(app.feed.posts.contains { $0.bookID == ids[1] })
         XCTAssertTrue(app.store.feedBooks().allSatisfy { $0.id != ids[1] }, "Gone from the Library")
-        XCTAssertTrue(app.savedPosts(filter: .all, style: .paragraph).isEmpty, "Gone from Saved")
+        XCTAssertTrue(app.savedPosts(filter: .liked, style: .paragraph).isEmpty, "Gone from Saved")
         XCTAssertNil(app.deleteBook(id: ids[1]), "A second swipe does nothing")
 
         _ = await task?.value

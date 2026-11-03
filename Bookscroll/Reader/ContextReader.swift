@@ -97,7 +97,14 @@ struct ContextReaderView: View {
                                 ReaderParagraph(
                                     paragraph: paragraph,
                                     highlight: model.highlight,
-                                    isHighlighted: model.isHighlighted(paragraph)
+                                    isHighlighted: model.isHighlighted(paragraph),
+                                    marks: app.marks.highlightRanges(bookID: model.book.id, start: paragraph.charStart, end: paragraph.textEnd),
+                                    onHighlight: { range in
+                                        _ = app.marks.addHighlight(bookID: model.book.id, start: paragraph.charStart + range.location, end: paragraph.charStart + NSMaxRange(range))
+                                    },
+                                    onRemoveHighlight: { range in
+                                        app.marks.removeHighlights(bookID: model.book.id, start: paragraph.charStart + range.location, end: paragraph.charStart + NSMaxRange(range))
+                                    }
                                 )
                             }
                             .id(paragraph.index)
@@ -177,6 +184,12 @@ private struct ReaderParagraph: View {
     let paragraph: SegmentRecord
     let highlight: Range<Int>
     let isHighlighted: Bool
+    /// The reader's highlights in this paragraph (UTF-16 ranges of its text).
+    let marks: [NSRange]
+    let onHighlight: (NSRange) -> Void
+    let onRemoveHighlight: (NSRange) -> Void
+
+    private var wholeParagraph: NSRange { NSRange(location: 0, length: (paragraph.text as NSString).length) }
 
     /// The post covers the whole paragraph (always true in Paragraphs style).
     private var coversParagraph: Bool {
@@ -190,7 +203,11 @@ private struct ReaderParagraph: View {
             font: SelectableText.readerFont(AppSettings.shared.readerTypeface),
             color: UIColor(Theme.primaryText),
             highlight: partialHighlight,
-            highlightColor: UIColor(Theme.highlight)
+            highlightColor: UIColor(Theme.highlight),
+            marks: marks,
+            markColor: UIColor(Theme.marker),
+            onHighlight: onHighlight,
+            onRemoveHighlight: onRemoveHighlight
         )
             .id(dynamicTypeSize)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -213,7 +230,19 @@ private struct ReaderParagraph: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(isHighlighted ? "Selected post. \(paragraph.text)" : paragraph.text)
+            .accessibilityLabel(accessibilityText)
+            // VoiceOver cannot select inside the paragraph, so it highlights the whole paragraph.
+            .accessibilityAction(named: marks.isEmpty ? "Highlight paragraph" : "Remove highlight") {
+                if marks.isEmpty { onHighlight(wholeParagraph) } else { onRemoveHighlight(wholeParagraph) }
+            }
+    }
+
+    private var accessibilityText: String {
+        var parts: [String] = []
+        if isHighlighted { parts.append("Selected post.") }
+        if !marks.isEmpty { parts.append(marks.count == 1 ? "Contains a highlight." : "Contains \(marks.count) highlights.") }
+        parts.append(paragraph.text)
+        return parts.joined(separator: " ")
     }
 
     /// The highlighted part of the paragraph, relative to its text; nil when none or all of it.

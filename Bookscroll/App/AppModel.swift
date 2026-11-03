@@ -13,6 +13,11 @@ struct ShareRequest: Identifiable {
     let items: [Any]
 }
 
+struct ShareCardRequest: Identifiable {
+    let id = UUID()
+    let content: ShareCardContent
+}
+
 @MainActor
 @Observable
 final class MarkStore {
@@ -49,30 +54,115 @@ final class MarkStore {
         version += 1
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
+
+    // MARK: Highlights
+
+    /// Highlights `start..<end`. Highlights it overlaps or touches are merged into one, so a
+    /// range is never highlighted twice.
+    @discardableResult
+    func addHighlight(bookID: UUID, start: Int, end: Int) -> MarkRecord? {
+        guard start < end else { return nil }
+        let touching = index.overlapping(.highlight, bookID: bookID, start: start - 1, end: end + 1)
+        let lower = touching.map(\.charStart).reduce(start, min)
+        let upper = touching.map(\.charEnd).reduce(end, max)
+        if !touching.isEmpty {
+            let ids = touching.map(\.id)
+            store.deleteMarks(ids: ids)
+            index.remove(ids: Set(ids))
+        }
+        let mark = store.addMark(kind: .highlight, bookID: bookID, charStart: lower, charEnd: upper)
+        if let mark { index.insert(mark) }
+        version += 1
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        return mark
+    }
+
+    /// Removes every highlight that overlaps `start..<end`.
+    func removeHighlights(bookID: UUID, start: Int, end: Int) {
+        let ids = index.overlapping(.highlight, bookID: bookID, start: start, end: end).map(\.id)
+        guard !ids.isEmpty else { return }
+        store.deleteMarks(ids: ids)
+        index.remove(ids: Set(ids))
+        version += 1
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    /// Highlights inside `start..<end`, as UTF-16 ranges relative to `start`, clipped to it.
+    func highlightRanges(bookID: UUID, start: Int, end: Int) -> [NSRange] {
+        index.overlapping(.highlight, bookID: bookID, start: start, end: end)
+            .sorted { $0.charStart < $1.charStart }
+            .map { mark in
+                let lower = max(mark.charStart, start)
+                let upper = min(mark.charEnd, end)
+                return NSRange(location: lower - start, length: upper - lower)
+            }
+    }
+
+    func highlightRanges(for post: FeedPost) -> [NSRange] {
+        highlightRanges(bookID: post.bookID, start: post.segment.charStart, end: post.segment.textEnd)
+    }
+
+    /// Highlights the whole post, or removes the highlights in it.
+    func toggleHighlight(_ post: FeedPost) {
+        let end = post.segment.textEnd
+        if index.isMarked(.highlight, bookID: post.bookID, start: post.segment.charStart, end: end) {
+            removeHighlights(bookID: post.bookID, start: post.segment.charStart, end: end)
+        } else {
+            addHighlight(bookID: post.bookID, start: post.segment.charStart, end: end)
+        }
+    }
 }
 
+/// The Saved tab's lists. Bookmarks come first: they are the reader's own feed of saved places.
 enum SavedFilter: String, CaseIterable, Identifiable {
-    case all
-    case liked
     case bookmarked
+    case liked
+    case highlights
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .all: return "All"
-        case .liked: return "Liked"
-        case .bookmarked: return "Bookmarked"
+        case .bookmarked: return "Bookmarks"
+        case .liked: return "Likes"
+        case .highlights: return "Highlights"
         }
     }
 
-    func includes(_ kind: MarkKind) -> Bool {
+    var kind: MarkKind {
         switch self {
-        case .all: return true
-        case .liked: return kind == .like
-        case .bookmarked: return kind == .bookmark
+        case .bookmarked: return .bookmark
+        case .liked: return .like
+        case .highlights: return .highlight
         }
     }
+}
+
+/// One highlight for the Saved tab: the exact highlighted text and where it is.
+struct HighlightItem: Identifiable, Equatable {
+    let mark: MarkRecord
+    let bookTitle: String
+    let bookAuthor: String
+    let chapter: String
+    let percent: Int
+    let text: String
+
+    var id: UUID { mark.id }
+}
+
+/// A Library search result: a paragraph that contains the words.
+struct TextSearchResult: Identifiable, Equatable {
+    let bookID: UUID
+    let bookTitle: String
+    let index: Int
+    let charStart: Int
+    let charEnd: Int
+    let chapter: String
+    let percent: Int
+    /// Text around the match; matched words are marked with `SearchIndex.markStart/markEnd`.
+    let snippet: String
+
+    var id: String { "\(bookID.uuidString)|\(index)" }
 }
 
 @MainActor
@@ -91,6 +181,8 @@ final class AppModel {
     var readerRequest: ReaderRequest?
     var shareRequest: ShareRequest?
     var jumpRequest: JumpRequest?
+    /// Shows the share card sheet (Share as image).
+    var shareCardRequest: ShareCardRequest?
     /// Post whose text is shown for "Look up a word".
     var lookUpPost: FeedPost?
     private(set) var libraryVersion = 0
@@ -256,12 +348,17 @@ final class AppModel {
     }
 
     func openReader(for post: FeedPost) {
-        guard let book = store.feedBook(id: post.bookID) else { return }
+        openReader(bookID: post.bookID, charStart: post.segment.charStart, charEnd: post.segment.charEnd)
+    }
+
+    /// Opens the reader around `charStart..<charEnd` (a post, a highlight or a search result).
+    func openReader(bookID: UUID, charStart: Int, charEnd: Int) {
+        guard let book = store.feedBook(id: bookID) else { return }
         let model = ContextReaderModel(
             store: store,
             book: book,
-            charStart: post.segment.charStart,
-            charEnd: post.segment.charEnd
+            charStart: charStart,
+            charEnd: charEnd
         )
         readerRequest = ReaderRequest(model: model)
     }
@@ -321,7 +418,8 @@ final class AppModel {
             setWeight: { [weak self] weight in self?.setFeedWeight(weight, bookID: bookID) },
             peek: { [weak self] in self?.peek(for: post) },
             lookUp: { [weak self] in self?.lookUpPost = post },
-            continueHere: { [weak self] in self?.continueInFeed(bookID: bookID, offset: post.segment.charStart) }
+            continueHere: { [weak self] in self?.continueInFeed(bookID: bookID, offset: post.segment.charStart) },
+            highlight: { [weak self] in self?.marks.toggleHighlight(post) }
         )
     }
 
@@ -336,12 +434,16 @@ final class AppModel {
         shareRequest = ShareRequest(items: [ShareFormatter.quote(post)])
     }
 
+    /// Opens the share card sheet: the post as an image, in a style the reader picks.
     func shareImage(_ post: FeedPost) {
-        if let image = ShareCardRenderer.image(for: post) {
-            shareRequest = ShareRequest(items: [image])
-        } else {
-            shareRequest = ShareRequest(items: [ShareFormatter.quote(post)])
-        }
+        readerRequest = nil
+        shareCardRequest = ShareCardRequest(content: ShareCardContent(post))
+    }
+
+    func shareImage(_ item: HighlightItem) {
+        shareCardRequest = ShareCardRequest(content: ShareCardContent(
+            text: item.text, title: item.bookTitle, author: item.bookAuthor, chapter: item.chapter, percent: item.percent
+        ))
     }
 
     /// Posts for the Saved tab, newest mark first, in the current post style.
@@ -349,7 +451,7 @@ final class AppModel {
         let books = Dictionary(uniqueKeysWithValues: store.feedBooks().map { ($0.id, $0) })
         var seen = Set<String>()
         var result: [FeedPost] = []
-        for mark in marks.index.all where filter.includes(mark.kind) {
+        for mark in marks.index.all where mark.kind == filter.kind {
             guard let book = books[mark.bookID] else { continue }
             let segments = store.segmentsOverlapping(
                 start: mark.charStart,
@@ -365,5 +467,67 @@ final class AppModel {
             }
         }
         return result
+    }
+
+    /// Highlights for the Saved tab, newest first, with the exact highlighted text.
+    func highlights() -> [HighlightItem] {
+        let books = Dictionary(uniqueKeysWithValues: store.feedBooks().map { ($0.id, $0) })
+        var result: [HighlightItem] = []
+        for mark in marks.index.all where mark.kind == .highlight {
+            guard let book = books[mark.bookID] else { continue }
+            let paragraphs = store.segmentsOverlapping(start: mark.charStart, end: mark.charEnd, book: book, style: .paragraph)
+            let pieces = paragraphs.compactMap { paragraph -> String? in
+                let text = paragraph.text as NSString
+                let lower = max(mark.charStart, paragraph.charStart) - paragraph.charStart
+                let upper = min(mark.charEnd, paragraph.textEnd) - paragraph.charStart
+                guard lower < upper else { return nil }
+                let piece = text.substring(with: NSRange(location: lower, length: upper - lower))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return piece.isEmpty ? nil : piece
+            }
+            guard !pieces.isEmpty else { continue }
+            result.append(HighlightItem(
+                mark: mark,
+                bookTitle: book.title,
+                bookAuthor: book.author,
+                chapter: paragraphs.first?.chapter ?? "",
+                percent: TextUtils.percent(mark.charStart, of: book.totalCharacters),
+                text: pieces.joined(separator: "\n\n")
+            ))
+        }
+        return result
+    }
+
+    func copyHighlight(_ item: HighlightItem) {
+        UIPasteboard.general.string = ShareFormatter.citation(
+            text: item.text, title: item.bookTitle, author: item.bookAuthor, chapter: item.chapter, percent: item.percent
+        )
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        UIAccessibility.post(notification: .announcement, argument: "Copied")
+    }
+
+    // MARK: Search
+
+    /// Paragraphs in any book that contain every word of `query`, best matches first.
+    func searchText(_ query: String, limit: Int = 50) -> [TextSearchResult] {
+        guard let searchIndex else { return [] }
+        let hits = searchIndex.search(query, limit: limit)
+        guard !hits.isEmpty else { return [] }
+        let books = Dictionary(uniqueKeysWithValues: store.feedBooks().map { ($0.id, $0) })
+        return hits.compactMap { hit in
+            guard let book = books[hit.bookID],
+                  let paragraph = store.segments(book: book, style: .paragraph, from: hit.index, limit: 1).first,
+                  paragraph.index == hit.index else { return nil }
+            return TextSearchResult(
+                bookID: book.id,
+                bookTitle: book.title,
+                index: hit.index,
+                charStart: paragraph.charStart,
+                charEnd: paragraph.charEnd,
+                chapter: paragraph.chapter,
+                percent: TextUtils.percent(paragraph.charStart, of: book.totalCharacters),
+                snippet: hit.snippet
+            )
+        }
     }
 }

@@ -133,13 +133,13 @@ final class BookscrollUITests: XCTestCase {
         screenshot("05-saved")
 
         let filter = app.segmentedControls.firstMatch
-        filter.buttons["Liked"].tap()
+        filter.buttons["Likes"].tap()
         XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5))
-        filter.buttons["Bookmarked"].tap()
+        filter.buttons["Bookmarks"].tap()
         XCTAssertTrue(app.buttons["Remove bookmark"].firstMatch.waitForExistence(timeout: 5))
 
-        // Unliking in Saved removes the post from the Liked filter.
-        filter.buttons["Liked"].tap()
+        // Unliking in Saved removes the post from Likes.
+        filter.buttons["Likes"].tap()
         let unlike = app.buttons["Unlike"].firstMatch
         XCTAssertTrue(unlike.waitForExistence(timeout: 5))
         unlike.tap()
@@ -276,6 +276,60 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["lookup.text"].waitForExistence(timeout: 5), "The look-up sheet shows the post text")
         screenshot("20-look-up")
         app.buttons["Done"].firstMatch.tap()
+    }
+
+    func testHighlightSearchAndShareCard() throws {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+
+        // Highlight a post from its long-press menu.
+        firstPost(app).press(forDuration: 1.2)
+        let highlight = menuChoice(app, "Highlight")
+        XCTAssertTrue(highlight.waitForExistence(timeout: 5))
+        highlight.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'post' AND label CONTAINS 'Highlighted.'")).firstMatch.waitForExistence(timeout: 5), "The post shows as highlighted")
+
+        // Saved › Highlights lists it; tapping opens the reader with the highlight.
+        tab(app, "Saved")
+        app.segmentedControls.firstMatch.buttons["Highlights"].tap()
+        let saved = app.descendants(matching: .any)["highlight"].firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        screenshot("21-saved-highlights")
+        try audit(app, screen: "saved highlights")
+        saved.tap()
+        XCTAssertTrue(app.buttons["Continue in feed from here"].waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, labelBeginsWith: "Selected post. Contains a highlight.").waitForExistence(timeout: 5), "The reader marks the highlight")
+        app.buttons["Done"].firstMatch.tap()
+
+        // Library search finds text in the books.
+        tab(app, "Library")
+        let field = app.searchFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        field.typeText("river\n")
+        let result = app.descendants(matching: .any)["search.result"].firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 10), "Paragraphs with the word are listed")
+        XCTAssertTrue(result.label.localizedCaseInsensitiveContains("river"))
+        screenshot("22-library-search")
+        try audit(app, screen: "library search")
+        result.tap()
+        XCTAssertTrue(app.buttons["Continue in feed from here"].waitForExistence(timeout: 10), "A result opens the reader")
+        app.buttons["Done"].firstMatch.tap()
+
+        // Share as image: the card sheet with its styles.
+        tab(app, "Feed")
+        app.buttons["Share"].firstMatch.tap()
+        let asImage = menuChoice(app, "Share as image")
+        XCTAssertTrue(asImage.waitForExistence(timeout: 5))
+        asImage.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["share.preview"].waitForExistence(timeout: 10), "The card preview shows")
+        app.segmentedControls["share.style"].buttons["Quote"].tap()
+        app.segmentedControls["share.theme"].buttons["Sepia"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["share.preview"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["share.send"].exists)
+        screenshot("23-share-card")
+        try audit(app, screen: "share card")
+        app.buttons["Cancel"].firstMatch.tap()
     }
 
     func testDoubleTapLikesAPost() {

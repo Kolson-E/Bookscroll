@@ -96,6 +96,7 @@ struct FeedView: View {
                         post: post,
                         isLiked: app.marks.isMarked(.like, post),
                         isBookmarked: app.marks.isMarked(.bookmark, post),
+                        highlights: app.marks.highlightRanges(for: post),
                         actions: app.actions(for: post)
                     )
                     .onAppear { feed.postAppeared(post.id) }

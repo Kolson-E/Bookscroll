@@ -37,6 +37,9 @@ struct SegmentRecord: Equatable, Hashable, Sendable {
     let chapter: String
     let text: String
 
+    /// End of the text itself: `charEnd` also covers the separator after it.
+    var textEnd: Int { charStart + (text as NSString).length }
+
     init(bookID: UUID, style: PostStyle, index: Int, charStart: Int, charEnd: Int, chapter: String, text: String) {
         self.bookID = bookID
         self.style = style
