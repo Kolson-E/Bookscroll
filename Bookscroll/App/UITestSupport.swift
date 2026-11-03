@@ -10,17 +10,13 @@ enum UITestSupport {
     static let inMemoryArgument = "-UITestInMemoryStore"
     /// Also add two generated sample books.
     static let sampleBooksArgument = "-UITestSampleBooks"
-    /// Force dark mode, to check contrast in both appearances.
-    static let darkModeArgument = "-UITestDarkMode"
-
-    static var colorScheme: ColorScheme? {
-        ProcessInfo.processInfo.arguments.contains(darkModeArgument) ? .dark : nil
-    }
+    // Settings can be given as launch arguments, for example `-appTheme light`: UserDefaults
+    // reads them before the stored values.
 
     static func makeContainerIfRequested() -> ModelContainer? {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains(inMemoryArgument) else { return nil }
-        for key in ["postStyle", "feedMode", "singleBookID"] {
+        for key in ["postStyle", "feedMode", "singleBookID", FeedViewModel.mixTopBookKey] + AppSettings.Key.all {
             UserDefaults.standard.removeObject(forKey: key)
         }
         let container: ModelContainer

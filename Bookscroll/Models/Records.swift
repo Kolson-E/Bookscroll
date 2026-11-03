@@ -120,6 +120,11 @@ struct FeedBook: Equatable, Identifiable, Sendable {
     let passagesOnly: Bool
     let paragraphCount: Int
     let passageCount: Int
+    /// "Auto" word limit for this book; 0 until computed.
+    var autoWordLimit: Int
+    var hiddenFromMix: Bool
+    var snoozedUntil: Date?
+    var feedWeight: Double
 
     init(
         id: UUID,
@@ -130,8 +135,16 @@ struct FeedBook: Equatable, Identifiable, Sendable {
         positionOffset: Int,
         passagesOnly: Bool,
         paragraphCount: Int,
-        passageCount: Int
+        passageCount: Int,
+        autoWordLimit: Int = 0,
+        hiddenFromMix: Bool = false,
+        snoozedUntil: Date? = nil,
+        feedWeight: Double = 1
     ) {
+        self.autoWordLimit = autoWordLimit
+        self.hiddenFromMix = hiddenFromMix
+        self.snoozedUntil = snoozedUntil
+        self.feedWeight = feedWeight
         self.id = id
         self.ordinal = ordinal
         self.title = title
@@ -153,8 +166,19 @@ struct FeedBook: Equatable, Identifiable, Sendable {
             positionOffset: book.positionOffset,
             passagesOnly: book.passagesOnly,
             paragraphCount: book.paragraphSegmentCount,
-            passageCount: book.passageSegmentCount
+            passageCount: book.passageSegmentCount,
+            autoWordLimit: book.autoWordLimit,
+            hiddenFromMix: book.hiddenFromMix,
+            snoozedUntil: book.snoozedUntil,
+            feedWeight: book.feedWeight
         )
+    }
+
+    /// Mix leaves the book out (hidden, or snoozed until after `now`).
+    func isExcludedFromMix(now: Date) -> Bool {
+        if hiddenFromMix { return true }
+        if let snoozedUntil, snoozedUntil > now { return true }
+        return false
     }
 
     /// Books with forced passages always use Passages style.

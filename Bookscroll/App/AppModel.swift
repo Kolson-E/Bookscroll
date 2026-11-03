@@ -82,6 +82,7 @@ final class AppModel {
         case feed
         case library
         case saved
+        case settings
     }
 
     var selectedTab: Tab = .feed
@@ -117,6 +118,50 @@ final class AppModel {
         resumedDeletions = BookDeleter.pendingBookIDs(in: container.mainContext).map { runDeletion(of: $0) }
         // Index books from before the index existed, or after its file was lost.
         syncSearchIndex()
+        derivedBackfill = runDerivedBackfill()
+    }
+
+    // MARK: Derived data
+
+    @ObservationIgnored private(set) var derivedBackfill: Task<Void, Never>?
+
+    /// Computes the word limit and chapter table of books imported before they existed.
+    private func runDerivedBackfill() -> Task<Void, Never> {
+        let container = self.container
+        return Task {
+            let results = await Task.detached(priority: .utility) {
+                (try? DerivedDataBackfill.compute(container: container)) ?? []
+            }.value
+            if store.applyDerived(results) {
+                feed.reloadBooks()
+            }
+        }
+    }
+
+    // MARK: Feed filters
+
+    /// Leaves the book out of Mix, or brings it back. One book mode still shows it.
+    func setHiddenFromMix(_ hidden: Bool, bookID: UUID) {
+        store.updateBook(id: bookID) { $0.hiddenFromMix = hidden }
+        feedSettingsChanged()
+    }
+
+    /// Leaves the book out of Mix for `days` days; nil ends the snooze.
+    func snooze(bookID: UUID, days: Int?, now: Date = .now) {
+        let until = days.map { now.addingTimeInterval(TimeInterval($0) * 24 * 60 * 60) }
+        store.updateBook(id: bookID) { $0.snoozedUntil = until }
+        feedSettingsChanged()
+    }
+
+    /// How often Mix picks the book: 0.5 less, 1 normal, 2 more.
+    func setFeedWeight(_ weight: Double, bookID: UUID) {
+        store.updateBook(id: bookID) { $0.feedWeight = weight }
+        feedSettingsChanged()
+    }
+
+    private func feedSettingsChanged() {
+        libraryVersion += 1
+        feed.reloadBooks()
     }
 
     // MARK: Search index
@@ -222,6 +267,30 @@ final class AppModel {
         readerRequest = nil
         feed.jump(bookID: bookID, offset: offset)
         selectedTab = .feed
+    }
+
+    /// Everything a post row can do, wired to this model.
+    func actions(for post: FeedPost) -> PostActions {
+        let bookID = post.bookID
+        return PostActions(
+            bookFeedWeight: store.feedBook(id: bookID)?.feedWeight ?? 1,
+            like: { [weak self] in self?.marks.toggle(.like, post) },
+            bookmark: { [weak self] in self?.marks.toggle(.bookmark, post) },
+            open: { [weak self] in self?.openReader(for: post) },
+            shareText: { [weak self] in self?.shareText(post) },
+            shareImage: { [weak self] in self?.shareImage(post) },
+            copy: { [weak self] withCitation in self?.copy(post, withCitation: withCitation) },
+            hideFromMix: { [weak self] in self?.setHiddenFromMix(true, bookID: bookID) },
+            snooze: { [weak self] days in self?.snooze(bookID: bookID, days: days) },
+            setWeight: { [weak self] weight in self?.setFeedWeight(weight, bookID: bookID) }
+        )
+    }
+
+    /// Copies the post text, or the text with title, author, chapter and percent.
+    func copy(_ post: FeedPost, withCitation: Bool) {
+        UIPasteboard.general.string = withCitation ? ShareFormatter.citation(post) : post.segment.text
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        UIAccessibility.post(notification: .announcement, argument: "Copied")
     }
 
     func shareText(_ post: FeedPost) {

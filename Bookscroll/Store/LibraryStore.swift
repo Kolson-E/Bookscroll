@@ -49,6 +49,33 @@ final class LibraryStore: SegmentSource {
         book(id: id).map(FeedBook.init)
     }
 
+    /// Changes a book's feed settings (hide, snooze, weight) and saves at once.
+    func updateBook(id: UUID, _ change: (Book) -> Void) {
+        guard let book = book(id: id) else { return }
+        change(book)
+        save()
+    }
+
+    /// Writes values computed by `DerivedDataBackfill`. Returns true when a book changed.
+    @discardableResult
+    func applyDerived(_ results: [DerivedDataBackfill.Result]) -> Bool {
+        var changed = false
+        for result in results {
+            guard let book = book(id: result.bookID) else { continue }
+            book.autoWordLimit = result.wordLimit
+            book.chapterTable = result.chapterTable
+            book.derivedVersion = DerivedData.currentVersion
+            changed = true
+        }
+        if changed { save() }
+        return changed
+    }
+
+    /// The book's chapters in order (empty when it has no chapter labels).
+    func chapters(bookID: UUID) -> [ChapterEntry] {
+        DerivedData.decode(book(id: bookID)?.chapterTable)
+    }
+
     func setPosition(bookID: UUID, offset: Int) {
         guard let book = book(id: bookID) else { return }
         let clamped = min(max(0, offset), max(0, book.totalCharacters - 1))

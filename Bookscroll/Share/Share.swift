@@ -10,6 +10,19 @@ enum ShareFormatter {
     static func quote(_ post: FeedPost) -> String {
         quote(text: post.segment.text, title: post.bookTitle, author: post.bookAuthor)
     }
+
+    /// The post text in quotes, then "— Title, Author · Chapter · 42%". The chapter is left
+    /// out when the book has no chapter labels.
+    static func citation(text: String, title: String, author: String, chapter: String, percent: Int) -> String {
+        var source = "\u{2014} \(title), \(author)"
+        if !chapter.isEmpty { source += " \u{00B7} \(chapter)" }
+        source += " \u{00B7} \(percent)%"
+        return "\u{201C}\(text)\u{201D}\n\(source)"
+    }
+
+    static func citation(_ post: FeedPost) -> String {
+        citation(text: post.segment.text, title: post.bookTitle, author: post.bookAuthor, chapter: post.segment.chapter, percent: post.percent)
+    }
 }
 
 /// The post as an image card, for sharing.

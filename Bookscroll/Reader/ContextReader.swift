@@ -88,7 +88,8 @@ struct ContextReaderView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 if let heading = model.chapterHeading(before: position) {
                                     Text(heading)
-                                        .font(.system(.title3, design: .serif).weight(.semibold))
+                                        .font(.system(.title3, design: AppSettings.shared.readerTypeface.design).weight(.semibold))
+                                        .foregroundStyle(Theme.primaryText)
                                         .padding(.top, 12)
                                         .accessibilityAddTraits(.isHeader)
                                 }
@@ -117,6 +118,7 @@ struct ContextReaderView: View {
             .background(Theme.background)
             .navigationTitle(model.book.title)
             .navigationBarTitleDisplayMode(.inline)
+            .themedNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -139,6 +141,7 @@ struct ContextReaderView: View {
                 .accessibilityHint("Sets your place in this book to the top paragraph on screen")
             }
         }
+        .tint(Theme.accent)
     }
 
     private func paragraphAppeared(_ paragraph: SegmentRecord, proxy: ScrollViewProxy) {
@@ -169,7 +172,8 @@ private struct ReaderParagraph: View {
 
     var body: some View {
         Text(attributed)
-            .font(.system(.body, design: .serif))
+            .font(.system(.body, design: AppSettings.shared.readerTypeface.design))
+            .foregroundStyle(Theme.primaryText)
             .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -186,7 +190,7 @@ private struct ReaderParagraph: View {
             .overlay(alignment: .leading) {
                 if isHighlighted {
                     Rectangle()
-                        .fill(Color.accentColor)
+                        .fill(Theme.accent)
                         .frame(width: 3)
                         .accessibilityHidden(true)
                 }

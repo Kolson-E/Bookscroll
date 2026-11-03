@@ -23,7 +23,7 @@ struct SavedView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .accessibilityLabel("Show saved posts")
-                Divider()
+                ThemedDivider()
                 if posts.isEmpty {
                     ContentUnavailableView {
                         Label(emptyTitle, systemImage: filter == .liked ? "heart" : "bookmark")
@@ -40,11 +40,7 @@ struct SavedView: View {
                                     post: post,
                                     isLiked: app.marks.isMarked(.like, post),
                                     isBookmarked: app.marks.isMarked(.bookmark, post),
-                                    onLike: { app.marks.toggle(.like, post) },
-                                    onBookmark: { app.marks.toggle(.bookmark, post) },
-                                    onOpen: { app.openReader(for: post) },
-                                    onShareText: { app.shareText(post) },
-                                    onShareImage: { app.shareImage(post) }
+                                    actions: app.actions(for: post)
                                 )
                             }
                         }
@@ -54,6 +50,7 @@ struct SavedView: View {
             .background(Theme.background)
             .navigationTitle("Saved")
             .navigationBarTitleDisplayMode(.inline)
+            .themedNavigationBar()
         }
         .task(id: reloadKey) {
             posts = app.savedPosts(filter: filter, style: PostStyle(rawValue: styleRaw) ?? .paragraph)

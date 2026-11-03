@@ -23,13 +23,20 @@ struct FeedPost: Identifiable, Equatable {
     var threadContinuesBelow: Bool
     /// "Show thread" link (Mix mode and Saved).
     var showsThreadButton: Bool
+    /// Part number (1-based) when a long segment was split by the word limit.
+    let part: Int
+    let partCount: Int
+    /// The first post of a chapter: the post shows a "New chapter" line.
+    var startsChapter: Bool
 
-    static func makeID(bookID: UUID, style: PostStyle, index: Int) -> String {
-        "\(bookID.uuidString)|\(style.rawValue)|\(index)"
+    static func makeID(bookID: UUID, style: PostStyle, index: Int, part: Int = 1, partCount: Int = 1) -> String {
+        let base = "\(bookID.uuidString)|\(style.rawValue)|\(index)"
+        return partCount > 1 ? "\(base)|\(part)/\(partCount)" : base
     }
 
-    init(segment: SegmentRecord, book: FeedBook, showsThreadButton: Bool) {
-        self.id = FeedPost.makeID(bookID: segment.bookID, style: segment.style, index: segment.index)
+    /// `segment` is the stored segment, or one part of it (same index, a sub-range of the text).
+    init(segment: SegmentRecord, book: FeedBook, showsThreadButton: Bool, part: Int = 1, partCount: Int = 1) {
+        self.id = FeedPost.makeID(bookID: segment.bookID, style: segment.style, index: segment.index, part: part, partCount: partCount)
         self.bookID = segment.bookID
         self.bookTitle = book.title
         self.bookAuthor = book.author
@@ -39,13 +46,47 @@ struct FeedPost: Identifiable, Equatable {
         self.continuesThread = false
         self.threadContinuesBelow = false
         self.showsThreadButton = showsThreadButton
+        self.part = part
+        self.partCount = partCount
+        self.startsChapter = false
     }
 
     var percent: Int { TextUtils.percent(segment.charStart, of: bookTotalCharacters) }
 
-    /// "Chapter 3 · 42%", or "42%" when the book has no chapter labels.
+    /// "Chapter 3 · 42%", or "42%" when the book has no chapter labels, then "· 1/3" for parts.
     var progressLine: String {
-        segment.chapter.isEmpty ? "\(percent)%" : "\(segment.chapter) \u{00B7} \(percent)%"
+        var line = segment.chapter.isEmpty ? "\(percent)%" : "\(segment.chapter) \u{00B7} \(percent)%"
+        if partCount > 1 { line += " \u{00B7} \(part)/\(partCount)" }
+        return line
+    }
+}
+
+/// A segment to show: the whole segment, or one part of it.
+struct PostPiece: Equatable {
+    let segment: SegmentRecord
+    let part: Int
+    let partCount: Int
+
+    /// Splits a segment by the word limit. Each part keeps the segment's index and chapter;
+    /// the last part's range runs to the segment's end, so the parts tile the segment.
+    static func pieces(of segment: SegmentRecord, limit: Int?, splitter: SentenceSplitter) -> [PostPiece] {
+        guard let limit else { return [PostPiece(segment: segment, part: 1, partCount: 1)] }
+        let ranges = PostSplitter.parts(of: segment.text, limit: limit, splitter: splitter)
+        guard ranges.count > 1 else { return [PostPiece(segment: segment, part: 1, partCount: 1)] }
+        let text = segment.text as NSString
+        return ranges.enumerated().map { n, range in
+            let isLast = n == ranges.count - 1
+            let part = SegmentRecord(
+                bookID: segment.bookID,
+                style: segment.style,
+                index: segment.index,
+                charStart: segment.charStart + range.lowerBound,
+                charEnd: isLast ? segment.charEnd : segment.charStart + range.upperBound,
+                chapter: segment.chapter,
+                text: text.substring(with: NSRange(range)).trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            return PostPiece(segment: part, part: n + 1, partCount: ranges.count)
+        }
     }
 }
 
@@ -74,12 +115,16 @@ struct SeededGenerator: RandomNumberGenerator {
 ///   were actually on screen.
 /// - Segments are fetched in small batches by (book, style, index); the engine never loads
 ///   a whole book.
+/// - With a word limit, a long segment becomes parts of at most that many words; parts tile
+///   the segment, so positions resume inside a segment at the right part.
+/// - Mix leaves out hidden and snoozed books and picks books in proportion to their weight.
 final class FeedEngine {
     static let fetchBatchSize = 20
     static let pageSize = 30
 
     let style: PostStyle
     let mode: FeedMode
+    let wordLimit: WordLimit
     private(set) var books: [UUID: FeedBook] = [:]
     private var bookOrder: [UUID] = []
     private(set) var posts: [FeedPost] = []
@@ -87,20 +132,37 @@ final class FeedEngine {
     private(set) var shownIDs: Set<String> = []
 
     private let source: SegmentSource
+    private let now: () -> Date
     private var rng: SeededGenerator
+    private let splitter = SentenceSplitter()
     private var nextIndex: [UUID: Int] = [:]
-    private var buffers: [UUID: [SegmentRecord]] = [:]
+    private var buffers: [UUID: [PostPiece]] = [:]
     private var exhausted: Set<UUID> = []
-    private var lastShownIndex: [UUID: Int] = [:]
+    /// End offset of the furthest post shown per book in this session.
+    private var lastShownEnd: [UUID: Int] = [:]
+    /// Parts that end at or before this offset are skipped (resuming inside a segment).
+    private var skipBefore: [UUID: Int] = [:]
+    /// Chapter of the segment before the next one to emit, per book.
+    private var previousChapter: [UUID: String] = [:]
     private var emittedIDs: Set<String> = []
     private var positionByID: [String: Int] = [:]
     private var shownPrefix = 0
     private var leadingBook: UUID?
 
-    init(source: SegmentSource, books: [FeedBook], style: PostStyle, mode: FeedMode, seed: UInt64) {
+    init(
+        source: SegmentSource,
+        books: [FeedBook],
+        style: PostStyle,
+        mode: FeedMode,
+        seed: UInt64,
+        wordLimit: WordLimit = .off,
+        now: @escaping () -> Date = { Date() }
+    ) {
         self.source = source
         self.style = style
         self.mode = mode
+        self.wordLimit = wordLimit
+        self.now = now
         self.rng = SeededGenerator(seed: seed)
         for book in books {
             self.books[book.id] = book
@@ -124,13 +186,13 @@ final class FeedEngine {
                 isAtEnd = true
                 break
             }
-            guard let segment = nextSegment(for: bookID) else {
+            guard let piece = nextPiece(for: bookID) else {
                 exhausted.insert(bookID)
                 continue
             }
-            let id = FeedPost.makeID(bookID: bookID, style: segment.style, index: segment.index)
+            let id = FeedPost.makeID(bookID: bookID, style: piece.segment.style, index: piece.segment.index, part: piece.part, partCount: piece.partCount)
             if emittedIDs.contains(id) { continue }
-            append(segment)
+            append(piece)
             added += 1
         }
     }
@@ -145,7 +207,7 @@ final class FeedEngine {
             let post = posts[i]
             guard shownIDs.insert(post.id).inserted else { continue }
             let bookID = post.bookID
-            lastShownIndex[bookID] = max(lastShownIndex[bookID] ?? -1, post.segment.index)
+            lastShownEnd[bookID] = max(lastShownEnd[bookID] ?? 0, post.segment.charEnd)
             if var book = books[bookID], post.segment.charStart > book.positionOffset {
                 book.positionOffset = post.segment.charStart
                 books[bookID] = book
@@ -165,6 +227,8 @@ final class FeedEngine {
         shownPrefix = 0
         buffers = [:]
         nextIndex = [:]
+        skipBefore = [:]
+        previousChapter = [:]
         exhausted = []
         emittedIDs = shownIDs
         isAtEnd = false
@@ -172,37 +236,60 @@ final class FeedEngine {
         loadMore()
     }
 
-    /// Moves a book to `offset` on an explicit request ("Continue in feed from here").
+    /// Moves a book to `offset` on an explicit request ("Continue in feed from here", "Jump to").
     /// The book's posts may then be shown again.
     func resetBook(_ bookID: UUID, offset: Int) {
         guard var book = books[bookID] else { return }
         book.positionOffset = offset
         books[bookID] = book
-        lastShownIndex[bookID] = nil
+        lastShownEnd[bookID] = nil
         let prefix = bookID.uuidString + "|"
         shownIDs = shownIDs.filter { !$0.hasPrefix(prefix) }
     }
 
-    /// Applies library changes: removes deleted books, adds new ones, keeps session state.
+    /// Applies library changes: removes deleted books, adds new ones, and takes the new feed
+    /// settings (hide, snooze, weight) of existing books. Unseen posts of books that Mix now
+    /// leaves out are removed; posts already shown stay. Keeps session state.
     func updateBooks(_ newBooks: [FeedBook]) {
         let newIDs = Set(newBooks.map(\.id))
         let removed = Set(bookOrder).subtracting(newIDs)
-        if !removed.isEmpty {
-            for id in removed {
-                books[id] = nil
-                nextIndex[id] = nil
-                buffers[id] = nil
-                exhausted.remove(id)
-                lastShownIndex[id] = nil
-            }
-            bookOrder.removeAll { removed.contains($0) }
-            posts.removeAll { removed.contains($0.bookID) }
-            rebuildPostIndex()
+        for id in removed {
+            books[id] = nil
+            nextIndex[id] = nil
+            buffers[id] = nil
+            exhausted.remove(id)
+            lastShownEnd[id] = nil
+            skipBefore[id] = nil
+            previousChapter[id] = nil
         }
-        for book in newBooks where books[book.id] == nil {
-            books[book.id] = book
-            bookOrder.append(book.id)
-            isAtEnd = false
+        bookOrder.removeAll { removed.contains($0) }
+        for book in newBooks {
+            if var current = books[book.id] {
+                current.hiddenFromMix = book.hiddenFromMix
+                current.snoozedUntil = book.snoozedUntil
+                current.feedWeight = book.feedWeight
+                current.autoWordLimit = book.autoWordLimit
+                books[book.id] = current
+            } else {
+                books[book.id] = book
+                bookOrder.append(book.id)
+                isAtEnd = false
+            }
+        }
+        let active = Set(activeBooks())
+        let before = posts.count
+        posts = posts.enumerated().filter { n, post in
+            guard !removed.contains(post.bookID) else { return false }
+            return active.contains(post.bookID) || n < shownPrefix || shownIDs.contains(post.id)
+        }.map(\.element)
+        if posts.count != before {
+            // A removed post can break a thread; keep a line only where the next post continues it.
+            for n in posts.indices {
+                posts[n].threadContinuesBelow = n + 1 < posts.count
+                    && posts[n + 1].continuesThread
+                    && posts[n + 1].bookID == posts[n].bookID
+            }
+            rebuildPostIndex()
         }
     }
 
@@ -211,12 +298,14 @@ final class FeedEngine {
     private func activeBooks() -> [UUID] {
         switch mode {
         case .mix:
-            return bookOrder
+            let date = now()
+            return bookOrder.filter { books[$0]?.isExcludedFromMix(now: date) == false }
         case let .single(id):
             return books[id] == nil ? [] : [id]
         }
     }
 
+    /// Random book, weighted by `feedWeight` (Mix). One book mode has one candidate.
     private func pickBook() -> UUID? {
         let candidates = activeBooks().filter { !exhausted.contains($0) }
         guard !candidates.isEmpty else { return nil }
@@ -225,39 +314,74 @@ final class FeedEngine {
             if candidates.contains(leading) { return leading }
         }
         if candidates.count == 1 { return candidates[0] }
-        return candidates.randomElement(using: &rng)
+        let weights = candidates.map { min(max(books[$0]?.feedWeight ?? 1, 0.1), 10) }
+        let total = weights.reduce(0, +)
+        var target = Double.random(in: 0..<total, using: &rng)
+        for (candidate, weight) in zip(candidates, weights) {
+            if target < weight { return candidate }
+            target -= weight
+        }
+        return candidates[candidates.count - 1]
     }
 
-    private func startIndex(for bookID: UUID) -> Int {
-        if let shown = lastShownIndex[bookID] { return shown + 1 }
-        guard let book = books[bookID] else { return 0 }
-        return source.indexContaining(offset: book.positionOffset, book: book, style: style(for: bookID)) ?? 0
-    }
-
-    private func nextSegment(for bookID: UUID) -> SegmentRecord? {
+    /// Where a book continues: after the furthest post shown in this session, or at its
+    /// saved position. Sets the skip offset and the chapter of the segment before.
+    private func startIndex(for bookID: UUID) -> Int? {
         guard let book = books[bookID] else { return nil }
         let bookStyle = style(for: bookID)
-        if buffers[bookID, default: []].isEmpty {
-            let start = nextIndex[bookID] ?? startIndex(for: bookID)
+        let offset = lastShownEnd[bookID] ?? book.positionOffset
+        if lastShownEnd[bookID] != nil && offset >= book.totalCharacters { return nil }
+        let index = source.indexContaining(offset: offset, book: book, style: bookStyle) ?? 0
+        skipBefore[bookID] = offset
+        if index > 0, let before = source.segments(book: book, style: bookStyle, from: index - 1, limit: 1).first {
+            previousChapter[bookID] = before.chapter
+        }
+        return index
+    }
+
+    private func nextPiece(for bookID: UUID) -> PostPiece? {
+        guard let book = books[bookID] else { return nil }
+        let bookStyle = style(for: bookID)
+        let limit = wordLimit.limit(for: book)
+        while buffers[bookID, default: []].isEmpty {
+            let start: Int
+            if let next = nextIndex[bookID] {
+                start = next
+            } else if let first = startIndex(for: bookID) {
+                start = first
+            } else {
+                return nil
+            }
             guard start < book.segmentCount(bookStyle) else { return nil }
             let batch = source.segments(book: book, style: bookStyle, from: start, limit: FeedEngine.fetchBatchSize)
             guard let last = batch.last else { return nil }
             nextIndex[bookID] = last.index + 1
+            let skip = skipBefore[bookID] ?? 0
+            skipBefore[bookID] = nil
             buffers[bookID] = batch
+                .flatMap { PostPiece.pieces(of: $0, limit: limit, splitter: splitter) }
+                .filter { $0.segment.charEnd > skip }
         }
         guard var buffer = buffers[bookID], !buffer.isEmpty else { return nil }
-        let segment = buffer.removeFirst()
+        let piece = buffer.removeFirst()
         buffers[bookID] = buffer
-        return segment
+        return piece
     }
 
-    private func append(_ segment: SegmentRecord) {
+    private func append(_ piece: PostPiece) {
+        let segment = piece.segment
         guard let book = books[segment.bookID] else { return }
-        var post = FeedPost(segment: segment, book: book, showsThreadButton: mode == .mix)
+        var post = FeedPost(segment: segment, book: book, showsThreadButton: mode == .mix, part: piece.part, partCount: piece.partCount)
+        let previous = previousChapter[segment.bookID]
+        if piece.part == 1 {
+            post.startsChapter = !segment.chapter.isEmpty && segment.chapter != previous
+                && (previous != nil || segment.index == 0)
+        }
+        previousChapter[segment.bookID] = segment.chapter
         if case .single = mode {
             if let lastIndex = posts.indices.last,
                posts[lastIndex].bookID == segment.bookID,
-               posts[lastIndex].segment.index + 1 == segment.index,
+               posts[lastIndex].segment.charEnd == segment.charStart,
                posts[lastIndex].segment.chapter == segment.chapter {
                 post.continuesThread = true
                 posts[lastIndex].threadContinuesBelow = true

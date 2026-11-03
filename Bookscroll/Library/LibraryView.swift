@@ -11,6 +11,7 @@ struct LibraryView: View {
             BookList()
                 .id(app.libraryVersion)
                 .navigationTitle("Library")
+                .themedNavigationBar()
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -50,6 +51,7 @@ private struct BookList: View {
                 ForEach(books) { book in
                     BookRow(book: book)
                         .listRowBackground(Theme.background)
+                        .contextMenu { feedMenu(for: book) }
                 }
                 .onDelete { offsets in
                     let ids = offsets.map { books[$0].id }
@@ -76,6 +78,76 @@ private struct BookList: View {
                     .accessibilityIdentifier("library.empty.import")
                 }
             }
+        }
+    }
+}
+
+extension BookList {
+    /// Mix settings for one book: hide, snooze, weight.
+    @ViewBuilder
+    func feedMenu(for book: Book) -> some View {
+        let id = book.id
+        let isSnoozed = (book.snoozedUntil ?? .distantPast) > .now
+        Section("In Mix") {
+            Button { app.setHiddenFromMix(!book.hiddenFromMix, bookID: id) } label: {
+                Label(book.hiddenFromMix ? "Show in Mix" : "Hide from Mix", systemImage: book.hiddenFromMix ? "eye" : "eye.slash")
+            }
+            if isSnoozed {
+                Button { app.snooze(bookID: id, days: nil) } label: {
+                    Label("End snooze", systemImage: "alarm")
+                }
+            } else {
+                Button { app.snooze(bookID: id, days: 1) } label: {
+                    Label("Snooze for a day", systemImage: "moon.zzz")
+                }
+                Button { app.snooze(bookID: id, days: 7) } label: {
+                    Label("Snooze for a week", systemImage: "moon.zzz")
+                }
+            }
+        }
+        Section("How often") {
+            ForEach(FeedWeightChoice.allCases) { choice in
+                Button { app.setFeedWeight(choice.weight, bookID: id) } label: {
+                    if choice.matches(book.feedWeight) {
+                        Label(choice.title, systemImage: "checkmark")
+                    } else {
+                        Text(choice.title)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The three Mix weights offered in menus.
+enum FeedWeightChoice: CaseIterable, Identifiable {
+    case less
+    case normal
+    case more
+
+    var id: Self { self }
+
+    var weight: Double {
+        switch self {
+        case .less: return 0.5
+        case .normal: return 1
+        case .more: return 2
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .less: return "Less often"
+        case .normal: return "Normal"
+        case .more: return "More often"
+        }
+    }
+
+    func matches(_ weight: Double) -> Bool {
+        switch self {
+        case .less: return weight < 1
+        case .normal: return weight == 1
+        case .more: return weight > 1
         }
     }
 }
@@ -115,6 +187,11 @@ private struct BookRow: View {
                     .font(.caption)
                     .foregroundStyle(Theme.secondaryText)
             }
+            if let mixStatus {
+                Label(mixStatus, systemImage: "shuffle")
+                    .font(.caption)
+                    .foregroundStyle(Theme.secondaryText)
+            }
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .ignore)
@@ -130,9 +207,21 @@ private struct BookRow: View {
             .foregroundStyle(Theme.secondaryText)
     }
 
+    /// Hidden, snoozed or weighted in Mix; nil when the book is in Mix as normal.
+    private var mixStatus: String? {
+        if book.hiddenFromMix { return "Hidden from Mix" }
+        if let until = book.snoozedUntil, until > .now {
+            return "Snoozed until \(until.formatted(date: .abbreviated, time: .shortened))"
+        }
+        if book.feedWeight > 1 { return "More often in Mix" }
+        if book.feedWeight < 1 { return "Less often in Mix" }
+        return nil
+    }
+
     private var accessibilityText: String {
         var text = "\(book.title), by \(book.author). \(book.format.label). \(percent) percent read."
         if let note = book.importNote { text += " \(note)" }
+        if let mixStatus { text += " \(mixStatus)." }
         return text
     }
 }

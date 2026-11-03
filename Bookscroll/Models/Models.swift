@@ -23,6 +23,21 @@ final class Book {
     /// Set when the user deletes the book. The book is hidden at once and its rows are
     /// removed in the background; a deletion cut short (the app was closed) resumes at launch.
     var deletionPending: Bool = false
+
+    // Version 2.
+    /// Left out of Mix (still readable in One book mode).
+    var hiddenFromMix: Bool = false
+    /// Left out of Mix until this time.
+    var snoozedUntil: Date? = nil
+    /// How often Mix picks this book: 0.5 less, 1 normal, 2 more.
+    var feedWeight: Double = 1
+    /// Word limit that fits 95% of this book's paragraphs ("Auto" setting). 0 until computed.
+    var autoWordLimit: Int = 0
+    /// JSON list of `ChapterEntry`, in book order. Nil until computed.
+    var chapterTable: Data? = nil
+    /// Version of the values computed from the text (`DerivedData.currentVersion`).
+    var derivedVersion: Int = 0
+
     @Relationship(deleteRule: .cascade, inverse: \Segment.book) var segments: [Segment]? = []
     @Relationship(deleteRule: .cascade, inverse: \Mark.book) var marks: [Mark]? = []
 

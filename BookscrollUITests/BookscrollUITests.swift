@@ -40,6 +40,28 @@ final class BookscrollUITests: XCTestCase {
         button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
     }
 
+    /// A choice in an open menu. iOS versions expose menu rows as buttons, menu items or cells.
+    private func menuChoice(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        let types = [XCUIElement.ElementType.button, .menuItem, .cell].map(\.rawValue)
+        return app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@ AND elementType IN %@", label, types))
+            .firstMatch
+    }
+
+    /// Opens a toolbar menu and returns one of its choices. If the coordinate tap did not open
+    /// the menu (seen on iOS 17), a normal tap is tried.
+    private func openToolbarMenu(_ app: XCUIApplication, _ menu: String, choice: String) -> XCUIElement {
+        tapToolbarButton(app, menu)
+        let item = menuChoice(app, choice)
+        if !item.waitForExistence(timeout: 4) {
+            app.buttons[menu].firstMatch.tap()
+        }
+        if !item.waitForExistence(timeout: 6) {
+            screenshot("debug-menu-\(menu)")
+        }
+        return item
+    }
+
     /// Saves a screenshot in the test result, and as a PNG in SCREENSHOT_DIR when CI sets it.
     private func screenshot(_ name: String) {
         let shot = XCUIScreen.main.screenshot()
@@ -147,11 +169,11 @@ final class BookscrollUITests: XCTestCase {
     }
 
     func testPostStyleAndOneBookThread() {
-        let app = launch(sampleBooks: true)
+        // Word limit off, so the long paragraph stays one post and "Show more" appears.
+        let app = launch(sampleBooks: true, extra: ["-wordLimit", "0"])
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
 
-        tapToolbarButton(app, "Feed mode")
-        app.buttons[firstTitle].firstMatch.tap()
+        openToolbarMenu(app, "Feed mode", choice: firstTitle).tap()
         XCTAssertTrue(app.navigationBars[firstTitle].waitForExistence(timeout: 5))
         XCTAssertTrue(element(app, labelBeginsWith: "Continues thread.").waitForExistence(timeout: 5), "Threads in One book mode")
         XCTAssertTrue(element(app, labelBeginsWith: "Chapter: Chapter 1").exists, "Chapter header row")
@@ -162,15 +184,13 @@ final class BookscrollUITests: XCTestCase {
         showMore.tap()
         waitUntilGone(showMore)
 
-        tapToolbarButton(app, "Post style")
-        app.buttons["Passages"].firstMatch.tap()
+        openToolbarMenu(app, "Post style", choice: "Passages").tap()
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Post style"].value as? String, "Passages")
         screenshot("08-feed-passages")
 
         // The choice is remembered for the Saved tab and the next view.
-        tapToolbarButton(app, "Feed mode")
-        app.buttons["Mix all books"].firstMatch.tap()
+        openToolbarMenu(app, "Feed mode", choice: "Mix all books").tap()
         XCTAssertTrue(app.navigationBars["Feed"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Post style"].value as? String, "Passages")
     }
@@ -190,19 +210,77 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").exists)
 
         tab(app, "Feed")
-        tapToolbarButton(app, "Feed mode")
-        XCTAssertTrue(app.buttons[firstTitle].firstMatch.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons[secondTitle].exists, "The deleted book left the feed")
+        XCTAssertTrue(openToolbarMenu(app, "Feed mode", choice: firstTitle).exists)
+        XCTAssertFalse(menuChoice(app, secondTitle).exists, "The deleted book left the feed")
+    }
+
+    // MARK: Settings and post look
+
+    func testSettingsChangeThemeAccentAndFocusMode() {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        screenshot("14-feed-night-default")
+        tab(app, "Settings")
+        let sepia = app.buttons["Sepia"].firstMatch
+        XCTAssertTrue(sepia.waitForExistence(timeout: 5))
+        sepia.tap()
+        XCTAssertTrue(sepia.isSelected, "Sepia is the selected theme")
+        app.buttons["accent.orange"].tap()
+        XCTAssertTrue(app.buttons["accent.orange"].isSelected)
+        screenshot("15-settings-sepia")
+
+        let focus = app.switches["settings.focusMode"].firstMatch
+        XCTAssertTrue(focus.waitForExistence(timeout: 5))
+        // A Form toggle only reacts on the switch itself, at the trailing edge of the row.
+        focus.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
+        XCTAssertEqual(focus.value as? String, "1")
+
+        tab(app, "Feed")
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Like"].exists, "Focus mode hides the action bar")
+        screenshot("16-feed-sepia-focus")
+    }
+
+    func testLongParagraphIsSplitIntoNumberedParts() {
+        // The default word limit (Auto) splits the 18-sentence paragraph of the first book.
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        openToolbarMenu(app, "Feed mode", choice: firstTitle).tap()
+        XCTAssertTrue(app.navigationBars[firstTitle].waitForExistence(timeout: 5))
+        let firstPart = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Part 1 of")).firstMatch
+        XCTAssertTrue(firstPart.waitForExistence(timeout: 5), "The long paragraph is split")
+        XCTAssertTrue(element(app, labelBeginsWith: "Chapter: Chapter 1. New chapter begins.").exists, "The book starts with a new-chapter row")
+        screenshot("17-feed-split-parts")
+    }
+
+    func testDoubleTapLikesAPost() {
+        let app = launch(sampleBooks: true)
+        let post = firstPost(app)
+        XCTAssertTrue(post.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["Unlike"].exists)
+        post.doubleTap()
+        XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5), "Double tap liked the post")
+        XCTAssertFalse(app.buttons["Continue in feed from here"].exists, "A double tap does not open the reader")
+        post.doubleTap()
+        XCTAssertTrue(app.buttons["Unlike"].firstMatch.exists, "A second double tap does not unlike")
     }
 
     // MARK: Accessibility
 
-    func testAccessibilityAuditLightMode() throws {
-        try runAudit(extra: [], prefix: "light")
+    func testAccessibilityAuditLightTheme() throws {
+        try runAudit(extra: ["-appTheme", "light"], prefix: "light")
     }
 
-    func testAccessibilityAuditDarkMode() throws {
-        try runAudit(extra: ["-UITestDarkMode"], prefix: "dark")
+    func testAccessibilityAuditNightTheme() throws {
+        try runAudit(extra: ["-appTheme", "night"], prefix: "night")
+    }
+
+    func testAccessibilityAuditSepiaTheme() throws {
+        try runAudit(extra: ["-appTheme", "sepia", "-accentChoice", "orange"], prefix: "sepia")
+    }
+
+    func testAccessibilityAuditCompactFocusSerif() throws {
+        try runAudit(extra: ["-density", "compact", "-focusMode", "YES", "-postTypeface", "serif", "-accentChoice", "purple"], prefix: "focus")
     }
 
     func testLargestAccessibilityTextSize() throws {
@@ -237,8 +315,13 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls.firstMatch.waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) saved")
 
+        tab(app, "Settings")
+        XCTAssertTrue(app.buttons["accent.blue"].waitForExistence(timeout: 5))
+        try audit(app, screen: "\(prefix) settings")
+
         tab(app, "Feed")
-        app.buttons["Read in context"].firstMatch.tap()
+        // A tap on the post text opens the reader (focus mode has no action bar).
+        firstPost(app).tap()
         XCTAssertTrue(app.buttons["Continue in feed from here"].waitForExistence(timeout: 10))
         screenshot("11-\(prefix)-reader")
         try audit(app, screen: "\(prefix) reader")

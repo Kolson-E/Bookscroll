@@ -43,9 +43,6 @@ struct BookscrollApp: App {
             RootView()
                 .environment(app)
                 .onOpenURL { url in app.handleOpenURL(url) }
-                #if DEBUG
-                .preferredColorScheme(UITestSupport.colorScheme)
-                #endif
         }
         .modelContainer(container)
     }
@@ -58,6 +55,7 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var app = app
+        let settings = AppSettings.shared
         TabView(selection: $app.selectedTab) {
             FeedView()
                 .tabItem { Label("Feed", systemImage: "text.bubble") }
@@ -68,7 +66,13 @@ struct RootView: View {
             SavedView()
                 .tabItem { Label("Saved", systemImage: "bookmark") }
                 .tag(AppModel.Tab.saved)
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(AppModel.Tab.settings)
         }
+        .tint(Theme.accent)
+        .preferredColorScheme(settings.theme.colorScheme)
+        .toolbarBackground(Theme.background, for: .tabBar)
         .fileImporter(
             isPresented: $app.isImporterPresented,
             allowedContentTypes: BookFormat.importableTypes,

@@ -85,6 +85,11 @@ enum BookWriter {
             importNote: parsed.note
         )
         let bookID = book.id
+        var derived = DerivedData.Builder()
+        for draft in segmented.paragraphs {
+            derived.add(index: draft.index, charStart: draft.charStart, chapter: draft.chapter, text: draft.text)
+        }
+        DerivedData.apply(derived, to: book)
 
         do {
             context.insert(book)

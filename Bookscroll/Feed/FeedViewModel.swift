@@ -13,11 +13,17 @@ final class FeedViewModel {
     private(set) var books: [FeedBook] = []
     private(set) var style: PostStyle = .paragraph
     private(set) var mode: FeedMode = .mix
+    private(set) var wordLimit: WordLimit = .off
+    /// Book of the top post in Mix, so Mix opens on the same post after a mode switch or a
+    /// relaunch.
+    @ObservationIgnored private let defaults: UserDefaults
+    static let mixTopBookKey = "mixTopBookID"
     /// Top visible post, bound to the scroll view.
     var scrolledID: String?
 
-    init(store: LibraryStore) {
+    init(store: LibraryStore, defaults: UserDefaults = .standard) {
         self.store = store
+        self.defaults = defaults
     }
 
     var title: String {
@@ -27,11 +33,12 @@ final class FeedViewModel {
         return "Feed"
     }
 
-    func configure(style: PostStyle, mode: FeedMode) {
-        if configured && style == self.style && mode == self.mode { return }
+    func configure(style: PostStyle, mode: FeedMode, wordLimit: WordLimit = .off) {
+        if configured && style == self.style && mode == self.mode && wordLimit == self.wordLimit { return }
         configured = true
         self.style = style
         self.mode = mode
+        self.wordLimit = wordLimit
         rebuild()
     }
 
@@ -49,6 +56,9 @@ final class FeedViewModel {
     /// Called when the top visible post changes. That post and all posts above it count as shown.
     func didScroll(to id: String?) {
         guard let id, let engine else { return }
+        if mode == .mix, let post = engine.index(ofPost: id).map({ engine.posts[$0] }) {
+            defaults.set(post.bookID.uuidString, forKey: Self.mixTopBookKey)
+        }
         let updates = engine.markShown(through: id)
         for (bookID, offset) in updates {
             store.setPosition(bookID: bookID, offset: offset)
@@ -121,9 +131,14 @@ final class FeedViewModel {
             books: books,
             style: style,
             mode: mode,
-            seed: UInt64.random(in: .min ... .max)
+            seed: UInt64.random(in: .min ... .max),
+            wordLimit: wordLimit
         )
-        engine.loadMore()
+        if mode == .mix, let id = defaults.string(forKey: Self.mixTopBookKey).flatMap(UUID.init(uuidString:)) {
+            engine.refresh(seed: UInt64.random(in: .min ... .max), leadingBook: id)
+        } else {
+            engine.loadMore()
+        }
         self.engine = engine
         sync()
         scrolledID = posts.first?.id

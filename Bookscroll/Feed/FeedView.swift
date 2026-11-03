@@ -56,18 +56,24 @@ struct FeedView: View {
             .background(Theme.background)
             .navigationTitle(feed.title)
             .navigationBarTitleDisplayMode(.inline)
+            .themedNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { modeMenu }
                 ToolbarItem(placement: .topBarTrailing) { styleMenu }
             }
         }
-        .task { feed.configure(style: selectedStyle, mode: selectedMode) }
-        .onChange(of: styleRaw) { feed.configure(style: selectedStyle, mode: selectedMode) }
-        .onChange(of: modeRaw) { feed.configure(style: selectedStyle, mode: selectedMode) }
-        .onChange(of: singleBookID) { feed.configure(style: selectedStyle, mode: selectedMode) }
+        .task { configureFeed() }
+        .onChange(of: styleRaw) { configureFeed() }
+        .onChange(of: modeRaw) { configureFeed() }
+        .onChange(of: singleBookID) { configureFeed() }
+        .onChange(of: AppSettings.shared.wordLimit) { configureFeed() }
         .onChange(of: feed.mode) { _, mode in
             if mode == .mix && modeRaw != "mix" { modeRaw = "mix" }
         }
+    }
+
+    private func configureFeed() {
+        app.feed.configure(style: selectedStyle, mode: selectedMode, wordLimit: AppSettings.shared.wordLimit)
     }
 
     private var timeline: some View {
@@ -79,11 +85,7 @@ struct FeedView: View {
                         post: post,
                         isLiked: app.marks.isMarked(.like, post),
                         isBookmarked: app.marks.isMarked(.bookmark, post),
-                        onLike: { app.marks.toggle(.like, post) },
-                        onBookmark: { app.marks.toggle(.bookmark, post) },
-                        onOpen: { app.openReader(for: post) },
-                        onShareText: { app.shareText(post) },
-                        onShareImage: { app.shareImage(post) }
+                        actions: app.actions(for: post)
                     )
                     .onAppear { feed.postAppeared(post.id) }
                 }
@@ -126,6 +128,10 @@ struct FeedView: View {
                 ForEach(PostStyle.allCases) { style in
                     Text(style.title).tag(style.rawValue)
                 }
+            }
+            Divider()
+            Toggle(isOn: Bindable(AppSettings.shared).focusMode) {
+                Label("Focus mode", systemImage: "text.justify.left")
             }
         } label: {
             Image(systemName: selectedStyle == .paragraph ? "text.alignleft" : "rectangle.split.1x2")
