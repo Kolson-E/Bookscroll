@@ -61,6 +61,7 @@ jobs:
             -scheme Bookscroll \
             -destination "id=${{ steps.simulator.outputs.udid }}" \
             -parallel-testing-enabled NO \
+            -quiet \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | tee xcodebuild.log
 
