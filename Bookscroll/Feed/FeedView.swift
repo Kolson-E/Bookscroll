@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct FeedView: View {
     @Environment(AppModel.self) private var app
     @AppStorage("postStyle") private var styleRaw = PostStyle.paragraph.rawValue
@@ -134,6 +135,7 @@ struct FeedView: View {
     }
 }
 
+@MainActor
 private struct FeedFooter: View {
     let isAtEnd: Bool
 

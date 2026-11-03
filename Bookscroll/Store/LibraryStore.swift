@@ -153,17 +153,28 @@ final class LibraryStore: SegmentSource {
     }
 }
 
-/// Deletes a book, its marks and its segments in one save. The cascade rule removes the
-/// segments with the book, so the store never holds a book with part of its segments.
-/// Deleting segments one by one is much slower: each delete updates the book's
-/// relationship array. A deletion that never ran (the app stopped first) is found again
-/// through `deletionPending` at the next launch.
+/// Deletes a book, its marks and its segments. The book is already hidden (`deletionPending`),
+/// so a book with part of its segments is never shown. Segments go first, by key range in
+/// the store; the book row goes last, and the cascade rule removes anything left. A deletion
+/// that did not finish (the app stopped) runs again at the next launch.
 enum BookDeleter {
     static let defaultChunkSize = 2000
 
     static func delete(bookID: UUID, in context: ModelContext, chunkSize: Int = defaultChunkSize) throws {
         var bookDescriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.id == bookID })
         bookDescriptor.fetchLimit = 1
+        if let ordinal = try context.fetch(bookDescriptor).first?.ordinal {
+            // Fast path: remove the segments in the store by key range, without loading them.
+            // If the store refuses, the cascade below removes them instead.
+            let lower = SegmentKey.lowerBound(ordinal: ordinal, style: .paragraph)
+            let upper = SegmentKey.lowerBound(ordinal: ordinal + 1, style: .paragraph)
+            do {
+                try context.delete(model: Segment.self, where: #Predicate { $0.indexKey >= lower && $0.indexKey < upper })
+                try context.save()
+            } catch {
+                context.rollback()
+            }
+        }
         if let book = try context.fetch(bookDescriptor).first {
             context.delete(book)
             try context.save()

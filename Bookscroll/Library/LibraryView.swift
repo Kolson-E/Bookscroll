@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 
+@MainActor
 struct LibraryView: View {
     @Environment(AppModel.self) private var app
 
@@ -26,6 +27,7 @@ struct LibraryView: View {
     }
 }
 
+@MainActor
 private struct BookList: View {
     @Environment(AppModel.self) private var app
     @Query(
@@ -78,6 +80,7 @@ private struct BookList: View {
     }
 }
 
+@MainActor
 private struct BookRow: View {
     let book: Book
     @ScaledMetric(relativeTo: .headline) private var scaledAvatarSize: CGFloat = 40
@@ -134,6 +137,7 @@ private struct BookRow: View {
     }
 }
 
+@MainActor
 private struct ImportJobRow: View {
     let job: ImportManager.Job
     let onDismiss: () -> Void

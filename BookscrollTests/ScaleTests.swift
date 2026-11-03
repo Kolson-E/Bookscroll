@@ -91,7 +91,9 @@ final class ScaleTests: XCTestCase {
         }
         let lookupMilliseconds = Date().timeIntervalSince(lookupStart) * 1000 / Double(lookups)
         print("SCALE: offset lookup plus 20-segment fetch: \(format(lookupMilliseconds)) ms on average")
-        XCTAssertLessThan(lookupMilliseconds, 10, "A table scan of this store takes far longer")
+        // A loose bound: CI machines vary by 3x between runs. The query-plan test above is the
+        // exact check that these lookups use the index.
+        XCTAssertLessThan(lookupMilliseconds, 50)
 
         // The feed in Mix mode, page by page.
         let engine = FeedEngine(source: store, books: books, style: .paragraph, mode: .mix, seed: 3)

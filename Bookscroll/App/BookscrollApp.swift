@@ -3,6 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 @main
+@MainActor
 struct BookscrollApp: App {
     private let container: ModelContainer
     @State private var app: AppModel
@@ -46,6 +47,7 @@ struct BookscrollApp: App {
     }
 }
 
+@MainActor
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase

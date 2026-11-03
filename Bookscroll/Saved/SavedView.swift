@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SavedView: View {
     @Environment(AppModel.self) private var app
     @AppStorage("postStyle") private var styleRaw = PostStyle.paragraph.rawValue

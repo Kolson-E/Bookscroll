@@ -13,6 +13,7 @@ enum ShareFormatter {
 }
 
 /// The post as an image card, for sharing.
+@MainActor
 struct ShareCardView: View {
     let post: FeedPost
 

@@ -37,6 +37,7 @@ enum BookColor {
     }
 }
 
+@MainActor
 struct AvatarView: View {
     let title: String
     let author: String
@@ -66,6 +67,7 @@ struct AvatarView: View {
     }
 }
 
+@MainActor
 struct ChapterHeaderRow: View {
     let title: String
 
@@ -87,6 +89,7 @@ struct ChapterHeaderRow: View {
 }
 
 /// One timeline post: avatar, title line, author, chapter and progress, serif text, actions.
+@MainActor
 struct PostRow: View {
     let post: FeedPost
     let isLiked: Bool

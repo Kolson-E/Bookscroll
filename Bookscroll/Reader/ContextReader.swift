@@ -68,6 +68,7 @@ final class ContextReaderModel {
     }
 }
 
+@MainActor
 struct ContextReaderView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.dismiss) private var dismiss
@@ -154,10 +155,17 @@ struct ContextReaderView: View {
     }
 }
 
+@MainActor
 private struct ReaderParagraph: View {
     let paragraph: SegmentRecord
     let highlight: Range<Int>
     let isHighlighted: Bool
+
+    /// The post covers the whole paragraph (always true in Paragraphs style).
+    private var coversParagraph: Bool {
+        let length = (paragraph.text as NSString).length
+        return highlight.lowerBound <= paragraph.charStart && highlight.upperBound >= paragraph.charStart + length
+    }
 
     var body: some View {
         Text(attributed)
@@ -165,7 +173,16 @@ private struct ReaderParagraph: View {
             .lineSpacing(3)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, isHighlighted ? 10 : 0)
+            .padding(.leading, isHighlighted ? 12 : 0)
+            .padding(.trailing, isHighlighted && coversParagraph ? 8 : 0)
+            .padding(.vertical, isHighlighted && coversParagraph ? 6 : 0)
+            // A whole highlighted paragraph gets one solid block; part of a paragraph is
+            // highlighted inside the text.
+            .background(alignment: .leading) {
+                if isHighlighted && coversParagraph {
+                    Theme.highlight
+                }
+            }
             .overlay(alignment: .leading) {
                 if isHighlighted {
                     Rectangle()
@@ -180,7 +197,7 @@ private struct ReaderParagraph: View {
 
     private var attributed: AttributedString {
         var text = AttributedString(paragraph.text)
-        guard isHighlighted else { return text }
+        guard isHighlighted, !coversParagraph else { return text }
         let length = (paragraph.text as NSString).length
         let lower = max(highlight.lowerBound, paragraph.charStart) - paragraph.charStart
         let upper = min(highlight.upperBound, paragraph.charStart + length) - paragraph.charStart
