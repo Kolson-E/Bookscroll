@@ -89,14 +89,19 @@ enum BookWriter {
         do {
             context.insert(book)
             let drafts = segmented.paragraphs + segmented.passages
+            var segments: [Segment] = []
+            segments.reserveCapacity(drafts.count)
             for (n, draft) in drafts.enumerated() {
                 let segment = Segment(bookID: bookID, ordinal: ordinal, draft: draft)
                 context.insert(segment)
-                segment.book = book
+                segments.append(segment)
                 if (n + 1) % progressInterval == 0 {
                     progress(0.8 * Double(n + 1) / Double(drafts.count))
                 }
             }
+            // One assignment sets the relationship for all segments. Setting `segment.book`
+            // one by one grows the book's array on every call, which is quadratic.
+            book.segments = segments
             progress(0.8)
             try context.save()
             progress(1)

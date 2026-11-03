@@ -186,7 +186,7 @@ private struct ReaderParagraph: View {
         let upper = min(highlight.upperBound, paragraph.charStart + length) - paragraph.charStart
         guard lower < upper,
               let range = Range(NSRange(location: lower, length: upper - lower), in: text) else { return text }
-        text[range][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Color.accentColor.opacity(0.18)
+        text[range][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Theme.highlight
         return text
     }
 }

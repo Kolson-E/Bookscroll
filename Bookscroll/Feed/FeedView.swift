@@ -39,6 +39,7 @@ struct FeedView: View {
                         Label("No books yet", systemImage: "books.vertical")
                     } description: {
                         Text("Import DRM-free EPUB or PDF files to fill your feed.")
+                        .foregroundStyle(Theme.secondaryText)
                     } actions: {
                         Button { app.presentImporter() } label: {
                             Text("Import Books").foregroundStyle(Theme.background)
@@ -141,7 +142,7 @@ private struct FeedFooter: View {
             if isAtEnd {
                 Text("You have reached the end of your books.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             } else {
                 ProgressView()
                     .accessibilityLabel("Loading more posts")

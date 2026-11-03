@@ -64,6 +64,7 @@ private struct BookList: View {
                     Label("Your library is empty", systemImage: "books.vertical")
                 } description: {
                     Text("Import DRM-free EPUB or PDF files from Files, iCloud Drive or any file provider. You can also share a file to Bookscroll from another app. Apple Books purchases are DRM-protected and cannot be imported.")
+                        .foregroundStyle(Theme.secondaryText)
                 } actions: {
                     Button { app.presentImporter() } label: {
                         Text("Import Books").foregroundStyle(Theme.background)
@@ -79,37 +80,38 @@ private struct BookList: View {
 
 private struct BookRow: View {
     let book: Book
+    @ScaledMetric(relativeTo: .headline) private var avatarSize: CGFloat = 40
 
     private var percent: Int { TextUtils.percent(book.positionOffset, of: book.totalCharacters) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
-                AvatarView(title: book.title, author: book.author, size: 40)
+                AvatarView(title: book.title, author: book.author, size: avatarSize, textStyle: .title3)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(book.title)
                         .font(.headline)
                     Text(book.author)
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.secondaryText)
                 }
                 Spacer(minLength: 8)
                 Text(book.format.label)
                     .font(.caption2.weight(.bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary, lineWidth: 1))
-                    .foregroundStyle(.secondary)
+                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.secondaryText, lineWidth: 1))
+                    .foregroundStyle(Theme.secondaryText)
             }
             ProgressView(value: book.progress)
             Text("\(percent)% read")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.secondaryText)
             if let note = book.importNote {
                 Label(note, systemImage: "info.circle")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             }
         }
         .padding(.vertical, 6)
@@ -146,12 +148,12 @@ private struct ImportJobRow: View {
             case .waiting:
                 Text("Waiting")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             case .importing:
                 ProgressView(value: job.progress)
                 Text("Importing \(Int(job.progress * 100))%")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Theme.secondaryText)
             case let .failed(message):
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)

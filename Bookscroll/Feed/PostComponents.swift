@@ -5,6 +5,19 @@ enum Theme {
     /// White in light mode, pure black in dark mode.
     static let background = Color(uiColor: .systemBackground)
     static let threadLine = Color(uiColor: .systemGray4)
+    /// Background of the tapped post in the reader. Opaque, so text on it keeps full contrast.
+    static let highlight = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.27, green: 0.16, blue: 0.07, alpha: 1)
+            : UIColor(red: 0.99, green: 0.91, blue: 0.85, alpha: 1)
+    })
+    /// Secondary text with at least 4.5:1 contrast on the background (the system
+    /// secondary label colour is about 3.4:1 on white).
+    static let secondaryText = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(red: 0.64, green: 0.64, blue: 0.67, alpha: 1)
+            : UIColor(red: 0.38, green: 0.38, blue: 0.41, alpha: 1)
+    })
 }
 
 /// Stable colour per book (FNV-1a hash of title and author; Swift's hashValue is randomized per launch).
@@ -18,8 +31,9 @@ enum BookColor {
         return Double(hash % 360) / 360
     }
 
+    /// Dark enough for white text at 4.5:1 or more for every hue (yellow is the worst case).
     static func color(title: String, author: String) -> Color {
-        Color(hue: hue(for: title + "|" + author), saturation: 0.55, brightness: 0.62)
+        Color(hue: hue(for: title + "|" + author), saturation: 0.6, brightness: 0.45)
     }
 }
 
@@ -27,6 +41,8 @@ struct AvatarView: View {
     let title: String
     let author: String
     let size: CGFloat
+    /// The letter follows Dynamic Type through this style; `size` should be a @ScaledMetric.
+    var textStyle: Font.TextStyle = .title2
 
     var body: some View {
         Circle()
@@ -34,8 +50,11 @@ struct AvatarView: View {
             .frame(width: size, height: size)
             .overlay {
                 Text(initial)
-                    .font(.system(size: size * 0.46, weight: .bold, design: .serif))
+                    .font(.system(textStyle, design: .serif).weight(.bold))
                     .foregroundStyle(.white)
+                    .minimumScaleFactor(0.5)
+                    .lineLimit(1)
+                    .padding(size * 0.12)
             }
     }
 
@@ -56,10 +75,9 @@ struct ChapterHeaderRow: View {
                 .imageScale(.small)
             Text(title)
                 .font(.footnote.weight(.semibold))
-                .lineLimit(2)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Theme.secondaryText)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .accessibilityElement(children: .combine)
@@ -144,20 +162,20 @@ struct PostRow: View {
 
     private var textGroup: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 4) {
-                Text(post.bookTitle)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text(post.bookAuthor)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            // Title and author share a line when they fit, otherwise they stack. Nothing is cut off.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    titleText
+                    authorText
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    titleText
+                    authorText
+                }
             }
             Text(post.progressLine)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+                .foregroundStyle(Theme.secondaryText)
             postText
                 .padding(.top, 2)
         }
@@ -170,6 +188,20 @@ struct PostRow: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, onOpen)
         .accessibilityIdentifier("post")
+    }
+
+    private var titleText: some View {
+        Text(post.bookTitle)
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var authorText: some View {
+        Text(post.bookAuthor)
+            .font(.subheadline)
+            .foregroundStyle(Theme.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var postText: some View {
@@ -209,7 +241,7 @@ struct PostRow: View {
         HStack {
             Button(action: onLike) {
                 Image(systemName: isLiked ? "heart.fill" : "heart")
-                    .foregroundStyle(isLiked ? Color.pink : Color.secondary)
+                    .foregroundStyle(isLiked ? Color.pink : Theme.secondaryText)
                     .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -218,7 +250,7 @@ struct PostRow: View {
             Spacer(minLength: 0)
             Button(action: onBookmark) {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                    .foregroundStyle(isBookmarked ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(isBookmarked ? Color.accentColor : Theme.secondaryText)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
@@ -227,7 +259,7 @@ struct PostRow: View {
             Spacer(minLength: 0)
             Button(action: onOpen) {
                 Image(systemName: "book")
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
@@ -242,7 +274,7 @@ struct PostRow: View {
                 }
             } label: {
                 Image(systemName: "square.and.arrow.up")
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(Theme.secondaryText)
                     .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
                     .contentShape(Rectangle())
             }

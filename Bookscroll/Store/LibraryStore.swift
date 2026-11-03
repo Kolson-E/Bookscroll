@@ -153,45 +153,39 @@ final class LibraryStore: SegmentSource {
     }
 }
 
-/// Deletes a book, its marks and its segments. Segments go in bounded chunks, so a large
-/// book never loads all its segments at once. The book row goes last: if the app stops
-/// half way, the book (still marked `deletionPending`) is found and finished at next launch.
+/// Deletes a book, its marks and its segments in one save. The cascade rule removes the
+/// segments with the book, so the store never holds a book with part of its segments.
+/// Deleting segments one by one is much slower: each delete updates the book's
+/// relationship array. A deletion that never ran (the app stopped first) is found again
+/// through `deletionPending` at the next launch.
 enum BookDeleter {
     static let defaultChunkSize = 2000
 
     static func delete(bookID: UUID, in context: ModelContext, chunkSize: Int = defaultChunkSize) throws {
         var bookDescriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.id == bookID })
         bookDescriptor.fetchLimit = 1
-        let book = try context.fetch(bookDescriptor).first
-        if let book, !book.deletionPending {
-            book.deletionPending = true
-            try context.save()
-        }
-
-        let marks = try context.fetch(FetchDescriptor<Mark>(predicate: #Predicate { $0.bookID == bookID }))
-        for mark in marks { context.delete(mark) }
-        try context.save()
-
-        while true {
-            var descriptor: FetchDescriptor<Segment>
-            if let ordinal = book?.ordinal {
-                // Both styles of a book share the ordinal prefix, so one indexed key range covers them.
-                let lower = SegmentKey.lowerBound(ordinal: ordinal, style: .paragraph)
-                let upper = SegmentKey.lowerBound(ordinal: ordinal + 1, style: .paragraph)
-                descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.indexKey >= lower && $0.indexKey < upper })
-            } else {
-                descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.bookID == bookID })
-            }
-            descriptor.fetchLimit = max(1, chunkSize)
-            let chunk = try context.fetch(descriptor)
-            if chunk.isEmpty { break }
-            for segment in chunk { context.delete(segment) }
-            try context.save()
-        }
-
-        if let book {
+        if let book = try context.fetch(bookDescriptor).first {
             context.delete(book)
             try context.save()
+        }
+
+        // Rows without a book link (not written by this version of the app) go in bounded chunks.
+        for model in [0, 1] {
+            while true {
+                let chunk: [any PersistentModel]
+                if model == 0 {
+                    var descriptor = FetchDescriptor<Mark>(predicate: #Predicate { $0.bookID == bookID })
+                    descriptor.fetchLimit = max(1, chunkSize)
+                    chunk = try context.fetch(descriptor)
+                } else {
+                    var descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.bookID == bookID })
+                    descriptor.fetchLimit = max(1, chunkSize)
+                    chunk = try context.fetch(descriptor)
+                }
+                if chunk.isEmpty { break }
+                for item in chunk { context.delete(item) }
+                try context.save()
+            }
         }
     }
 

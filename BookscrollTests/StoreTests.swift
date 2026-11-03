@@ -158,5 +158,12 @@ final class StoreTests: XCTestCase {
         XCTAssertFalse(book.deletionPending)
         XCTAssertEqual(FeedBook(book).effectiveStyle(.paragraph), .passage)
         XCTAssertEqual(try Fixtures.segmentCount(bookID: id, in: container), segmented.paragraphs.count + segmented.passages.count)
+
+        // Every segment is linked to its book, so deleting the book cascades to it.
+        let unlinked = try ModelContext(container).fetchCount(FetchDescriptor<Segment>(predicate: #Predicate { $0.book == nil }))
+        XCTAssertEqual(unlinked, 0)
+        var one = FetchDescriptor<Segment>()
+        one.fetchLimit = 1
+        XCTAssertEqual(try ModelContext(container).fetch(one).first?.book?.id, id)
     }
 }

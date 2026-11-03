@@ -4,6 +4,8 @@ options:
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
+  # Readable by Xcode 15.x (objectVersion 60); newer Xcode versions open it too.
+  projectFormat: xcode15_0
   developmentLanguage: en
 
 settings:

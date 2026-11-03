@@ -28,6 +28,7 @@ struct SavedView: View {
                         Label(emptyTitle, systemImage: filter == .liked ? "heart" : "bookmark")
                     } description: {
                         Text("Like or bookmark posts in the feed to keep them here.")
+                            .foregroundStyle(Theme.secondaryText)
                     }
                     .frame(maxHeight: .infinity)
                 } else {

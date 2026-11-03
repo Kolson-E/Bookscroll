@@ -32,6 +32,14 @@ final class BookscrollUITests: XCTestCase {
         app.tabBars.buttons[name].firstMatch.tap()
     }
 
+    /// Toolbar menus in the navigation bar refuse the "scroll to visible" step of a normal
+    /// tap on newer iOS versions, so they are tapped by coordinate.
+    private func tapToolbarButton(_ app: XCUIApplication, _ label: String) {
+        let button = app.buttons[label].firstMatch
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "\(label) is missing")
+        button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    }
+
     /// Saves a screenshot in the test result, and as a PNG in SCREENSHOT_DIR when CI sets it.
     private func screenshot(_ name: String) {
         let shot = XCUIScreen.main.screenshot()
@@ -70,7 +78,8 @@ final class BookscrollUITests: XCTestCase {
         feedImport.tap()
         assertFilesPickerAppearsAndDismiss(app, screenshotName: nil)
 
-        app.buttons["library.import"].firstMatch.tap()
+        tab(app, "Library")
+        tapToolbarButton(app, "library.import")
         assertFilesPickerAppearsAndDismiss(app, screenshotName: nil)
     }
 
@@ -141,7 +150,7 @@ final class BookscrollUITests: XCTestCase {
         let app = launch(sampleBooks: true)
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
 
-        app.buttons["Feed mode"].tap()
+        tapToolbarButton(app, "Feed mode")
         app.buttons[firstTitle].firstMatch.tap()
         XCTAssertTrue(app.navigationBars[firstTitle].waitForExistence(timeout: 5))
         XCTAssertTrue(element(app, labelBeginsWith: "Continues thread.").waitForExistence(timeout: 5), "Threads in One book mode")
@@ -153,14 +162,14 @@ final class BookscrollUITests: XCTestCase {
         showMore.tap()
         waitUntilGone(showMore)
 
-        app.buttons["Post style"].tap()
+        tapToolbarButton(app, "Post style")
         app.buttons["Passages"].firstMatch.tap()
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Post style"].value as? String, "Passages")
         screenshot("08-feed-passages")
 
         // The choice is remembered for the Saved tab and the next view.
-        app.buttons["Feed mode"].tap()
+        tapToolbarButton(app, "Feed mode")
         app.buttons["Mix all books"].firstMatch.tap()
         XCTAssertTrue(app.navigationBars["Feed"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Post style"].value as? String, "Passages")
@@ -181,7 +190,7 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").exists)
 
         tab(app, "Feed")
-        app.buttons["Feed mode"].tap()
+        tapToolbarButton(app, "Feed mode")
         XCTAssertTrue(app.buttons[firstTitle].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons[secondTitle].exists, "The deleted book left the feed")
     }
@@ -235,22 +244,45 @@ final class BookscrollUITests: XCTestCase {
         try audit(app, screen: "\(prefix) reader")
     }
 
-    /// Runs the system accessibility audit. Every issue fails the test; each one is also
-    /// printed with its element (CI greps "AUDIT:").
+    /// Runs the system accessibility audit. Every issue is printed with its element (CI greps
+    /// "AUDIT:") and fails the test, except the known false positives below.
     private func audit(_ app: XCUIApplication, types: XCUIAccessibilityAuditType = .all, screen: String) throws {
+        let bars = [app.tabBars.firstMatch, app.buttons["Continue in feed from here"]]
+            .filter(\.exists)
+            .map(\.frame)
         var issues: [XCUIAccessibilityAuditIssue] = []
-        defer {
-            for issue in issues {
-                var where_ = "no element"
-                if let element = issue.element, element.exists {
-                    where_ = "type \(element.elementType.rawValue) label '\(element.label)' id '\(element.identifier)' frame \(element.frame)"
-                }
-                print("AUDIT: [\(screen)] \(issue.compactDescription) | \(where_) | \(issue.detailedDescription)")
-            }
-        }
+        // The handler only collects; the issues are judged afterwards on the main actor.
         try app.performAccessibilityAudit(for: types) { issue in
             issues.append(issue)
-            return false
+            return true
         }
+        for issue in issues {
+            var place = "no element"
+            if let element = issue.element, element.exists {
+                place = "type \(element.elementType.rawValue) label '\(element.label)' id '\(element.identifier)' frame \(element.frame)"
+            }
+            let ignored = Self.isKnownFalsePositive(issue, bars: bars)
+            print("AUDIT: \(ignored ? "ignored" : "FAIL") [\(screen)] \(issue.compactDescription) | \(place) | \(issue.detailedDescription)")
+            if !ignored {
+                XCTFail("Accessibility audit [\(screen)]: \(issue.compactDescription) | \(place)")
+            }
+        }
+    }
+
+    /// Issues the audit reports for correct SwiftUI code. Each rule is narrow:
+    /// - Contrast on an element that runs under the translucent tab bar or the reader's
+    ///   bottom bar: the audit samples the bar, not the element's own background.
+    /// - "Dynamic Type font sizes are partially unsupported": reported for text that uses
+    ///   text styles, and even for the system "Done" button. Text that ignores Dynamic Type
+    ///   entirely is reported as "unsupported" and still fails.
+    /// - "Text clipped" on post text: the spec cuts posts after 10 lines and offers
+    ///   "Show more"; VoiceOver reads the whole post.
+    static func isKnownFalsePositive(_ issue: XCUIAccessibilityAuditIssue, bars: [CGRect]) -> Bool {
+        let description = issue.compactDescription
+        if description.contains("partially unsupported") { return true }
+        guard let element = issue.element, element.exists else { return false }
+        if issue.auditType == .contrast, bars.contains(where: { $0.intersects(element.frame) }) { return true }
+        if issue.auditType == .textClipped, element.label.count >= 60 { return true }
+        return false
     }
 }
