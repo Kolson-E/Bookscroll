@@ -55,13 +55,14 @@ final class LibraryStore: SegmentSource {
 
     /// Deletes a book with all its segments and marks.
     func deleteBook(id: UUID) throws {
-        try context.delete(model: Segment.self, where: #Predicate { $0.bookID == id })
-        try context.delete(model: Mark.self, where: #Predicate { $0.bookID == id })
-        if let book = book(id: id) {
-            context.delete(book)
-        }
+        save()
+        try BookDeleter.delete(bookID: id, in: context)
         bookCache[id] = nil
-        try context.save()
+    }
+
+    /// Drops the cached object for a book deleted through another context.
+    func forgetBook(id: UUID) {
+        bookCache[id] = nil
     }
 
     func save() {
@@ -138,6 +139,34 @@ final class LibraryStore: SegmentSource {
             context.delete(mark)
         }
         try? context.save()
+    }
+}
+
+/// Deletes a book, its marks and its segments. Segments go in bounded chunks, so a large
+/// book never loads all its segments at once.
+enum BookDeleter {
+    static let chunkSize = 2000
+
+    static func delete(bookID: UUID, in context: ModelContext) throws {
+        let marks = try context.fetch(FetchDescriptor<Mark>(predicate: #Predicate { $0.bookID == bookID }))
+        for mark in marks { context.delete(mark) }
+        try context.save()
+
+        while true {
+            var descriptor = FetchDescriptor<Segment>(predicate: #Predicate { $0.bookID == bookID })
+            descriptor.fetchLimit = chunkSize
+            let chunk = try context.fetch(descriptor)
+            if chunk.isEmpty { break }
+            for segment in chunk { context.delete(segment) }
+            try context.save()
+        }
+
+        var bookDescriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.id == bookID })
+        bookDescriptor.fetchLimit = 1
+        if let book = try context.fetch(bookDescriptor).first {
+            context.delete(book)
+        }
+        try context.save()
     }
 }
 

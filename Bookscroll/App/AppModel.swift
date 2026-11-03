@@ -114,13 +114,24 @@ final class AppModel {
         marks.reload()
     }
 
+    /// Deletes a book off the main thread. Pending changes are saved first and the book leaves
+    /// the feed first, so the main context holds no unsaved edits to the deleted rows.
     func deleteBook(id: UUID) {
-        do {
-            try store.deleteBook(id: id)
-        } catch {
-            errorMessage = "The book could not be deleted: \(error.localizedDescription)"
+        store.save()
+        feed.removeBook(id)
+        let container = self.container
+        Task {
+            let result: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
+                let context = ModelContext(container)
+                context.autosaveEnabled = false
+                return Result { try BookDeleter.delete(bookID: id, in: context) }
+            }.value
+            if case let .failure(error) = result {
+                errorMessage = "The book could not be deleted: \(error.localizedDescription)"
+            }
+            store.forgetBook(id: id)
+            libraryDidChange()
         }
-        libraryDidChange()
     }
 
     func openReader(for post: FeedPost) {

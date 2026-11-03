@@ -147,7 +147,7 @@ final class PassageChunkerTests: XCTestCase {
     }
 
     func testShortParagraphsMerge() {
-        let short = (0..<12).map { _ in ParsedParagraph(text: "This short paragraph has exactly ten words in it.", chapter: "One") }
+        let short = (0..<12).map { _ in ParsedParagraph(text: "This short paragraph has exactly ten words in it now.", chapter: "One") }
         XCTAssertEqual(TextUtils.wordCount(short[0].text), 10)
         let segmented = Segmenter.segment(short)
         XCTAssertEqual(segmented.passages.count, 3)

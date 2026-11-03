@@ -61,9 +61,16 @@ jobs:
             -scheme Bookscroll \
             -destination "id=${{ steps.simulator.outputs.udid }}" \
             -parallel-testing-enabled NO \
-            -quiet \
             CODE_SIGNING_ALLOWED=NO \
-            2>&1 | tee xcodebuild.log
+            > xcodebuild.log 2>&1 &
+          BUILD_PID=$!
+          tail -f xcodebuild.log | grep --line-buffered -E "error:|warning: .*\.swift|Test Case .*(passed|failed)|Executed [0-9]+ test|TEST (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)" &
+          TAIL_PID=$!
+          STATUS=0
+          wait $BUILD_PID || STATUS=$?
+          sleep 2
+          kill $TAIL_PID 2>/dev/null || true
+          exit $STATUS
 
       - name: Summarize failures
         if: failure()
@@ -72,5 +79,5 @@ jobs:
           grep -E "error:" xcodebuild.log | sort -u | head -100 || true
           echo "::endgroup::"
           echo "::group::Failed tests"
-          grep -E "(XCTAssert|failed|error:).*" xcodebuild.log | grep -E "Test Case|XCT|\.swift:[0-9]+" | head -150 || true
+          grep -E "error: -\[|Test Case .* failed" xcodebuild.log | head -150 || true
           echo "::endgroup::"

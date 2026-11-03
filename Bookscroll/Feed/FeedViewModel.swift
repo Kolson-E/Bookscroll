@@ -83,6 +83,21 @@ final class FeedViewModel {
         sync()
     }
 
+    /// Takes a book out of the feed right away (before it is deleted).
+    func removeBook(_ id: UUID) {
+        guard let engine else { return }
+        let remaining = books.filter { $0.id != id }
+        if case let .single(selected) = mode, selected == id {
+            books = remaining
+            mode = .mix
+            rebuild(excluding: id)
+            return
+        }
+        engine.updateBooks(remaining)
+        books = remaining
+        sync()
+    }
+
     /// "Continue in feed from here": move the book to `offset` and show the feed from there.
     func jump(bookID: UUID, offset: Int) {
         store.setPosition(bookID: bookID, offset: offset)
@@ -94,8 +109,8 @@ final class FeedViewModel {
         scrolledID = posts.first?.id
     }
 
-    private func rebuild() {
-        books = store.feedBooks()
+    private func rebuild(excluding excluded: UUID? = nil) {
+        books = store.feedBooks().filter { $0.id != excluded }
         if case let .single(id) = mode, !books.contains(where: { $0.id == id }) {
             mode = .mix
         }
