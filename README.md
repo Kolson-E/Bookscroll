@@ -154,6 +154,24 @@ property is named `passagesOnly` because that is what it means.
 | PDF paragraph detection on a generated PDF (headers, footers, hyphenation, page break, outline), scanned PDF | `PDFTests.swift` |
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
 
+## Verification status
+
+Verified by CI on GitHub Actions (`macos-15` runner, Xcode 16.4, iPhone 17 Pro simulator with
+iOS 26.2): the project generates with XcodeGen, the app and tests build, and all 59 tests pass.
+
+Not verified:
+
+- No run on a physical device, and no run on an iOS 17 simulator (the deployment target is
+  iOS 17.0 and the code uses only iOS 17 APIs, but CI tests on the newest runtime).
+- The SwiftUI layer has no UI tests. Scrolling, the thread line, "Show more", read in context
+  centring and paging, share sheets, the Files picker, haptics, VoiceOver and Dynamic Type
+  behaviour were not exercised by automation.
+- Performance with 50 books and about 100,000 segments per style was not measured. The design
+  relies on SQLite indexing the unique key columns; the queries are bounded, but no benchmark
+  was run.
+- PDF paragraph detection is tested on generated PDFs. Real PDFs (multi-column layouts,
+  unusual fonts, ligatures) can give worse paragraphs.
+
 ## Accessibility
 
 Every control has a VoiceOver label. Each post is its own element; posts inside a thread start

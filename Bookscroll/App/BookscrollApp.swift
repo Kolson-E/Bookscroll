@@ -7,6 +7,8 @@ struct BookscrollApp: App {
     @State private var app: AppModel
 
     init() {
+        // SwiftData stores the library in Application Support, which does not exist on first launch.
+        try? FileManager.default.createDirectory(at: URL.applicationSupportDirectory, withIntermediateDirectories: true)
         let container: ModelContainer
         do {
             container = try ModelContainer(for: Book.self, Segment.self, Mark.self)
