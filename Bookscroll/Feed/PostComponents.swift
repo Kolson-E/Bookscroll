@@ -82,6 +82,7 @@ enum Theme {
     static let like = adaptive(light: 0xC2135F, dark: 0xF91880)
 }
 
+@MainActor
 extension View {
     /// Solid navigation bar in the theme's background colour (the default material looks
     /// grey on sepia).

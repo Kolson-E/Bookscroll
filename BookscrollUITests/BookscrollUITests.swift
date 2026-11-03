@@ -358,6 +358,9 @@ final class BookscrollUITests: XCTestCase {
         let bars = [app.tabBars.firstMatch, app.buttons["Continue in feed from here"]]
             .filter(\.exists)
             .map(\.frame)
+        let posts = app.descendants(matching: .any).matching(identifier: "post").allElementsBoundByIndex
+            .filter(\.exists)
+            .map(\.frame)
         var issues: [XCUIAccessibilityAuditIssue] = []
         // The handler only collects; the issues are judged afterwards on the main actor.
         try app.performAccessibilityAudit(for: types) { issue in
@@ -369,7 +372,7 @@ final class BookscrollUITests: XCTestCase {
             if let element = issue.element, element.exists {
                 place = "type \(element.elementType.rawValue) label '\(element.label)' id '\(element.identifier)' frame \(element.frame)"
             }
-            let ignored = Self.isKnownFalsePositive(issue, bars: bars)
+            let ignored = Self.isKnownFalsePositive(issue, bars: bars, posts: posts)
             print("AUDIT: \(ignored ? "ignored" : "FAIL") [\(screen)] \(issue.compactDescription) | \(place) | \(issue.detailedDescription)")
             if !ignored {
                 XCTFail("Accessibility audit [\(screen)]: \(issue.compactDescription) | \(place)")
@@ -385,12 +388,17 @@ final class BookscrollUITests: XCTestCase {
     ///   entirely is reported as "unsupported" and still fails.
     /// - "Text clipped" on post text: the spec cuts posts after 10 lines and offers
     ///   "Show more"; VoiceOver reads the whole post.
-    static func isKnownFalsePositive(_ issue: XCUIAccessibilityAuditIssue, bars: [CGRect]) -> Bool {
+    /// - "Text clipped" on the SwiftUI lines inside a post (title, author, progress line). They
+    ///   have no line limit and wrap; testLargestAccessibilityTextSize shows them wrapped. The
+    ///   audit flags a one-line SwiftUI text whose width would not fit at a larger size.
+    static func isKnownFalsePositive(_ issue: XCUIAccessibilityAuditIssue, bars: [CGRect], posts: [CGRect]) -> Bool {
         let description = issue.compactDescription
         if description.contains("partially unsupported") { return true }
         guard let element = issue.element, element.exists else { return false }
         if issue.auditType == .contrast, bars.contains(where: { $0.intersects(element.frame) }) { return true }
         if issue.auditType == .textClipped, element.label.count >= 60 { return true }
+        if issue.auditType == .textClipped, issue.detailedDescription.contains("SwiftUI"),
+           posts.contains(where: { $0.contains(element.frame) }) { return true }
         return false
     }
 }
