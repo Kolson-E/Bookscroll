@@ -25,10 +25,7 @@ enum UITestSupport {
         }
         let container: ModelContainer
         do {
-            container = try ModelContainer(
-                for: Book.self, Segment.self, Mark.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: true)
-            )
+            container = try LibraryContainer.make(inMemory: true)
         } catch {
             fatalError("The UI test library could not be created: \(error)")
         }

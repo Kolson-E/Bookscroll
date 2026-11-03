@@ -76,9 +76,20 @@ final class LibraryStore: SegmentSource {
         bookCache[id] = nil
     }
 
+    private var lastSave = Date.distantPast
+
     func save() {
+        lastSave = .now
         guard context.hasChanges else { return }
         try? context.save()
+    }
+
+    /// Saves at most every `interval` seconds. Used while scrolling, so a crash or a forced
+    /// quit loses at most a few seconds of reading position.
+    func saveIfDue(interval: TimeInterval = 5, now: Date = .now) {
+        guard now.timeIntervalSince(lastSave) >= interval else { return }
+        save()
+        lastSave = now
     }
 
     // MARK: Segments

@@ -53,6 +53,7 @@ final class FeedViewModel {
         for (bookID, offset) in updates {
             store.setPosition(bookID: bookID, offset: offset)
         }
+        if !updates.isEmpty { store.saveIfDue() }
         if let index = engine.index(ofPost: id), index >= engine.posts.count - 12 {
             loadMore()
         }
@@ -101,6 +102,7 @@ final class FeedViewModel {
     /// "Continue in feed from here": move the book to `offset` and show the feed from there.
     func jump(bookID: UUID, offset: Int) {
         store.setPosition(bookID: bookID, offset: offset)
+        store.save()
         if engine == nil { rebuild() }
         guard let engine else { return }
         engine.resetBook(bookID, offset: offset)

@@ -130,7 +130,30 @@ unique keys give the same effect.
   deletion runs again at the next launch.
 - A new book's ordinal is above every ordinal used by any book or segment, so its keys can
   never collide with old rows.
-- Reading positions save when the app leaves the foreground, and SwiftData autosaves.
+- Reading positions save while you scroll (at most every 5 seconds), when you use "Continue
+  in feed from here", and when the app leaves the foreground. A crash loses at most a few
+  seconds of position.
+- The store opens through a versioned schema (`BookscrollSchemaV1`) and a migration plan
+  (`BookscrollMigrationPlan`, `Models/Schema.swift`). A test opens a library made before the
+  plan existed. A future model change adds a V2 schema and a migration stage, so an update
+  never needs to delete the library.
+- `PrivacyInfo.xcprivacy` declares no tracking, no collected data, and the two required-reason
+  APIs the app uses: UserDefaults (CA92.1, settings) and file timestamps (C617.1, clean-up of
+  old import copies).
+
+### Search index
+
+SwiftData has no full-text search, so Bookscroll keeps a second SQLite file,
+`Application Support/Search.sqlite` (`Search/SearchIndex.swift`). It holds every paragraph in an
+FTS5 table (unicode61 tokenizer, accents ignored; FTS4 if FTS5 is missing). Queries keep only
+words, so typed text can never act as a query operator; the last word matches as a prefix.
+Results come ranked with a snippet around the match.
+
+The index is a cache of the library. After each import or delete, and at launch, the app
+compares it with the library in the background: it adds books it does not hold (reading
+segments 2,000 at a time) and drops books that are gone. If the file is lost, it is rebuilt.
+The file is excluded from device backups because it only repeats text the library holds.
+The search screen comes in a later phase; this part is the engine.
 
 ### Text pipeline
 

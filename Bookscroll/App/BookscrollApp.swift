@@ -10,25 +10,29 @@ struct BookscrollApp: App {
 
     init() {
         let container: ModelContainer
+        let searchIndex: SearchIndex?
         #if DEBUG
         if let testContainer = UITestSupport.makeContainerIfRequested() {
             container = testContainer
+            searchIndex = try? SearchIndex.inMemory()
         } else {
             container = Self.makeContainer()
+            searchIndex = try? SearchIndex(url: SearchIndex.defaultURL)
         }
         #else
         container = Self.makeContainer()
+        searchIndex = try? SearchIndex(url: SearchIndex.defaultURL)
         #endif
         FileStaging.removeLeftovers()
         self.container = container
-        _app = State(initialValue: AppModel(container: container))
+        _app = State(initialValue: AppModel(container: container, searchIndex: searchIndex))
     }
 
     private static func makeContainer() -> ModelContainer {
         // SwiftData stores the library in Application Support, which does not exist on first launch.
         try? FileManager.default.createDirectory(at: URL.applicationSupportDirectory, withIntermediateDirectories: true)
         do {
-            return try ModelContainer(for: Book.self, Segment.self, Mark.self)
+            return try LibraryContainer.make()
         } catch {
             fatalError("The Bookscroll library could not be opened: \(error)")
         }

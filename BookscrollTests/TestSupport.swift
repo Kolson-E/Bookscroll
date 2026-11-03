@@ -75,8 +75,7 @@ enum Fixtures {
     }
 
     static func makeContainer() throws -> ModelContainer {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        return try ModelContainer(for: Book.self, Segment.self, Mark.self, configurations: configuration)
+        try LibraryContainer.make(inMemory: true)
     }
 
     /// Parses nothing: stores generated paragraphs as a book and returns its id.

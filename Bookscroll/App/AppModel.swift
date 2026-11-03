@@ -97,10 +97,14 @@ final class AppModel {
     let marks: MarkStore
     let feed: FeedViewModel
     let importer: ImportManager
+    /// Full-text index of the library. Nil when it could not be opened; search is then off.
+    let searchIndex: SearchIndex?
     @ObservationIgnored private(set) var resumedDeletions: [Task<Void, Never>] = []
+    @ObservationIgnored private var searchSync: Task<Void, Never>?
 
-    init(container: ModelContainer) {
+    init(container: ModelContainer, searchIndex: SearchIndex? = nil) {
         self.container = container
+        self.searchIndex = searchIndex
         let store = LibraryStore(context: container.mainContext)
         self.store = store
         self.marks = MarkStore(store: store)
@@ -111,6 +115,28 @@ final class AppModel {
         }
         // Finish deletions that were cut short when the app last stopped.
         resumedDeletions = BookDeleter.pendingBookIDs(in: container.mainContext).map { runDeletion(of: $0) }
+        // Index books from before the index existed, or after its file was lost.
+        syncSearchIndex()
+    }
+
+    // MARK: Search index
+
+    /// Brings the search index in line with the library, off the main thread: adds books it
+    /// does not hold and drops books that are gone. Runs after each change; runs never overlap.
+    /// Returns the run, so callers (tests) can wait for it.
+    @discardableResult
+    func syncSearchIndex() -> Task<Void, Never>? {
+        guard let searchIndex else { return nil }
+        let previous = searchSync
+        let container = self.container
+        let run = Task {
+            await previous?.value
+            await Task.detached(priority: .utility) {
+                _ = try? searchIndex.indexMissingBooks(container: container)
+            }.value
+        }
+        searchSync = run
+        return run
     }
 
     // MARK: Import
@@ -150,6 +176,7 @@ final class AppModel {
         libraryVersion += 1
         feed.reloadBooks()
         marks.reload()
+        syncSearchIndex()
     }
 
     /// Hides the book at once (Library, Feed, Saved) and deletes its rows off the main thread.

@@ -17,10 +17,7 @@ final class ScaleTests: XCTestCase {
 
     private func makeDiskContainer() throws -> (ModelContainer, URL) {
         let url = folder.appendingPathComponent("Library.store")
-        let container = try ModelContainer(
-            for: Book.self, Segment.self, Mark.self,
-            configurations: ModelConfiguration(url: url)
-        )
+        let container = try LibraryContainer.make(url: url)
         return (container, url)
     }
 
