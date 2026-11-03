@@ -100,7 +100,9 @@ struct PostRow: View {
     @State private var expanded = false
     @State private var limitedHeight: CGFloat = 0
     @State private var fullHeight: CGFloat = 0
-    @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var scaledAvatarSize: CGFloat = 44
+    /// Grows with Dynamic Type but stops at 64 pt, so large text keeps a wide text column.
+    private var avatarSize: CGFloat { min(scaledAvatarSize, 64) }
 
     private let horizontalPadding: CGFloat = 16
     private let topPadding: CGFloat = 12

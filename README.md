@@ -40,17 +40,29 @@ runner against the newest available iPhone simulator.
 ## Getting books in
 
 Apple Books has no public API and its purchases are DRM-protected, so Bookscroll does not read
-the Books library. Import DRM-free files from the Files picker instead (iCloud Drive, On My
-iPhone, or any file provider): Library tab → **+**. You can pick several files at once.
+the Books library. Import DRM-free files instead:
 
-Each file shows its progress while it imports. Failed files show a clear reason:
+| Way in | How |
+|---|---|
+| Files picker | Library tab → **+**, or **Import Books** on the empty Feed or Library screen. Pick one or more files from iCloud Drive, On My iPhone or any file provider. |
+| Open in Bookscroll | In Files, Mail, Safari downloads or another app: Share → **Bookscroll**. The app opens on the Library tab and imports the file. |
+
+Bookscroll registers EPUB (`org.idpf.epub-container`) and PDF (`com.adobe.pdf`) as document
+types with rank *Alternate*, so it never replaces your default app for these files. A file
+sent from another app arrives as a copy in `Documents/Inbox`; Bookscroll deletes that copy
+after the import, and your original stays where it was.
+
+Each file shows its progress while it imports. If you leave the app, the import asks iOS
+for extra time to finish. Failed files show a clear reason:
 
 | Problem | Message |
 |---|---|
-| Not a ZIP/PDF, damaged archive, missing `container.xml` or OPF | "The file could not be read. …" |
+| Not an EPUB or PDF | "This is not an EPUB or PDF file." |
+| Damaged archive, missing `container.xml` or OPF, missing file | "The file could not be read. …" |
 | Apple FairPlay (`sinf.xml`), Adobe (`rights.xml`) or encrypted content in `encryption.xml` | "This book is DRM-protected. …" |
 | PDF that needs a password | "This PDF is password-protected or encrypted. …" |
 | PDF with no text layer (scan) | "This PDF has no text layer. …" |
+| Same title, author and text as a book in the library | "“Title” is already in your library." |
 
 Font obfuscation in `encryption.xml` is not DRM and is accepted.
 
@@ -100,13 +112,25 @@ from here" can move it back.
 
 SwiftData models: `Book`, `Segment`, `Mark` (`Book` cascades to its segments and marks).
 Each `Segment` has two unique integer keys, `ordinal << 33 | style << 32 | index` and
-`ordinal << 33 | style << 32 | charStart`. Unique attributes are indexed by SQLite, so:
+`ordinal << 33 | style << 32 | charStart`. SQLite keeps a unique index on each (checked by a
+test that reads the store's schema and query plans), so:
 
 - the feed loads 20 segments at a time with a key range query and `fetchLimit`;
 - "which segment contains offset X" is one indexed query (`key <= X`, descending, limit 1).
 
-No code path loads all segments of a book, so 50 books with about 100,000 segments per style
-stay smooth. iOS 17 has no `#Index` macro; the unique keys give the same effect.
+No code path loads all segments of a book for display. iOS 17 has no `#Index` macro; the
+unique keys give the same effect.
+
+### Data safety
+
+- An import writes the book and all its segments in one save. If the app stops during an
+  import, nothing is left behind.
+- Delete hides the book at once (`deletionPending`) and removes it in the background in one
+  save (the cascade rule removes its segments and marks). If the app stops first, the
+  deletion runs again at the next launch.
+- A new book's ordinal is above every ordinal used by any book or segment, so its keys can
+  never collide with old rows.
+- Reading positions save when the app leaves the foreground, and SwiftData autosaves.
 
 ### Text pipeline
 

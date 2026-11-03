@@ -80,7 +80,9 @@ private struct BookList: View {
 
 private struct BookRow: View {
     let book: Book
-    @ScaledMetric(relativeTo: .headline) private var avatarSize: CGFloat = 40
+    @ScaledMetric(relativeTo: .headline) private var scaledAvatarSize: CGFloat = 40
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    private var avatarSize: CGFloat { min(scaledAvatarSize, 56) }
 
     private var percent: Int { TextUtils.percent(book.positionOffset, of: book.totalCharacters) }
 
@@ -95,14 +97,11 @@ private struct BookRow: View {
                     Text(book.author)
                         .font(.subheadline)
                         .foregroundStyle(Theme.secondaryText)
+                    // At accessibility text sizes the badge moves under the author to leave room for the title.
+                    if dynamicTypeSize.isAccessibilitySize { formatBadge.padding(.top, 4) }
                 }
                 Spacer(minLength: 8)
-                Text(book.format.label)
-                    .font(.caption2.weight(.bold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.secondaryText, lineWidth: 1))
-                    .foregroundStyle(Theme.secondaryText)
+                if !dynamicTypeSize.isAccessibilitySize { formatBadge }
             }
             ProgressView(value: book.progress)
             Text("\(percent)% read")
@@ -117,6 +116,15 @@ private struct BookRow: View {
         .padding(.vertical, 6)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+    }
+
+    private var formatBadge: some View {
+        Text(book.format.label)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.secondaryText, lineWidth: 1))
+            .foregroundStyle(Theme.secondaryText)
     }
 
     private var accessibilityText: String {
