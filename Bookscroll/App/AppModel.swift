@@ -90,6 +90,9 @@ final class AppModel {
     var isImporterPresented = false
     var readerRequest: ReaderRequest?
     var shareRequest: ShareRequest?
+    var jumpRequest: JumpRequest?
+    /// Post whose text is shown for "Look up a word".
+    var lookUpPost: FeedPost?
     private(set) var libraryVersion = 0
     var errorMessage: String?
 
@@ -263,6 +266,39 @@ final class AppModel {
         readerRequest = ReaderRequest(model: model)
     }
 
+    /// Opens the book in One book mode at `offset` (Jump to: start, percent, chapter).
+    func jump(bookID: UUID, offset: Int) {
+        readerRequest = nil
+        jumpRequest = nil
+        let defaults = UserDefaults.standard
+        defaults.set("single", forKey: "feedMode")
+        defaults.set(bookID.uuidString, forKey: "singleBookID")
+        feed.configure(style: feed.style, mode: .single(bookID), wordLimit: feed.wordLimit)
+        feed.jump(bookID: bookID, offset: offset)
+        selectedTab = .feed
+    }
+
+    func presentJump(bookID: UUID) {
+        readerRequest = nil
+        shareRequest = nil
+        jumpRequest = JumpRequest(bookID: bookID)
+    }
+
+    /// The paragraphs around a post, for the long-press preview.
+    func peek(for post: FeedPost) -> PeekContent? {
+        guard let book = store.feedBook(id: post.bookID) else { return nil }
+        let covered = store.segmentsOverlapping(start: post.segment.charStart, end: post.segment.charEnd, book: book, style: .paragraph, limit: 8)
+        guard let first = covered.first, let last = covered.last else { return nil }
+        return PeekContent(
+            bookTitle: post.bookTitle,
+            progressLine: post.progressLine,
+            before: store.segments(book: book, style: .paragraph, before: first.index, limit: 2),
+            post: covered,
+            after: store.segments(book: book, style: .paragraph, from: last.index + 1, limit: 2),
+            highlight: post.segment.charStart..<post.segment.charEnd
+        )
+    }
+
     func continueInFeed(bookID: UUID, offset: Int) {
         readerRequest = nil
         feed.jump(bookID: bookID, offset: offset)
@@ -282,7 +318,10 @@ final class AppModel {
             copy: { [weak self] withCitation in self?.copy(post, withCitation: withCitation) },
             hideFromMix: { [weak self] in self?.setHiddenFromMix(true, bookID: bookID) },
             snooze: { [weak self] days in self?.snooze(bookID: bookID, days: days) },
-            setWeight: { [weak self] weight in self?.setFeedWeight(weight, bookID: bookID) }
+            setWeight: { [weak self] weight in self?.setFeedWeight(weight, bookID: bookID) },
+            peek: { [weak self] in self?.peek(for: post) },
+            lookUp: { [weak self] in self?.lookUpPost = post },
+            continueHere: { [weak self] in self?.continueInFeed(bookID: bookID, offset: post.segment.charStart) }
         )
     }
 

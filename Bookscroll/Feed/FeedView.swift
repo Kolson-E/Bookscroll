@@ -59,7 +59,18 @@ struct FeedView: View {
             .themedNavigationBar()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { modeMenu }
-                ToolbarItem(placement: .topBarTrailing) { styleMenu }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if let id = singleModeBookID {
+                        Button {
+                            app.presentJump(bookID: id)
+                        } label: {
+                            Image(systemName: "list.bullet.indent")
+                        }
+                        .accessibilityLabel("Jump to")
+                        .accessibilityHint("Chapters and percent")
+                    }
+                    styleMenu
+                }
             }
         }
         .task { configureFeed() }
@@ -115,6 +126,12 @@ struct FeedView: View {
         }
         .accessibilityLabel("Feed mode")
         .accessibilityValue(selectedModeIsMix ? "Mix all books" : "One book: \(app.feed.title)")
+    }
+
+    /// The book of One book mode; nil in Mix.
+    private var singleModeBookID: UUID? {
+        if case let .single(id) = app.feed.mode { return id }
+        return nil
     }
 
     private var selectedModeIsMix: Bool {

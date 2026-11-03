@@ -88,6 +88,9 @@ extension BookList {
     func feedMenu(for book: Book) -> some View {
         let id = book.id
         let isSnoozed = (book.snoozedUntil ?? .distantPast) > .now
+        Button { app.presentJump(bookID: id) } label: {
+            Label("Jump to\u{2026}", systemImage: "list.bullet.indent")
+        }
         Section("In Mix") {
             Button { app.setHiddenFromMix(!book.hiddenFromMix, bookID: id) } label: {
                 Label(book.hiddenFromMix ? "Show in Mix" : "Hide from Mix", systemImage: book.hiddenFromMix ? "eye" : "eye.slash")

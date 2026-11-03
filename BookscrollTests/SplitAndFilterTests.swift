@@ -1,4 +1,5 @@
 import SwiftData
+import UIKit
 import XCTest
 @testable import Bookscroll
 
@@ -306,5 +307,79 @@ final class SplitAndFilterTests: XCTestCase {
         app.setFeedWeight(2, bookID: first)
         XCTAssertEqual(app.store.feedBook(id: first)?.feedWeight, 2)
         XCTAssertEqual(app.actions(for: try XCTUnwrap(app.feed.posts.first { $0.bookID == first })).bookFeedWeight, 2)
+    }
+}
+
+/// Jump to, context peek and look up through the app model.
+@MainActor
+final class JumpAndPeekTests: XCTestCase {
+    private func makeApp() throws -> (AppModel, UUID, UUID) {
+        let container = try Fixtures.makeContainer()
+        let first = try Fixtures.writeBook(title: "First", paragraphs: 50, chapterEvery: 10, seed: 1, into: ModelContext(container))
+        let second = try Fixtures.writeBook(title: "Second", paragraphs: 30, seed: 2, into: ModelContext(container))
+        let app = AppModel(container: container)
+        app.feed.configure(style: .paragraph, mode: .mix)
+        return (app, first, second)
+    }
+
+    func testJumpToAChapterOpensTheBookThere() throws {
+        let (app, first, _) = try makeApp()
+        let chapters = app.store.chapters(bookID: first)
+        XCTAssertEqual(chapters.count, 5)
+        app.selectedTab = .library
+        app.jump(bookID: first, offset: chapters[3].charStart)
+        XCTAssertEqual(app.selectedTab, .feed)
+        XCTAssertEqual(app.feed.mode, .single(first))
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "feedMode"), "single")
+        XCTAssertEqual(UserDefaults.standard.string(forKey: "singleBookID"), first.uuidString)
+        let top = try XCTUnwrap(app.feed.posts.first)
+        XCTAssertEqual(top.segment.charStart, chapters[3].charStart)
+        XCTAssertEqual(top.segment.chapter, "Chapter 4")
+        XCTAssertTrue(top.startsChapter)
+        XCTAssertEqual(app.store.book(id: first)?.positionOffset, chapters[3].charStart, "The jump is saved")
+
+        // Jumping back to the start is allowed (it is an explicit request).
+        app.jump(bookID: first, offset: 0)
+        XCTAssertEqual(app.feed.posts.first?.segment.index, 0)
+        XCTAssertEqual(app.store.book(id: first)?.positionOffset, 0)
+        UserDefaults.standard.removeObject(forKey: "feedMode")
+        UserDefaults.standard.removeObject(forKey: "singleBookID")
+    }
+
+    func testPeekShowsTwoParagraphsEachSide() throws {
+        let (app, first, _) = try makeApp()
+        let book = try XCTUnwrap(app.store.feedBook(id: first))
+        let segment = try XCTUnwrap(app.store.segments(book: book, style: .paragraph, from: 20, limit: 1).first)
+        let post = FeedPost(segment: segment, book: book, showsThreadButton: true)
+        let peek = try XCTUnwrap(app.peek(for: post))
+        XCTAssertEqual(peek.before.map(\.index), [18, 19])
+        XCTAssertEqual(peek.post.map(\.index), [20])
+        XCTAssertEqual(peek.after.map(\.index), [21, 22])
+        XCTAssertEqual(peek.highlight, segment.charStart..<segment.charEnd)
+
+        // At the start of the book there is nothing before.
+        let opening = try XCTUnwrap(app.store.segments(book: book, style: .paragraph, from: 0, limit: 1).first)
+        XCTAssertEqual(app.peek(for: FeedPost(segment: opening, book: book, showsThreadButton: true))?.before, [])
+
+        // A passage covers several paragraphs; all of them are highlighted.
+        let passages = app.store.segments(book: book, style: .passage, from: 0, limit: 100)
+        let wide = try XCTUnwrap(passages.first { app.store.segmentsOverlapping(start: $0.charStart, end: $0.charEnd, book: book, style: .paragraph).count > 1 })
+        let widePeek = try XCTUnwrap(app.peek(for: FeedPost(segment: wide, book: book, showsThreadButton: true)))
+        XCTAssertGreaterThan(widePeek.post.count, 1)
+    }
+
+    func testPostActionsReachTheModel() throws {
+        let (app, first, _) = try makeApp()
+        let post = try XCTUnwrap(app.feed.posts.first { $0.bookID == first })
+        let actions = app.actions(for: post)
+        XCTAssertNotNil(actions.peek())
+        actions.lookUp()
+        XCTAssertEqual(app.lookUpPost?.id, post.id)
+        actions.copy(true)
+        XCTAssertEqual(UIPasteboard.general.string, ShareFormatter.citation(post))
+        actions.continueHere()
+        XCTAssertEqual(app.store.book(id: first)?.positionOffset, post.segment.charStart)
+        app.presentJump(bookID: first)
+        XCTAssertEqual(app.jumpRequest?.bookID, first)
     }
 }

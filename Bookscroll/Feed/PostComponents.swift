@@ -184,6 +184,9 @@ struct PostActions {
     var hideFromMix: () -> Void = {}
     var snooze: (_ days: Int) -> Void = { _ in }
     var setWeight: (_ weight: Double) -> Void = { _ in }
+    var peek: () -> PeekContent? = { nil }
+    var lookUp: () -> Void = {}
+    var continueHere: () -> Void = {}
 }
 
 /// Single tap opens the reader. With double-tap to like on, a double tap likes the post and
@@ -347,6 +350,15 @@ struct PostRow: View {
                     .allowsHitTesting(false)
             }
         }
+        .contextMenu {
+            contextMenuItems
+        } preview: {
+            if let content = actions.peek() {
+                PeekView(content: content)
+            } else {
+                PeekView(content: PeekContent(bookTitle: post.bookTitle, progressLine: post.progressLine, before: [], post: [post.segment], after: [], highlight: post.segment.charStart..<post.segment.charEnd))
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityHint("Double-tap to read in context")
@@ -356,6 +368,30 @@ struct PostRow: View {
         .accessibilityAction(named: isBookmarked ? "Remove bookmark" : "Bookmark", actions.bookmark)
         .accessibilityAction(named: "Copy with citation") { actions.copy(true) }
         .accessibilityIdentifier("post")
+    }
+
+    /// Long-press menu under the context peek.
+    @ViewBuilder
+    private var contextMenuItems: some View {
+        Button(action: actions.like) {
+            Label(isLiked ? "Unlike" : "Like", systemImage: isLiked ? "heart.slash" : "heart")
+        }
+        Button(action: actions.bookmark) {
+            Label(isBookmarked ? "Remove bookmark" : "Bookmark", systemImage: isBookmarked ? "bookmark.slash" : "bookmark")
+        }
+        Button { actions.copy(true) } label: {
+            Label("Copy with citation", systemImage: "quote.bubble")
+        }
+        Button(action: actions.lookUp) {
+            Label("Look up a word", systemImage: "character.book.closed")
+        }
+        Divider()
+        Button(action: actions.open) {
+            Label("Read in context", systemImage: "book")
+        }
+        Button(action: actions.continueHere) {
+            Label("Continue from here", systemImage: "arrow.down.forward.circle")
+        }
     }
 
     /// The chapter-start line inside the post. One book mode shows it in the chapter row instead.

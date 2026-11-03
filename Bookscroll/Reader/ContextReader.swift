@@ -74,6 +74,7 @@ struct ContextReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model: ContextReaderModel
     @State private var ready = false
+    @State private var showsJump = false
 
     init(model: ContextReaderModel) {
         _model = State(initialValue: model)
@@ -120,9 +121,21 @@ struct ContextReaderView: View {
             .navigationBarTitleDisplayMode(.inline)
             .themedNavigationBar()
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showsJump = true
+                    } label: {
+                        Label("Jump to", systemImage: "list.bullet.indent")
+                    }
+                    .accessibilityHint("Chapters and percent")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
                 }
+            }
+            .sheet(isPresented: $showsJump) {
+                JumpSheet(bookID: model.book.id)
+                    .environment(app)
             }
             .safeAreaInset(edge: .bottom) {
                 Button {
@@ -160,6 +173,7 @@ struct ContextReaderView: View {
 
 @MainActor
 private struct ReaderParagraph: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let paragraph: SegmentRecord
     let highlight: Range<Int>
     let isHighlighted: Bool
@@ -171,11 +185,14 @@ private struct ReaderParagraph: View {
     }
 
     var body: some View {
-        Text(attributed)
-            .font(.system(.body, design: AppSettings.shared.readerTypeface.design))
-            .foregroundStyle(Theme.primaryText)
-            .lineSpacing(3)
-            .fixedSize(horizontal: false, vertical: true)
+        SelectableText(
+            text: paragraph.text,
+            font: SelectableText.readerFont(AppSettings.shared.readerTypeface),
+            color: UIColor(Theme.primaryText),
+            highlight: partialHighlight,
+            highlightColor: UIColor(Theme.highlight)
+        )
+            .id(dynamicTypeSize)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, isHighlighted ? 12 : 0)
             .padding(.trailing, isHighlighted && coversParagraph ? 8 : 0)
@@ -199,15 +216,14 @@ private struct ReaderParagraph: View {
             .accessibilityLabel(isHighlighted ? "Selected post. \(paragraph.text)" : paragraph.text)
     }
 
-    private var attributed: AttributedString {
-        var text = AttributedString(paragraph.text)
-        guard isHighlighted, !coversParagraph else { return text }
+    /// The highlighted part of the paragraph, relative to its text; nil when none or all of it.
+    private var partialHighlight: NSRange? {
+        guard isHighlighted, !coversParagraph else { return nil }
         let length = (paragraph.text as NSString).length
         let lower = max(highlight.lowerBound, paragraph.charStart) - paragraph.charStart
         let upper = min(highlight.upperBound, paragraph.charStart + length) - paragraph.charStart
-        guard lower < upper,
-              let range = Range(NSRange(location: lower, length: upper - lower), in: text) else { return text }
-        text[range][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Theme.highlight
-        return text
+        guard lower < upper else { return nil }
+        return NSRange(location: lower, length: upper - lower)
     }
+
 }

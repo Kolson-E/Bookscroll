@@ -253,6 +253,31 @@ final class BookscrollUITests: XCTestCase {
         screenshot("17-feed-split-parts")
     }
 
+    func testJumpToAChapterAndPeekAtAPost() {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        openToolbarMenu(app, "Feed mode", choice: firstTitle).tap()
+        XCTAssertTrue(app.navigationBars[firstTitle].waitForExistence(timeout: 5))
+
+        tapToolbarButton(app, "Jump to")
+        let chapter = element(app, labelBeginsWith: "Chapter 3,")
+        XCTAssertTrue(chapter.waitForExistence(timeout: 5), "The chapter list shows")
+        screenshot("18-jump-to")
+        chapter.tap()
+        XCTAssertTrue(element(app, labelBeginsWith: "Chapter: Chapter 3. New chapter begins.").waitForExistence(timeout: 5), "The feed opens at chapter 3")
+
+        // Long press: the context peek and its menu.
+        firstPost(app).press(forDuration: 1.2)
+        let lookUp = menuChoice(app, "Look up a word")
+        XCTAssertTrue(lookUp.waitForExistence(timeout: 5), "The peek menu shows")
+        XCTAssertTrue(menuChoice(app, "Copy with citation").exists)
+        screenshot("19-context-peek")
+        lookUp.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["lookup.text"].waitForExistence(timeout: 5), "The look-up sheet shows the post text")
+        screenshot("20-look-up")
+        app.buttons["Done"].firstMatch.tap()
+    }
+
     func testDoubleTapLikesAPost() {
         let app = launch(sampleBooks: true)
         let post = firstPost(app)

@@ -70,15 +70,45 @@ Font obfuscation in `encryption.xml` is not DRM and is accepted.
 
 | Tab | What it does |
 |---|---|
-| Feed | The timeline. Toolbar left: **Mix all books** or **One book**. Toolbar right: **Paragraphs** or **Passages** (remembered). Pull to refresh reshuffles the mix. |
-| Library | Import, see title, author, format and progress, swipe to delete (removes the book, all its posts and marks). |
+| Feed | The timeline. Toolbar left: **Mix all books** or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
+| Library | Import, see title, author, format, progress and Mix status, swipe to delete. Touch and hold a book for **Jump to…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). |
 | Saved | Liked and bookmarked posts, newest first, filter All / Liked / Bookmarked. |
+| Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. |
 
-Tap a post or its avatar to open **read in context**: the book around the post, the post
-highlighted and centred, more paragraphs loading as you scroll either way. **Continue in feed
-from here** moves the book's position to the top paragraph on screen.
+On a post:
 
-Share offers the post as quoted text followed by "Title by Author", or as an image card.
+| Action | Result |
+|---|---|
+| Tap | **Read in context**: the book around the post, the post highlighted. Touch and hold a word there for **Look Up** (system dictionary), Copy or Translate. |
+| Double tap | Like, with a heart (it never unlikes). Can be turned off in Settings. |
+| Touch and hold | **Context peek**: two paragraphs before and after the post. Menu: Like, Bookmark, Copy with citation, Look up a word, Read in context, Continue from here. |
+| **⋯** | Show more or less from this book, snooze it for a day or a week, hide it from Mix. |
+| Share | Copy text, copy with citation ("— Title, Author · Chapter 3 · 42%"), share as text or as an image card. |
+
+**Jump to** (feed toolbar in One book mode, the reader, or a book in the Library) goes to the
+start, a percent, or a chapter. Chapters you have reached are ticked, and the chapter you are
+in is marked.
+
+## Appearance
+
+The post layout follows X: avatar, bold title with the author in grey, chapter and percent,
+the text, and a grey action bar. X's typeface (Chirp) belongs to X and cannot be bundled, so
+posts use the system font (SF Pro) in X's sizes and colours. Text follows the system Dynamic
+Type size.
+
+| Setting | Choices (default first) |
+|---|---|
+| Theme | Night (pure black), Light, Sepia, System |
+| Accent colour | X's six: blue, yellow, pink, purple, orange, green. Each has a bright shade for dark themes and a deep shade for light and sepia themes, so accent text reaches 4.5:1. |
+| Density | Comfortable, Compact |
+| Post font | Sans (X style), Serif |
+| Reader font | Serif, Sans |
+| Maximum words per post | Auto, Off, 60, 80, 120, 200 |
+| Focus mode | Off. On: posts show only their text. |
+| Double-tap to like | On |
+
+`PaletteHex` holds every text and background colour; a unit test checks each text colour
+against each background it is used on (WCAG AA, 4.5:1).
 
 ## Design notes
 
@@ -86,8 +116,35 @@ Share offers the post as quoted text followed by "Title by Author", or as an ima
 
 | Style | One post = |
 |---|---|
-| Paragraphs (default) | Exactly one paragraph. Never merged, never split. Long ones collapse after 10 lines with "Show more". |
+| Paragraphs (default) | One paragraph. Never merged. Split only by the word limit (below). |
 | Passages | About 80 words cut on sentence boundaries (NLTokenizer): close at ~80, never over 130 unless one sentence is, close at a paragraph end once at 40+. Passages never span a chapter change. |
+
+### Word limit and split posts
+
+A post over the limit continues in the next post: part one takes as many whole sentences as
+fit, part two continues from there, and so on ("1/3", "2/3", "3/3" after the percent). A
+sentence longer than the limit is cut between words. In One book mode the parts form a
+thread. Parts are offset ranges that tile the segment, so likes, bookmarks, the reading
+position and resume work inside a paragraph: if you stop after part 2, the feed resumes at
+part 3.
+
+**Auto** (the default) uses each book's own limit: the smallest length that fits 95% of its
+paragraphs, at least 40 words. It is computed at import (and once in the background for books
+imported before this setting existed). A post that is still taller than 10 lines collapses
+with "Show more".
+
+### Chapter starts
+
+The first post of each chapter shows "New chapter · Chapter 3" in the accent colour (in One
+book mode, in the chapter row above it). Resuming in the middle of a chapter does not show it.
+
+### Mix filters
+
+Mix leaves out books that are hidden or snoozed (until the snooze ends) and picks books in
+proportion to their weight (less 0.5, normal 1, more 2). One book mode ignores the filters.
+Hiding or snoozing a book removes its unseen posts at once; posts you already saw stay. Mix
+opens on the book of the last post you had at the top, so a mode switch or a relaunch
+returns to the same place.
 
 In One book mode, consecutive posts from the same chapter form a thread joined by a line
 through the avatars; a chapter change breaks the thread and shows a chapter row. In Mix mode
@@ -191,7 +248,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest):
+`BookscrollTests` (XCTest, 123 tests):
 
 | Area | File |
 |---|---|
@@ -200,29 +257,54 @@ property is named `passagesOnly` because that is what it means.
 | EPUB paths, OPF/NCX/nav parsing, end-to-end import into SwiftData, DRM and error cases | `EPUBTests.swift` |
 | PDF paragraph detection on a generated PDF (headers, footers, hyphenation, page break, outline), scanned PDF | `PDFTests.swift` |
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
+| Store key queries, position clamping, chunked deletion, duplicates, ordinals | `StoreTests.swift` |
+| Files picker, staging, Open in Bookscroll, import queue | `ImportTests.swift` |
+| Reader window and paging, like/bookmark, deletion, position saving | `AppFlowTests.swift` |
+| 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
+| Schema V1 and V2, unversioned V1 store, V1 to V2 migration with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
+| FTS5 search index: query escaping, add/search/remove, backup exclusion, backfill | `SearchIndexTests.swift` |
+| Settings defaults and storage, palette and accent contrast (WCAG), citation | `AppearanceTests.swift` |
+| Word-limit splitting, Auto limit, resume inside a split paragraph, chapter starts, Mix filters and weights, Jump to, peek | `SplitAndFilterTests.swift` |
+
+`BookscrollUITests` (XCUITest, 14 tests) drive the app on a simulator with a seeded in-memory
+library:
+
+- Empty library, Files picker, like and bookmark, Saved tab, read in context, Continue in feed,
+  post style and One book thread, swipe to delete.
+- Settings: theme, accent and focus mode change the feed.
+- A long paragraph splits into numbered parts; double tap likes a post.
+- Jump to a chapter; long press shows the peek and "Look up a word".
+- `performAccessibilityAudit()` on the feed, library, Saved, Settings and reader screens in the
+  Light, Night and Sepia themes, and in Compact density with focus mode and the serif font.
+- The largest accessibility text size.
 
 ## Verification status
 
-Verified by CI on GitHub Actions (`macos-15` runner, Xcode 16.4, iPhone 17 Pro simulator with
-iOS 26.2): the project generates with XcodeGen, the app and tests build, and all 59 tests pass.
+CI on GitHub Actions runs every test on two configurations:
+
+| Runner | Xcode | Simulator |
+|---|---|---|
+| `macos-15` | newest installed | iPhone, newest iOS (26.2) |
+| `macos-14` | 15.4 | iPhone, iOS 17.5 (the deployment target family) |
+
+Measured in CI (50 books, about 100,000 segments per style, newest iOS simulator): a feed page
+takes about 12.5 ms on average; deleting one book takes about 0.6 s; a key lookup takes about
+6 ms.
 
 Not verified:
 
-- No run on a physical device, and no run on an iOS 17 simulator (the deployment target is
-  iOS 17.0 and the code uses only iOS 17 APIs, but CI tests on the newest runtime).
-- The SwiftUI layer has no UI tests. Scrolling, the thread line, "Show more", read in context
-  centring and paging, share sheets, the Files picker, haptics, VoiceOver and Dynamic Type
-  behaviour were not exercised by automation.
-- Performance with 50 books and about 100,000 segments per style was not measured. The design
-  relies on SQLite indexing the unique key columns; the queries are bounded, but no benchmark
-  was run.
+- No run on a physical device.
+- Share sheets, the Files picker contents, haptics and the system Look Up panel are shown by
+  the system; the tests check that they open, not what they contain.
 - PDF paragraph detection is tested on generated PDFs. Real PDFs (multi-column layouts,
   unusual fonts, ligatures) can give worse paragraphs.
 
 ## Accessibility
 
 Every control has a VoiceOver label. Each post is its own element; posts inside a thread start
-with "Continues thread". Text uses Dynamic Type styles (serif body) up to accessibility sizes.
-Liked and bookmarked states use filled icons and VoiceOver values, not only colour. Like and
-bookmark give haptic feedback. Light and dark mode follow the system; dark mode uses a pure
-black background.
+with "Continues thread"; split posts say "Part n of m"; the first post of a chapter says "New
+chapter". Like, bookmark and Copy with citation are VoiceOver actions on each post. Text uses
+Dynamic Type styles up to accessibility sizes. Liked and bookmarked states use filled icons and
+VoiceOver values, not only colour. Like and bookmark give haptic feedback. Every theme and
+accent passes a WCAG contrast test (4.5:1 for text), and the UI tests run Apple's accessibility
+audit on each theme.

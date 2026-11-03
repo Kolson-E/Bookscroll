@@ -84,6 +84,13 @@ struct RootView: View {
             ContextReaderView(model: request.model)
                 .environment(app)
         }
+        .sheet(item: $app.jumpRequest) { request in
+            JumpSheet(bookID: request.bookID)
+                .environment(app)
+        }
+        .sheet(item: $app.lookUpPost) { post in
+            LookUpSheet(post: post)
+        }
         .sheet(item: $app.shareRequest) { request in
             ActivityView(items: request.items)
                 .presentationDetents([.medium, .large])
