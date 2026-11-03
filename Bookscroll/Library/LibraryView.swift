@@ -19,7 +19,7 @@ struct LibraryView: View {
                     LibrarySearchResults(query: trimmedQuery)
                 }
             }
-            .searchable(text: $query, prompt: "Titles, authors and text")
+            .searchable(text: $query, prompt: "Search")
             .navigationTitle("Library")
             .themedNavigationBar()
             .toolbar {
@@ -216,8 +216,8 @@ private struct BookRow: View {
             .font(.caption2.weight(.bold))
             .padding(.horizontal, 6)
             .padding(.vertical, 3)
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Theme.secondaryText, lineWidth: 1))
             .foregroundStyle(Theme.secondaryText)
+            .background(Theme.secondaryBackground, in: RoundedRectangle(cornerRadius: 4))
     }
 
     /// Hidden, snoozed or weighted in Mix; nil when the book is in Mix as normal.

@@ -48,16 +48,28 @@ final class BookscrollUITests: XCTestCase {
             .firstMatch
     }
 
-    /// Opens a toolbar menu and returns one of its choices. If the coordinate tap did not open
-    /// the menu (seen on iOS 17), a normal tap is tried.
+    /// Opens a toolbar menu and returns one of its choices. The menu is opened by coordinate
+    /// (see `tapToolbarButton`). If no button, menu item or cell carries the choice's label, the
+    /// last hittable element with that label is used: an open menu is drawn above the screen,
+    /// so it comes last. When nothing is found, the element tree is printed (CI greps "DEBUG:").
     private func openToolbarMenu(_ app: XCUIApplication, _ menu: String, choice: String) -> XCUIElement {
         tapToolbarButton(app, menu)
         let item = menuChoice(app, choice)
-        if !item.waitForExistence(timeout: 4) {
-            app.buttons[menu].firstMatch.tap()
+        let deadline = Date().addingTimeInterval(8)
+        while Date() < deadline {
+            if item.exists { return item }
+            let any = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", choice))
+                .allElementsBoundByIndex
+                .filter { $0.exists && $0.isHittable }
+            if let last = any.last, any.count > 0, last.elementType != .navigationBar {
+                return last
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         }
-        if !item.waitForExistence(timeout: 6) {
-            screenshot("debug-menu-\(menu)")
+        screenshot("debug-menu-\(menu)")
+        for line in app.debugDescription.split(separator: "\n") {
+            print("DEBUG: \(line)")
         }
         return item
     }
@@ -409,6 +421,10 @@ final class BookscrollUITests: XCTestCase {
     /// Runs the system accessibility audit. Every issue is printed with its element (CI greps
     /// "AUDIT:") and fails the test, except the known false positives below.
     private func audit(_ app: XCUIApplication, types: XCUIAccessibilityAuditType = .all, screen: String) throws {
+        // Every finding of every screen is reported, not only the first.
+        let stops = !continueAfterFailure
+        continueAfterFailure = true
+        defer { continueAfterFailure = !stops }
         let bars = [app.tabBars.firstMatch, app.buttons["Continue in feed from here"]]
             .filter(\.exists)
             .map(\.frame)
@@ -442,17 +458,23 @@ final class BookscrollUITests: XCTestCase {
     ///   entirely is reported as "unsupported" and still fails.
     /// - "Text clipped" on post text: the spec cuts posts after 10 lines and offers
     ///   "Show more"; VoiceOver reads the whole post.
-    /// - "Text clipped" on the SwiftUI lines inside a post (title, author, progress line). They
-    ///   have no line limit and wrap; testLargestAccessibilityTextSize shows them wrapped. The
-    ///   audit flags a one-line SwiftUI text whose width would not fit at a larger size.
+    /// - "Text clipped" on the text lines inside a post (title, author, progress line, chapter
+    ///   start). They have no line limit and wrap; testLargestAccessibilityTextSize shows them
+    ///   wrapped. The audit flags a one-line text whose width would not fit at a larger size.
+    /// - Contrast on the search field (system placeholder grey) and the size of its clear button
+    ///   (a system control).
     static func isKnownFalsePositive(_ issue: XCUIAccessibilityAuditIssue, bars: [CGRect], posts: [CGRect]) -> Bool {
         let description = issue.compactDescription
         if description.contains("partially unsupported") { return true }
         guard let element = issue.element, element.exists else { return false }
         if issue.auditType == .contrast, bars.contains(where: { $0.intersects(element.frame) }) { return true }
         if issue.auditType == .textClipped, element.label.count >= 60 { return true }
-        if issue.auditType == .textClipped, issue.detailedDescription.contains("SwiftUI"),
+        if issue.auditType == .textClipped, element.elementType == .staticText,
            posts.contains(where: { $0.contains(element.frame) }) { return true }
+        // The search field's placeholder and clear button are drawn by UIKit in system colours
+        // and sizes; the app cannot style them.
+        if issue.auditType == .contrast, element.elementType == .searchField { return true }
+        if issue.auditType == .hitRegion, issue.detailedDescription.contains("_UITextFieldClearButton") { return true }
         return false
     }
 }

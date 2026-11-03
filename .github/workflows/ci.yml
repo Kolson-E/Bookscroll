@@ -90,7 +90,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             > xcodebuild.log 2>&1 &
           BUILD_PID=$!
-          tail -f xcodebuild.log | grep --line-buffered -E "error:|warning: .*\.swift|Test Case .*(passed|failed)|Executed [0-9]+ test|TEST (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)|AUDIT:|SCALE:" &
+          tail -f xcodebuild.log | grep --line-buffered -E "error:|warning: .*\.swift|Test Case .*(passed|failed)|Executed [0-9]+ test|TEST (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)|AUDIT:|SCALE:|DEBUG:" &
           TAIL_PID=$!
           STATUS=0
           wait $BUILD_PID || STATUS=$?
