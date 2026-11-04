@@ -64,6 +64,66 @@ progress".
 CI (`.github/workflows/ci.yml`) runs `xcodegen generate` and `xcodebuild test` on a macOS
 runner against the newest available iPhone simulator.
 
+## Install with TestFlight (no Mac)
+
+`.github/workflows/testflight.yml` builds, signs and uploads the app on a GitHub macOS runner.
+You install it on your iPhone with Apple's TestFlight app. You need a paid Apple Developer
+Program membership (99 USD a year). You can do all steps from a phone browser and the GitHub app.
+
+1. **Join the Apple Developer Program.** Use the Apple Developer app on iPhone, or
+   developer.apple.com/programs/enroll. Approval can take up to 48 hours.
+2. **Find your Team ID.** developer.apple.com/account › Membership details › Team ID
+   (10 characters, like `ABCDE12345`).
+3. **Make an App Store Connect API key.** appstoreconnect.apple.com › Users and Access ›
+   Integrations › App Store Connect API › Team Keys › **+**. Name: `GitHub`. Access: **Admin**
+   (the upload uses a cloud-managed distribution certificate, which needs Admin). Download the
+   `.p8` file; Apple lets you download it one time only. Write down the **Key ID** and the
+   **Issuer ID** (above the key list).
+4. **Add the secrets to GitHub.** In this repository: Settings › Secrets and variables › Actions.
+
+   | Kind | Name | Value |
+   |---|---|---|
+   | Secret | `APP_STORE_CONNECT_KEY_ID` | Key ID from step 3 |
+   | Secret | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from step 3 |
+   | Secret | `APP_STORE_CONNECT_KEY` | All the text of the `.p8` file, including the `BEGIN` and `END` lines |
+   | Secret | `APPLE_TEAM_ID` | Team ID from step 2 |
+   | Variable (Variables tab) | `BUNDLE_ID` | A bundle id of your own, like `com.yourname.bookscroll` |
+
+   On a phone, open the `.p8` file in the Files app, select all, copy, and paste it into the
+   secret.
+5. **Run the workflow.** Actions › TestFlight › Run workflow. The first run registers the
+   bundle ids (`BUNDLE_ID`, `BUNDLE_ID.Widgets`) and the app group (`group.BUNDLE_ID`) in your
+   account. If App Store Connect has no app for the bundle id yet, the upload step fails with
+   "has no app with the bundle id". This is expected.
+6. **Make the app record.** appstoreconnect.apple.com › Apps › **+** › New App. Platform: iOS.
+   Name: any name not used on the App Store (for example `Bookscroll <your initials>`).
+   Language: yours. Bundle ID: pick the one from step 4. SKU: any text, like `bookscroll`.
+   User access: Full Access.
+7. **Run the workflow again.** When it succeeds, Apple processes the build (usually 5 to
+   30 minutes). Then in App Store Connect › your app › TestFlight › Internal Testing, make a
+   group, add yourself, and add the build.
+8. **Install.** Install TestFlight from the App Store, sign in with the same Apple ID, and
+   accept the invite. Tap **Install**.
+
+To update the app, run the workflow again; TestFlight shows the new build. Each run uses the
+UTC date and time as the build number, so builds always go up.
+
+| Fact | Detail |
+|---|---|
+| Review | Internal testing (up to 100 members of your team) needs no App Review. |
+| Expiry | A TestFlight build stops opening after 90 days. Run the workflow again to get a new one. Your library stays. |
+| Encryption question | Not asked: `ITSAppUsesNonExemptEncryption` is `NO`. |
+| Certificates | Signing makes an "Apple Development" certificate on the runner. The last step revokes it through the API, so certificates do not pile up (the limit is small). |
+| Secrets | The key is written to the runner's temp folder only for the run and is removed at the end. |
+
+If the Archive step fails with a signing or provisioning error about the app group:
+developer.apple.com/account › Identifiers › App Groups › **+**, add `group.<BUNDLE_ID>`. Then
+open the App IDs `<BUNDLE_ID>` and `<BUNDLE_ID>.Widgets`, turn on **App Groups**, select
+that group, save, and run the workflow again.
+
+Status: the workflow cannot run in CI without your Apple account, so its first real test is
+your first run. The app build itself is checked by CI on every push.
+
 ## Getting books in
 
 Apple Books has no public API and its purchases are DRM-protected, so Bookscroll does not read
