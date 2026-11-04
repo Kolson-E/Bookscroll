@@ -1,8 +1,8 @@
 name: CI
 
+# Runs only when started by hand (Actions › CI › Run workflow). The repository is private, and
+# macOS minutes come out of a small monthly allowance; the TestFlight upload needs them more.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 concurrency:

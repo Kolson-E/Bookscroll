@@ -62,7 +62,9 @@ app group cannot be made for your team, the app still runs; only the widgets sho
 progress".
 
 CI (`.github/workflows/ci.yml`) runs `xcodegen generate` and `xcodebuild test` on a macOS
-runner against the newest available iPhone simulator.
+runner against the newest available iPhone simulator. It runs only when you start it
+(Actions › CI › Run workflow), so it does not use the private repository's macOS minutes on
+every push.
 
 ## Install with TestFlight (no Mac)
 
@@ -134,8 +136,8 @@ open the App IDs `<BUNDLE_ID>` and `<BUNDLE_ID>.Widgets`, turn on **App Groups**
 that group, save, and run the workflow again.
 
 Status: the workflow cannot run in CI without your Apple account, so its first real test is
-your first run. CI checks the same Release build for a device with the same Xcode on every push
-(job "Release build"), without signing.
+your first run. CI checks the same Release build for a device with the same Xcode when you run
+it (job "Release build"), without signing.
 
 ## Getting books in
 
