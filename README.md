@@ -314,7 +314,7 @@ property is named `passagesOnly` because that is what it means.
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 17 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 18 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, like and bookmark, Saved tab, read in context, Continue in feed,
@@ -327,6 +327,8 @@ library:
 - Mark a book as finished, filter the Library to finished books, and rename a book in Edit
   Details (with audits of the filtered Library and the details sheet).
 - Make a shelf, add a book, and read the shelf as a feed.
+- Paste text as a book; it shows in the Library and in the Feed mode menu (with an audit of
+  the Paste Text sheet).
 - `performAccessibilityAudit()` on the feed, library, Shelves, Saved, Settings and reader screens in the
   Light, Night and Sepia themes, and in Compact density with focus mode and the serif font.
 - The largest accessibility text size.

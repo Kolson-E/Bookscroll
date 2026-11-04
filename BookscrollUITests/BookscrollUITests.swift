@@ -317,6 +317,33 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertEqual(app.buttons["Feed mode"].value as? String, "Shelf: Favourites")
     }
 
+    func testPasteTextAddsABook() throws {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        tab(app, "Library")
+        XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
+        tapToolbarButton(app, "library.paste")
+
+        let title = app.textFields["paste.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let add = app.buttons["paste.add"]
+        XCTAssertFalse(add.isEnabled, "Add needs text")
+        title.tap()
+        title.typeText("Kitchen Notes")
+        let text = app.descendants(matching: .any).matching(identifier: "paste.text").firstMatch
+        text.tap()
+        text.typeText("Part One\n\nThe bread rose overnight in the cold kitchen.\n\nBy noon it was ready for the oven.")
+        XCTAssertTrue(add.isEnabled)
+        screenshot("27-paste-text")
+        try audit(app, screen: "paste text")
+        add.tap()
+
+        let row = element(app, labelBeginsWith: "Kitchen Notes, by Unknown author")
+        XCTAssertTrue(row.waitForExistence(timeout: 15), "The pasted text is a book in the Library")
+        tab(app, "Feed")
+        XCTAssertTrue(openToolbarMenu(app, "Feed mode", choice: "Kitchen Notes").exists)
+    }
+
     // MARK: Settings and post look
 
     func testSettingsChangeThemeAccentAndFocusMode() {
