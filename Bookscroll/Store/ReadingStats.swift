@@ -38,7 +38,7 @@ final class ReadingStats {
     @ObservationIgnored private var lastStep: Date?
     @ObservationIgnored private var unsavedSteps = 0
 
-    static var defaultURL: URL {
+    nonisolated static var defaultURL: URL {
         URL.applicationSupportDirectory.appendingPathComponent("ReadingStats.json")
     }
 
