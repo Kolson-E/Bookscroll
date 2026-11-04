@@ -18,8 +18,9 @@ final class FeedViewModel {
     /// relaunch.
     @ObservationIgnored private let defaults: UserDefaults
     static let mixTopBookKey = "mixTopBookID"
-    /// Called with the characters the feed moved past (reading stats).
-    @ObservationIgnored var onRead: ((Int) -> Void)?
+    /// Called with the characters the feed moved past in each book (reading stats, Live
+    /// Activity).
+    @ObservationIgnored var onRead: (([UUID: Int]) -> Void)?
     /// Top visible post, bound to the scroll view.
     var scrolledID: String?
 
@@ -66,13 +67,13 @@ final class FeedViewModel {
             defaults.set(post.bookID.uuidString, forKey: Self.mixTopBookKey)
         }
         let updates = engine.markShown(through: id)
-        var read = 0
+        var read: [UUID: Int] = [:]
         for (bookID, offset) in updates {
             let before = store.book(id: bookID)?.positionOffset ?? offset
             store.setPosition(bookID: bookID, offset: offset)
-            if offset > before { read += offset - before }
+            if offset > before { read[bookID, default: 0] += offset - before }
         }
-        if read > 0 { onRead?(read) }
+        if !read.isEmpty { onRead?(read) }
         if !updates.isEmpty { store.saveIfDue() }
         if let index = engine.index(ofPost: id), index >= engine.posts.count - 12 {
             loadMore()

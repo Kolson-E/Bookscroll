@@ -15,3 +15,6 @@ xcodebuild.log
 
 # macOS
 .DS_Store
+
+# Your signing team and bundle id (see README › Run on your own devices)
+Support/Local.xcconfig

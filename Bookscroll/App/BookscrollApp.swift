@@ -1,3 +1,4 @@
+import CoreSpotlight
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -12,11 +13,14 @@ struct BookscrollApp: App {
         let container: ModelContainer
         let searchIndex: SearchIndex?
         let stats: ReadingStats
+        // Spotlight, widgets and the Live Activity; off for UI tests, which use a throwaway library.
+        var platform = true
         #if DEBUG
         if let testContainer = UITestSupport.makeContainerIfRequested() {
             container = testContainer
             searchIndex = try? SearchIndex.inMemory()
             stats = ReadingStats(fileURL: nil)
+            platform = false
         } else {
             container = Self.makeContainer()
             searchIndex = try? SearchIndex(url: SearchIndex.defaultURL)
@@ -29,7 +33,9 @@ struct BookscrollApp: App {
         #endif
         FileStaging.removeLeftovers()
         self.container = container
-        _app = State(initialValue: AppModel(container: container, searchIndex: searchIndex, stats: stats))
+        let app = AppModel(container: container, searchIndex: searchIndex, stats: stats, platform: platform)
+        AppModel.current = app
+        _app = State(initialValue: app)
     }
 
     private static func makeContainer() -> ModelContainer {
@@ -47,6 +53,11 @@ struct BookscrollApp: App {
             RootView()
                 .environment(app)
                 .onOpenURL { url in app.handleOpenURL(url) }
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    if let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String {
+                        app.openSpotlightItem(id)
+                    }
+                }
         }
         .modelContainer(container)
     }
@@ -56,6 +67,7 @@ struct BookscrollApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isDropTargeted = false
 
     var body: some View {
         @Bindable var app = app
@@ -115,12 +127,23 @@ struct RootView: View {
             actions: { Button("OK", role: .cancel) {} },
             message: { Text(app.errorMessage ?? "") }
         )
+        .onDrop(of: BookFormat.importableTypes, isTargeted: $isDropTargeted) { providers in
+            Task {
+                let urls = await DroppedFiles.copy(from: providers)
+                if !urls.isEmpty { app.importFiles(urls) }
+            }
+            return true
+        }
+        .overlay {
+            if isDropTargeted {
+                DropOverlay()
+            }
+        }
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active {
-                app.folderSync.sync()
+                app.sceneDidBecomeActive()
             } else {
-                app.store.save()
-                app.stats.pause()
+                app.sceneDidLeaveForeground(toBackground: phase == .background)
             }
         }
     }

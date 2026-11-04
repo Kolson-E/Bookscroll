@@ -102,6 +102,15 @@ final class CoverCache {
         return image
     }
 
+    /// The file the avatar shows (photo, else cover), or nil when it shows the first letter.
+    func thumbnailURL(for bookID: UUID) -> URL? {
+        if hidden.contains(bookID) { return nil }
+        let photo = CoverStore.url(bookID: bookID, photo: true, in: folder)
+        if FileManager.default.fileExists(atPath: photo.path) { return photo }
+        let cover = CoverStore.url(bookID: bookID, photo: false, in: folder)
+        return FileManager.default.fileExists(atPath: cover.path) ? cover : nil
+    }
+
     /// Forgets a book's images after they changed on disk.
     func invalidate(_ bookID: UUID) {
         images[bookID] = nil

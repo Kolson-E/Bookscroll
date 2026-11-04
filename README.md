@@ -32,7 +32,34 @@ xcodebuild test \
 ```
 
 Use any installed iPhone simulator name (`xcrun simctl list devices available`).
-To run on a device, set your team under Signing & Capabilities in Xcode.
+
+## Run on your own devices
+
+Bookscroll is made for personal use: you build it and install it from Xcode. It is not on the
+App Store.
+
+1. Make `Support/Local.xcconfig` (git ignores it) with your team and a bundle id of your own:
+
+   ```
+   DEVELOPMENT_TEAM = ABCDE12345
+   BASE_BUNDLE_ID = com.yourname.Bookscroll
+   ```
+
+   Your team id is in Xcode › Settings › Accounts (select the team; a free Apple ID gives a
+   "Personal Team"). The widget extension (`<BASE_BUNDLE_ID>.Widgets`) and the app group
+   (`group.<BASE_BUNDLE_ID>`) follow the bundle id.
+2. `xcodegen generate`, open the project, pick your device, and run the **Bookscroll** scheme.
+
+| Device | How it runs |
+|---|---|
+| iPhone, iPad (iOS 17+) | Native. |
+| Mac with Apple silicon | Pick **My Mac (Designed for iPad)** as the run destination. Drag books from Finder onto the window; ⌘O imports. |
+| Apple Vision Pro | Pick the Vision Pro **(Designed for iPad)** destination. It runs as an iPad app in a window. |
+
+With a free Apple ID, an app installed from Xcode stops opening after 7 days; run it from Xcode
+again to renew it (your library stays). A paid developer account renews it for a year. If the
+app group cannot be made for your team, the app still runs; only the widgets show "No book in
+progress".
 
 CI (`.github/workflows/ci.yml`) runs `xcodegen generate` and `xcodebuild test` on a macOS
 runner against the newest available iPhone simulator.
@@ -135,6 +162,18 @@ then the app uses 200 words a minute (a word is 6 characters). Each book in the 
 "N% read · about X left" at that speed (rounded to 5 minutes, or 1 minute under 10 minutes).
 Stats are kept per day in `Application Support/ReadingStats.json`, outside the database and
 the backup.
+
+**Widgets, Live Activity, Spotlight, Shortcuts, Focus.**
+
+| Feature | What it does |
+|---|---|
+| Current Book widget | Home Screen (small, medium) and Lock Screen (circular, rectangular, inline): the book you read last that is not finished, how far you are, the time left, today's reading time and streak; the medium size also shows the start of the next paragraph. Tap to continue that book. The app writes what the widget shows to the app group folder when it goes to the background and after the library changes. |
+| Live Activity | While you read, the book, percent, time left and today's minutes show on the Lock Screen and in the Dynamic Island. When you leave the app it shows "Paused" for an hour; tap it to continue. Coming back removes it. Settings › Lock Screen turns it off. |
+| Spotlight | Every book (title, author, percent) and your newest 500 highlights. A book opens in One book mode at your place; a highlight opens the reader around it. |
+| Shortcuts and Siri | **Continue Reading**, **Open Book** (choose a book), **Reading Today** ("You read 25 min today. Streak: 4 days."). They also show in Spotlight and the Shortcuts app with no setup. |
+| Focus filter | Settings › Focus › (a Focus) › Add Filter › Bookscroll: while that Focus is on, the feed shows one shelf. The Feed mode menu says so; choosing another mode there ends it until the Focus changes. |
+| Drag and drop | Drop EPUB, PDF, text, Markdown, HTML or RTF files anywhere on the app to import them (iPad, Mac, Vision Pro). Drag a post to another app to drop its text with the citation. |
+| Links | `bookscroll://continue`, `bookscroll://book/<id>`, `bookscroll://highlight/<id>` (used by the widgets, the Live Activity and Spotlight). |
 
 **Language** is detected once per book from the first 6,000 characters (`NaturalLanguage`,
 shown only at 50% confidence or more).
@@ -316,7 +355,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 208 tests):
+`BookscrollTests` (XCTest, 218 tests):
 
 | Area | File |
 |---|---|
@@ -332,6 +371,7 @@ property is named `passagesOnly` because that is what it means.
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
 | Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
 | Reader window and paging, like/bookmark, deletion, position saving, reading counted once | `AppFlowTests.swift` |
+| Links (round trip, bad links; opening the last book, a book, a highlight, a missing one), widget content (book read last, day change, streak, file), the app's widget data after reading, Spotlight entries, Live Activity update rules, Focus filter shelf before your own choice, dropped files (copy, name, text is not a file) | `PlatformTests.swift` |
 | Reading time only for short gaps, jumps ignored, pause, measured speed after 10 minutes, time left, streak, last 14 days, week, saving and loading, duration formats | `ReadingStatsTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
 | Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
@@ -375,7 +415,10 @@ takes about 12.5 ms on average; deleting one book takes about 0.6 s; a key looku
 
 Not verified:
 
-- No run on a physical device.
+- No run on a physical device, a Mac or Apple Vision Pro.
+- The widgets, the Live Activity, Spotlight results, Shortcuts and the Focus filter are drawn or
+  run by the system. CI compiles them and tests the data and rules behind them, but cannot
+  show them on a simulator Lock Screen or in Settings › Focus.
 - Share sheets, the Files picker contents, haptics and the system Look Up panel are shown by
   the system; the tests check that they open, not what they contain.
 - PDF paragraph detection is tested on generated PDFs and synthetic line geometry (two

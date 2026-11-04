@@ -8,6 +8,10 @@ options:
   projectFormat: xcode15_0
   developmentLanguage: en
 
+configFiles:
+  Debug: Support/Base.xcconfig
+  Release: Support/Base.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -27,12 +31,16 @@ targets:
     platform: iOS
     sources:
       - path: Bookscroll
+      - path: Shared
     dependencies:
       - package: ZIPFoundation
+      - target: BookscrollWidgets
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.bookscroll.Bookscroll
+        PRODUCT_BUNDLE_IDENTIFIER: $(BASE_BUNDLE_ID)
         PRODUCT_NAME: Bookscroll
+        CODE_SIGN_ENTITLEMENTS: Support/Bookscroll.entitlements
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         # Document types (EPUB, PDF) for "Open in Bookscroll"; Xcode merges the generated keys into it.
@@ -52,6 +60,21 @@ targets:
         - BookscrollTests
         - BookscrollUITests
       gatherCoverageData: false
+
+  BookscrollWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: BookscrollWidgets
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BASE_BUNDLE_ID).Widgets
+        PRODUCT_NAME: BookscrollWidgets
+        INFOPLIST_FILE: Support/Widgets-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Support/BookscrollWidgets.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
 
   BookscrollTests:
     type: bundle.unit-test

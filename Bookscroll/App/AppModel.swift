@@ -197,13 +197,26 @@ final class AppModel {
     let importer: ImportManager
     let folderSync: FolderSync
     let stats: ReadingStats
+    let spotlight: SpotlightIndexer
+    let widgets: WidgetBridge
+    let readingActivity: ReadingActivityController
+    private let platformEnabled: Bool
+    /// The model of the running app, for App Intents (Shortcuts, Siri, Focus filters).
+    static weak var current: AppModel?
     /// Full-text index of the library. Nil when it could not be opened; search is then off.
     let searchIndex: SearchIndex?
     @ObservationIgnored private(set) var resumedDeletions: [Task<Void, Never>] = []
     @ObservationIgnored private var searchSync: Task<Void, Never>?
 
-    /// `stats` nil keeps reading stats in memory only.
-    init(container: ModelContainer, searchIndex: SearchIndex? = nil, folderSync: FolderSync? = nil, stats: ReadingStats? = nil) {
+    /// `stats` nil keeps reading stats in memory only. `platform` true turns on Spotlight, the
+    /// widgets and the Live Activity (off in tests).
+    init(
+        container: ModelContainer,
+        searchIndex: SearchIndex? = nil,
+        folderSync: FolderSync? = nil,
+        stats: ReadingStats? = nil,
+        platform: Bool = false
+    ) {
         self.container = container
         self.searchIndex = searchIndex
         let store = LibraryStore(context: container.mainContext)
@@ -214,12 +227,17 @@ final class AppModel {
         self.importer = ImportManager(container: container)
         self.folderSync = folderSync ?? FolderSync()
         self.stats = stats ?? ReadingStats(fileURL: nil)
+        self.spotlight = SpotlightIndexer(enabled: platform)
+        self.widgets = WidgetBridge(url: platform ? SharedContainer.snapshotURL : nil)
+        self.readingActivity = ReadingActivityController(enabled: platform)
+        self.platformEnabled = platform
+        readingActivity.isEnabled = { AppSettings.shared.liveActivity }
         importer.onImported = { [weak self] in
             self?.libraryDidChange()
         }
         importer.coverFolder = CoverCache.shared.folder
-        feed.onRead = { [weak stats = self.stats] characters in
-            stats?.record(characters: characters)
+        feed.onRead = { [weak self] reads in
+            self?.didRead(reads)
         }
         importer.onReplaced = { [weak self] old, new in
             self?.bookWasReplaced(old, by: new)
@@ -370,6 +388,10 @@ final class AppModel {
 
     /// A file sent to Bookscroll from Files or another app ("Open in", share sheet).
     func handleOpenURL(_ url: URL) {
+        if let link = AppLink(url: url) {
+            open(link)
+            return
+        }
         guard url.isFileURL else { return }
         readerRequest = nil
         shareRequest = nil
@@ -422,6 +444,149 @@ final class AppModel {
         marks.reload()
         refreshCoverChoices()
         syncSearchIndex()
+        schedulePlatformRefresh()
+    }
+
+    // MARK: Reading, widgets, Spotlight, Live Activity
+
+    /// The feed moved past `reads` characters per book.
+    private func didRead(_ reads: [UUID: Int]) {
+        stats.record(characters: reads.values.reduce(0, +))
+        guard let bookID = reads.max(by: { ($0.value, $0.key.uuidString) < ($1.value, $1.key.uuidString) })?.key,
+              let book = store.book(id: bookID) else { return }
+        readingActivity.reading(
+            ReadingActivityAttributes(bookID: book.id, title: book.title, author: book.author),
+            state: activityState(for: book)
+        )
+    }
+
+    private func activityState(for book: Book) -> ReadingActivityAttributes.ContentState {
+        ReadingActivityAttributes.ContentState(
+            percent: TextUtils.percent(book.positionOffset, of: book.totalCharacters),
+            minutesToday: Int((stats.day(.now).seconds / 60).rounded()),
+            timeLeft: "about \(ReadingStats.formatDuration(stats.timeToRead(characters: book.totalCharacters - book.positionOffset))) left",
+            isPaused: false
+        )
+    }
+
+    /// The app is in front again.
+    func sceneDidBecomeActive() {
+        folderSync.sync()
+        readingActivity.endAll()
+    }
+
+    /// The app left the front: save and stop counting time. In the background, also show the
+    /// Live Activity as paused and bring the widgets and Spotlight up to date.
+    func sceneDidLeaveForeground(toBackground: Bool) {
+        store.save()
+        stats.pause()
+        guard toBackground else { return }
+        readingActivity.pause()
+        refreshPlatform()
+    }
+
+    @ObservationIgnored private var platformRefresh: Task<Void, Never>?
+
+    /// Refreshes the widgets and Spotlight after the library settles (imports come in bursts).
+    func schedulePlatformRefresh(delay: Duration = .seconds(2)) {
+        platformRefresh?.cancel()
+        platformRefresh = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.refreshPlatform()
+        }
+    }
+
+    func refreshPlatform(now: Date = .now) {
+        platformRefresh?.cancel()
+        guard platformEnabled else { return }
+        let books = store.allBooks()
+        widgets.update(widgetSnapshot(books: books, now: now))
+        spotlight.update(spotlightEntries(books: books))
+    }
+
+    func widgetSnapshot(books: [Book], now: Date = .now) -> WidgetSnapshot {
+        let facts = books.map {
+            WidgetContent.BookFacts(
+                id: $0.id, title: $0.title, author: $0.author, totalCharacters: $0.totalCharacters,
+                positionOffset: $0.positionOffset, lastReadAt: $0.lastReadAt, finishedAt: $0.finishedAt
+            )
+        }
+        let current = WidgetContent.currentBook(facts)
+        var upNext = ""
+        if let current, let book = store.feedBook(id: current.id) {
+            let style: PostStyle = book.passagesOnly ? .passage : .paragraph
+            upNext = store.segmentsOverlapping(start: current.positionOffset, end: current.positionOffset + 1, book: book, style: style, limit: 1)
+                .first?.text ?? ""
+        }
+        return WidgetContent.snapshot(
+            book: current,
+            upNext: upNext,
+            timeLeft: current.map { stats.timeToRead(characters: $0.totalCharacters - $0.positionOffset) } ?? 0,
+            secondsToday: stats.day(now).seconds,
+            streak: stats.streak(until: now),
+            now: now
+        )
+    }
+
+    func spotlightEntries(books: [Book]) -> [SpotlightEntry] {
+        let bookFacts = books.map { book in
+            SpotlightContent.BookFacts(
+                id: book.id,
+                title: book.title,
+                author: book.author,
+                percent: TextUtils.percent(book.positionOffset, of: book.totalCharacters),
+                isFinished: book.finishedAt != nil,
+                thumbnail: CoverCache.shared.thumbnailURL(for: book.id)
+            )
+        }
+        let highlightFacts = highlights().prefix(SpotlightContent.highlightLimit).map {
+            SpotlightContent.HighlightFacts(id: $0.id, bookTitle: $0.bookTitle, bookAuthor: $0.bookAuthor, text: $0.text)
+        }
+        return SpotlightContent.entries(books: bookFacts, highlights: Array(highlightFacts))
+    }
+
+    // MARK: Links
+
+    /// Opens a place from a widget, the Live Activity, Spotlight or a shortcut.
+    func open(_ link: AppLink) {
+        shareRequest = nil
+        jumpRequest = nil
+        switch link {
+        case .continueReading:
+            let facts = store.allBooks().map {
+                WidgetContent.BookFacts(
+                    id: $0.id, title: $0.title, author: $0.author, totalCharacters: $0.totalCharacters,
+                    positionOffset: $0.positionOffset, lastReadAt: $0.lastReadAt, finishedAt: $0.finishedAt
+                )
+            }
+            if let book = WidgetContent.currentBook(facts) {
+                jump(bookID: book.id, offset: book.positionOffset)
+            } else {
+                readerRequest = nil
+                selectedTab = .feed
+            }
+        case let .book(id):
+            guard let book = store.book(id: id), !book.deletionPending else {
+                errorMessage = "That book is no longer in your library."
+                return
+            }
+            jump(bookID: id, offset: book.positionOffset)
+        case let .highlight(id):
+            guard let mark = marks.index.all.first(where: { $0.id == id }) else {
+                errorMessage = "That highlight is no longer in your library."
+                return
+            }
+            readerRequest = nil
+            selectedTab = .saved
+            openReader(bookID: mark.bookID, charStart: mark.charStart, charEnd: mark.charEnd)
+        }
+    }
+
+    /// A Spotlight result was opened.
+    func openSpotlightItem(_ identifier: String) {
+        guard let link = AppLink(spotlightID: identifier) else { return }
+        open(link)
     }
 
     /// Hides the book at once (Library, Feed, Saved) and deletes its rows off the main thread.

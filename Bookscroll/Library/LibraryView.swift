@@ -92,6 +92,7 @@ struct LibraryView: View {
                     .accessibilityLabel("Import books")
                     .accessibilityHint("Opens Files to pick books")
                     .accessibilityIdentifier("library.import")
+                    .keyboardShortcut("o", modifiers: .command)
                 }
             }
         }

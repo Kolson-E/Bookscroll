@@ -383,6 +383,8 @@ struct PostRow: View {
                     .allowsHitTesting(false)
             }
         }
+        // Drag the post to another app (iPad, Mac) as text with its citation.
+        .draggable(ShareFormatter.citation(post))
         .contextMenu {
             contextMenuItems
         } preview: {

@@ -10,14 +10,21 @@ struct FeedView: View {
 
     private var selectedStyle: PostStyle { PostStyle(rawValue: styleRaw) ?? .paragraph }
 
+    @AppStorage(FocusFeed.key) private var focusShelfID = ""
+
     private var selectedMode: FeedMode {
-        if modeRaw == "single", let id = UUID(uuidString: singleBookID) {
-            return .single(id)
-        }
-        if modeRaw == "shelf", let id = UUID(uuidString: feedShelfID), let shelf = app.shelves.shelf(id: id) {
-            return .shelf(ShelfSelection(id: shelf.id, name: shelf.name, bookIDs: shelf.bookIDs))
-        }
-        return .mix
+        FeedModeChoice.resolve(
+            modeRaw: modeRaw,
+            singleBookID: singleBookID,
+            feedShelfID: feedShelfID,
+            focusShelfID: focusShelfID,
+            shelves: app.shelves.shelves
+        )
+    }
+
+    /// The shelf a Focus filter shows now, if any.
+    private var focusShelf: ShelfRecord? {
+        UUID(uuidString: focusShelfID).flatMap { app.shelves.shelf(id: $0) }
     }
 
     private static let shelfTagPrefix = "shelf:"
@@ -26,6 +33,7 @@ struct FeedView: View {
     private var modeSelection: Binding<String> {
         Binding(
             get: {
+                if focusShelf != nil { return Self.shelfTagPrefix + focusShelfID }
                 switch modeRaw {
                 case "single": return singleBookID
                 case "shelf": return Self.shelfTagPrefix + feedShelfID
@@ -33,6 +41,8 @@ struct FeedView: View {
                 }
             },
             set: { value in
+                // Your own choice ends the Focus shelf until the Focus changes again.
+                focusShelfID = ""
                 if value == "mix" {
                     modeRaw = "mix"
                 } else if value.hasPrefix(Self.shelfTagPrefix) {
@@ -93,6 +103,7 @@ struct FeedView: View {
         .onChange(of: modeRaw) { configureFeed() }
         .onChange(of: singleBookID) { configureFeed() }
         .onChange(of: feedShelfID) { configureFeed() }
+        .onChange(of: focusShelfID) { configureFeed() }
         .onChange(of: app.shelves.shelves) { configureFeed() }
         .onChange(of: AppSettings.shared.wordLimit) { configureFeed() }
         .onChange(of: feed.mode) { _, mode in
@@ -133,6 +144,12 @@ struct FeedView: View {
         Menu {
             // Buttons, not a Picker: iOS 17 drops the sections of a Picker inside a Menu.
             let selection = modeSelection
+            if let focusShelf {
+                Section {
+                    Button("Focus shows \u{201C}\(focusShelf.name)\u{201D}. A choice below ends it.") {}
+                        .disabled(true)
+                }
+            }
             MenuChoice(title: "Mix all books", symbol: "shuffle", isSelected: selection.wrappedValue == "mix") {
                 selection.wrappedValue = "mix"
             }

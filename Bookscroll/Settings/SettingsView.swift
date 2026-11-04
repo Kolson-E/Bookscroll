@@ -63,6 +63,17 @@ struct SettingsView: View {
                 .listRowBackground(Theme.secondaryBackground)
 
                 Section {
+                    Toggle("Reading on the Lock Screen", isOn: $settings.liveActivity)
+                        .accessibilityIdentifier("settings.liveActivity")
+                } header: {
+                    SectionHeader("Lock Screen")
+                } footer: {
+                    Text("While you read, the book, how far you are and today\u{2019}s reading time show on the Lock Screen and in the Dynamic Island. When you leave the app they stay for an hour; tap to continue. Add the Current Book widget to the Lock Screen or Home Screen for the same at any time.")
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                .listRowBackground(Theme.secondaryBackground)
+
+                Section {
                     ChoiceRow(title: "Synced folder", value: app.folderSync.folderName ?? "Off") { openChoice = .folderSync }
                         .accessibilityIdentifier("settings.folderSync")
                     ChoiceRow(title: "Storage", value: storageTotal) { openChoice = .storage }

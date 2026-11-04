@@ -160,7 +160,7 @@ final class ReadingStats {
     // MARK: Formatting
 
     /// "about 3 h 20 min", rounded to 5 minutes (1 minute under 10 minutes).
-    static func formatDuration(_ seconds: TimeInterval) -> String {
+    nonisolated static func formatDuration(_ seconds: TimeInterval) -> String {
         let minutes = seconds / 60
         let step: Double = minutes < 10 ? 1 : 5
         let rounded = max(1, (minutes / step).rounded() * step)
@@ -171,7 +171,7 @@ final class ReadingStats {
     }
 
     /// Time spent reading: "0 min", "45 min", "2 h 5 min" (not rounded to 5).
-    static func formatReadingTime(_ seconds: TimeInterval) -> String {
+    nonisolated static func formatReadingTime(_ seconds: TimeInterval) -> String {
         let minutes = Int((seconds / 60).rounded())
         let hours = minutes / 60
         if hours == 0 { return "\(minutes) min" }

@@ -108,7 +108,8 @@ final class AppSettings {
         static let focusMode = "focusMode"
         static let doubleTapToLike = "doubleTapToLike"
         static let wordLimit = "wordLimit"
-        static let all = [theme, accent, density, postTypeface, readerTypeface, focusMode, doubleTapToLike, wordLimit]
+        static let liveActivity = "liveActivity"
+        static let all = [theme, accent, density, postTypeface, readerTypeface, focusMode, doubleTapToLike, wordLimit, liveActivity]
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -123,6 +124,8 @@ final class AppSettings {
     var doubleTapToLike: Bool { didSet { defaults.set(doubleTapToLike, forKey: Key.doubleTapToLike) } }
     /// Maximum words per post. Auto (the default) fits 95% of each book's paragraphs.
     var wordLimit: WordLimit { didSet { defaults.set(wordLimit.storage, forKey: Key.wordLimit) } }
+    /// Shows the book being read on the Lock Screen and in the Dynamic Island.
+    var liveActivity: Bool { didSet { defaults.set(liveActivity, forKey: Key.liveActivity) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -134,6 +137,7 @@ final class AppSettings {
         focusMode = Self.bool(defaults, Key.focusMode, default: false)
         doubleTapToLike = Self.bool(defaults, Key.doubleTapToLike, default: true)
         wordLimit = defaults.object(forKey: Key.wordLimit) == nil ? .auto : WordLimit(storage: defaults.integer(forKey: Key.wordLimit))
+        liveActivity = Self.bool(defaults, Key.liveActivity, default: true)
     }
 }
 
