@@ -406,6 +406,24 @@ final class AppModel {
         }
     }
 
+    // MARK: Storage
+
+    /// Where the library, the search index and the covers are kept.
+    var storageLocations: StorageReport.Locations {
+        let configuration = container.configurations.first
+        let database = configuration.flatMap { $0.isStoredInMemoryOnly ? nil : $0.url }
+        return StorageReport.Locations(database: database, searchIndex: searchIndex?.fileURL, covers: CoverCache.shared.folder)
+    }
+
+    /// Measures the space the app uses, off the main thread.
+    func storageReport() async -> StorageReport {
+        let books = store.storageFacts()
+        let locations = storageLocations
+        return await Task.detached(priority: .userInitiated) {
+            StorageReport.measure(books: books, at: locations)
+        }.value
+    }
+
     func openReader(for post: FeedPost) {
         openReader(bookID: post.bookID, charStart: post.segment.charStart, charEnd: post.segment.charEnd)
     }

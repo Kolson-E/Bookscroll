@@ -531,6 +531,10 @@ final class BookscrollUITests: XCTestCase {
         tab(app, "Settings")
         XCTAssertTrue(app.buttons["accent.blue"].waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) settings")
+        app.buttons["settings.storage"].tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "storage.book").firstMatch.waitForExistence(timeout: 10))
+        screenshot("28-\(prefix)-storage")
+        try audit(app, screen: "\(prefix) storage")
 
         tab(app, "Feed")
         // A tap on the post text opens the reader (focus mode has no action bar).

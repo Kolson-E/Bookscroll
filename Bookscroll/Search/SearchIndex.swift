@@ -22,6 +22,8 @@ final class SearchIndex: @unchecked Sendable {
     private let lock = NSLock()
     /// FTS5 when the system SQLite has it, otherwise FTS4.
     private(set) var usesFTS5 = true
+    /// The index file; nil for an index in memory.
+    private(set) var fileURL: URL?
 
     static var defaultURL: URL {
         URL.applicationSupportDirectory.appendingPathComponent("Search.sqlite")
@@ -32,6 +34,7 @@ final class SearchIndex: @unchecked Sendable {
     convenience init(url: URL) throws {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try self.init(path: url.path)
+        self.fileURL = url
         var fileURL = url
         var values = URLResourceValues()
         values.isExcludedFromBackup = true

@@ -2,6 +2,8 @@ import SwiftUI
 
 @MainActor
 struct SettingsView: View {
+    @Environment(AppModel.self) private var app
+    @State private var storageTotal = ""
     @AppStorage("postStyle") private var styleRaw = PostStyle.paragraph.rawValue
     @State private var openChoice: SettingChoice?
 
@@ -12,6 +14,7 @@ struct SettingsView: View {
         case postStyle
         case wordLimit
         case readerFont
+        case storage
 
         var id: Self { self }
     }
@@ -58,6 +61,14 @@ struct SettingsView: View {
                 .listRowBackground(Theme.secondaryBackground)
 
                 Section {
+                    ChoiceRow(title: "Storage", value: storageTotal) { openChoice = .storage }
+                        .accessibilityIdentifier("settings.storage")
+                } header: {
+                    SectionHeader("Library")
+                }
+                .listRowBackground(Theme.secondaryBackground)
+
+                Section {
                     HStack {
                         Text("Version").foregroundStyle(Theme.primaryText)
                         Spacer(minLength: 8)
@@ -79,6 +90,9 @@ struct SettingsView: View {
             .themedNavigationBar()
             .navigationDestination(item: $openChoice) { choice in
                 choiceList(choice)
+            }
+            .task(id: app.libraryVersion) {
+                storageTotal = StorageReport.format(await app.storageReport().total)
             }
         }
     }
@@ -106,6 +120,8 @@ struct SettingsView: View {
             ChoiceList(title: "Reader font", selection: $settings.readerTypeface, choices: Typeface.allCases) {
                 Self.readerFontTitle($0)
             }
+        case .storage:
+            StorageView()
         }
     }
 

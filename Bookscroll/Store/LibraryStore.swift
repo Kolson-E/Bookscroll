@@ -32,6 +32,13 @@ final class LibraryStore: SegmentSource {
         return books
     }
 
+    /// What the storage report needs about each book.
+    func storageFacts() -> [StorageReport.BookFacts] {
+        allBooks().map {
+            StorageReport.BookFacts(id: $0.id, title: $0.title, author: $0.author, format: $0.format, characters: $0.totalCharacters)
+        }
+    }
+
     func feedBooks() -> [FeedBook] {
         allBooks().map(FeedBook.init)
     }
