@@ -214,6 +214,10 @@ final class AppModel {
         importer.onImported = { [weak self] in
             self?.libraryDidChange()
         }
+        importer.coverFolder = CoverCache.shared.folder
+        importer.onReplaced = { [weak self] old, new in
+            self?.bookWasReplaced(old, by: new)
+        }
         // Synced files import quietly: their progress shows in the Library if it is open.
         self.folderSync.enqueue = { [weak importer = self.importer] urls, folder in
             importer?.enqueue(urls, scope: folder, skipsDuplicates: true)
@@ -366,6 +370,22 @@ final class AppModel {
         importFiles([url])
     }
 
+    /// Imports `url` as a new version of the book; the Library shows its progress.
+    func replaceFile(of bookID: UUID, with url: URL) {
+        selectedTab = .library
+        importer.enqueueReplacement(url, for: bookID)
+    }
+
+    /// The new version takes the old one's shelves and One book selection; the old one goes.
+    private func bookWasReplaced(_ old: UUID, by new: UUID) {
+        shelves.replaceEverywhere(old, with: new)
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: "singleBookID") == old.uuidString {
+            defaults.set(new.uuidString, forKey: "singleBookID")
+        }
+        deleteBook(id: old)
+    }
+
     /// Queues files and shows the Library, where their progress and errors appear. A folder
     /// queues the book files inside it and its subfolders; books already in the library are
     /// skipped without an error.
@@ -427,6 +447,92 @@ final class AppModel {
             CoverCache.shared.invalidate(id)
             libraryDidChange()
         }
+    }
+
+    // MARK: Backup
+
+    /// A backup of every book's reading state and the shelves, as JSON.
+    func makeBackup(now: Date = .now) async throws -> Data {
+        store.save()
+        let ids = store.allBooks().map(\.id)
+        let shelfList = shelves.shelves
+        let container = self.container
+        let folder = CoverCache.shared.folder
+        return try await Task.detached(priority: .userInitiated) {
+            let context = ModelContext(container)
+            var states: [BookState] = []
+            var indexByID: [UUID: Int] = [:]
+            for id in ids {
+                guard let state = try ReadingStateIO.capture(bookID: id, in: context, photoFolder: folder) else { continue }
+                indexByID[id] = states.count
+                states.append(state)
+            }
+            let shelves = shelfList.map { shelf in
+                LibraryBackup.ShelfBackup(name: shelf.name, books: shelf.bookIDs.compactMap { indexByID[$0] })
+            }
+            return try LibraryBackup(createdAt: now, books: states, shelves: shelves).encoded()
+        }.value
+    }
+
+    /// Restores a backup file picked in Files.
+    func restoreBackup(from url: URL) async throws -> RestoreSummary {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw BookImportError.unreadable("The file could not be opened.")
+        }
+        return try await restore(try LibraryBackup.decode(data))
+    }
+
+    /// Puts each backed-up book's state on the matching library book (see
+    /// `LibraryBackup.match`): place, finish, Mix settings, details, photo; marks it does not
+    /// have yet are added. Shelves are made, or books are added to a shelf of the same name.
+    func restore(_ backup: LibraryBackup) async throws -> RestoreSummary {
+        store.save()
+        let library = store.allBooks().map {
+            LibraryBackup.LibraryBook(id: $0.id, title: $0.title, author: $0.author, format: $0.formatRaw, totalCharacters: $0.totalCharacters)
+        }
+        let matches = LibraryBackup.match(backup.books, to: library)
+        let states = backup.books
+        let container = self.container
+        // Finding the places reads every book's text: off the main thread.
+        let resolved: [(index: Int, id: UUID, resolved: ReadingStateIO.Resolved)] = try await Task.detached(priority: .userInitiated) {
+            let context = ModelContext(container)
+            var output: [(index: Int, id: UUID, resolved: ReadingStateIO.Resolved)] = []
+            for (index, match) in matches.enumerated() {
+                guard let id = match else { continue }
+                var descriptor = FetchDescriptor<Book>(predicate: #Predicate { $0.id == id })
+                descriptor.fetchLimit = 1
+                guard let book = try context.fetch(descriptor).first else { continue }
+                let text = try ReadingStateIO.fullText(of: book, in: context)
+                output.append((index, id, ReadingStateIO.resolve(states[index], in: text)))
+            }
+            return output
+        }.value
+
+        // Written on the main context, so the books the app holds show the new values.
+        let folder = CoverCache.shared.folder
+        for item in resolved {
+            guard let book = store.book(id: item.id) else { continue }
+            try ReadingStateIO.write(states[item.index], resolved: item.resolved, to: book, in: container.mainContext, options: .details, photoFolder: folder)
+            if states[item.index].photo != nil { CoverCache.shared.invalidate(item.id) }
+        }
+        var shelfCount = 0
+        for shelf in backup.shelves {
+            let ids = shelf.books.compactMap { $0 >= 0 && $0 < matches.count ? matches[$0] : nil }
+            if let existing = shelves.shelves.first(where: { $0.name.caseInsensitiveCompare(shelf.name) == .orderedSame }) {
+                shelves.add(ids, to: existing.id)
+            } else {
+                shelves.create(name: shelf.name, bookIDs: ids)
+            }
+            shelfCount += 1
+        }
+        libraryDidChange()
+        let missing = zip(backup.books, matches).filter { $0.1 == nil }.map(\.0.title)
+        return RestoreSummary(restored: resolved.count, missing: missing, shelves: shelfCount)
     }
 
     // MARK: Storage

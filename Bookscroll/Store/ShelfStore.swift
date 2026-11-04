@@ -139,6 +139,19 @@ final class ShelfStore {
         commit()
     }
 
+    /// Puts `new` in the place of `old` on every shelf (a replaced file).
+    func replaceEverywhere(_ old: UUID, with new: UUID) {
+        let models = fetchAll().filter { $0.bookIDs.contains(old) }
+        guard !models.isEmpty else { return }
+        for shelf in models {
+            var ids = shelf.bookIDs.map { $0 == old ? new : $0 }
+            var seen = Set<UUID>()
+            ids = ids.filter { seen.insert($0).inserted }
+            shelf.bookIDs = ids
+        }
+        commit()
+    }
+
     // MARK: Private
 
     private func fetchAll() -> [Shelf] {

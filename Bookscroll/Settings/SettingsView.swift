@@ -16,6 +16,7 @@ struct SettingsView: View {
         case readerFont
         case storage
         case folderSync
+        case backup
 
         var id: Self { self }
     }
@@ -66,6 +67,8 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.folderSync")
                     ChoiceRow(title: "Storage", value: storageTotal) { openChoice = .storage }
                         .accessibilityIdentifier("settings.storage")
+                    ChoiceRow(title: "Back Up and Restore", value: "") { openChoice = .backup }
+                        .accessibilityIdentifier("settings.backup")
                 } header: {
                     SectionHeader("Library")
                 }
@@ -127,6 +130,8 @@ struct SettingsView: View {
             StorageView()
         case .folderSync:
             FolderSyncView()
+        case .backup:
+            BackupView()
         }
     }
 

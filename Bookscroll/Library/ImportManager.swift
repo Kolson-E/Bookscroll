@@ -28,15 +28,22 @@ final class ImportManager {
 
     private(set) var jobs: [Job] = []
     @ObservationIgnored var onImported: (() -> Void)?
+    /// A file replaced a book: (old book, new book). Called before `onImported`.
+    @ObservationIgnored var onReplaced: ((UUID, UUID) -> Void)?
     /// Called when the queue is empty again.
     @ObservationIgnored var onQueueFinished: (() -> Void)?
     private let container: ModelContainer
+    /// Where avatar photos are kept (a replaced file keeps the reader's photo).
+    @ObservationIgnored var coverFolder = CoverStore.directory
     /// What a job imports: a file, or text pasted into the app.
     private enum Source: Sendable {
         /// `scope`: the folder whose security scope covers the file (folder import and sync).
         /// `skipsDuplicates`: a book already in the library is not an error (sync).
         case file(URL, scope: URL?, skipsDuplicates: Bool)
         case pasted(text: String, title: String, author: String)
+        /// A new file for a book in the library: the new book takes over its place, marks,
+        /// details and shelves.
+        case replacement(URL, bookID: UUID)
     }
 
     @ObservationIgnored private var queue: [(id: UUID, source: Source)] = []
@@ -69,6 +76,14 @@ final class ImportManager {
         start()
     }
 
+    /// Imports `url` as a new version of the book `bookID`.
+    func enqueueReplacement(_ url: URL, for bookID: UUID) {
+        let job = Job(fileName: url.lastPathComponent)
+        jobs.append(job)
+        queue.append((job.id, .replacement(url, bookID: bookID)))
+        start()
+    }
+
     private func start() {
         guard !isRunning else { return }
         isRunning = true
@@ -87,6 +102,7 @@ final class ImportManager {
             let container = self.container
             let jobID = next.id
             let source = next.source
+            let coverFolder = self.coverFolder
             var skipsDuplicates = false
             if case let .file(_, _, skips) = source { skipsDuplicates = skips }
             let result: Result<UUID, Error> = await Task.detached(priority: .userInitiated) {
@@ -111,12 +127,25 @@ final class ImportManager {
                     return Result {
                         try BookImporter.importPasted(text: text, title: title, author: author, into: container, progress: progress)
                     }
+                case let .replacement(url, oldID):
+                    defer { FileStaging.removeIfInboxCopy(url) }
+                    return Result {
+                        guard let state = try ReadingStateIO.capture(bookID: oldID, in: ModelContext(container), photoFolder: coverFolder) else {
+                            throw BookImportError.unreadable("The book it replaces is no longer in the library.")
+                        }
+                        let staged = try FileStaging.stage(url)
+                        defer { FileStaging.cleanUp(staged) }
+                        let newID = try BookImporter.importBook(at: staged, into: container, replacing: oldID) { progress($0 * 0.95) }
+                        try ReadingStateIO.apply(state, to: newID, in: ModelContext(container), options: .details, photoFolder: coverFolder)
+                        return newID
+                    }
                 }
             }.value
 
             switch result {
-            case .success:
+            case let .success(newID):
                 jobs.removeAll { $0.id == jobID }
+                if case let .replacement(_, oldID) = source { onReplaced?(oldID, newID) }
                 onImported?()
             case let .failure(error):
                 if skipsDuplicates, case .duplicate = error as? BookImportError {

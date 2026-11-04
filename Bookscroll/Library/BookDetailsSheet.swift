@@ -21,6 +21,7 @@ struct BookDetailsSheet: View {
     @State private var newPhotoData: Data?
     @State private var newPhoto: UIImage?
     @State private var photoError: String?
+    @State private var isPickingReplacement = false
     @ScaledMetric(relativeTo: .largeTitle) private var previewSize: CGFloat = 96
 
     private var book: Book? { app.store.book(id: bookID) }
@@ -55,7 +56,7 @@ struct BookDetailsSheet: View {
                         .accessibilityIdentifier("details.cancel")
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
+                    Button("Save") { _ = save() }
                         .fontWeight(.semibold)
                         .disabled(trimmedTitle.isEmpty || book == nil)
                         .accessibilityIdentifier("details.save")
@@ -63,6 +64,10 @@ struct BookDetailsSheet: View {
             }
         }
         .tint(Theme.accent)
+        .fileImporter(isPresented: $isPickingReplacement, allowedContentTypes: BookFormat.importableTypes) { result in
+            guard case let .success(url) = result, save() else { return }
+            app.replaceFile(of: bookID, with: url)
+        }
         .onAppear(perform: load)
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
@@ -144,8 +149,15 @@ struct BookDetailsSheet: View {
                 if let finishedAt = book.finishedAt {
                     DetailRow(title: "Finished", value: finishedAt.formatted(date: .abbreviated, time: .omitted))
                 }
+                Button("Replace File\u{2026}") { isPickingReplacement = true }
+                    .frame(minHeight: 44)
+                    .accessibilityHint("Imports a new version of this book and keeps your place, marks and shelves")
+                    .accessibilityIdentifier("details.replaceFile")
             } header: {
                 SectionHeader("About the file")
+            } footer: {
+                Text("Replace File imports a new version of the book, such as a corrected EPUB. Your place, likes, bookmarks, highlights, shelves and the details above move to the new version; where its text changed, they go to the nearest matching words.")
+                    .foregroundStyle(Theme.secondaryText)
             }
             .listRowBackground(Theme.secondaryBackground)
         }
@@ -185,12 +197,13 @@ struct BookDetailsSheet: View {
         showsCover = true
     }
 
-    private func save() {
-        guard book != nil else { return }
+    /// Applies the changes and closes the sheet. False when the photo could not be saved.
+    private func save() -> Bool {
+        guard book != nil else { return false }
         if let newPhotoData {
             if !app.setAvatarPhoto(bookID: bookID, data: newPhotoData) {
                 photoError = "The photo could not be saved."
-                return
+                return false
             }
         } else if removesSavedPhoto {
             app.removeAvatarPhoto(bookID: bookID)
@@ -198,6 +211,7 @@ struct BookDetailsSheet: View {
         app.setShowsCover(showsCover, bookID: bookID)
         app.editDetails(bookID: bookID, title: title, author: author)
         dismiss()
+        return true
     }
 }
 

@@ -50,9 +50,11 @@ enum BookImporter {
     /// Full import: parse, segment, store. Returns the new book's id.
     /// `progress` is called with values from 0 to 1, on the calling thread.
     @discardableResult
+    /// `replacing`: the book this file replaces. It does not count as a duplicate.
     static func importBook(
         at url: URL,
         into container: ModelContainer,
+        replacing: UUID? = nil,
         progress: @escaping (Double) -> Void = { _ in }
     ) throws -> UUID {
         var lastReported = -1.0
@@ -64,7 +66,7 @@ enum BookImporter {
         }
         let parsed = try parse(url: url) { report($0 * 0.7) }
         let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        return try store(parsed, source: (name: url.lastPathComponent, size: size), into: container, report: report)
+        return try store(parsed, source: (name: url.lastPathComponent, size: size), into: container, replacing: replacing, report: report)
     }
 
     /// Imports pasted text as a book. Returns the new book's id.
@@ -85,6 +87,7 @@ enum BookImporter {
         _ parsed: ParsedBook,
         source: (name: String, size: Int)?,
         into container: ModelContainer,
+        replacing: UUID? = nil,
         report: @escaping (Double) -> Void
     ) throws -> UUID {
         let segmented = Segmenter.segment(parsed.paragraphs)
@@ -96,7 +99,8 @@ enum BookImporter {
             parsed: parsed,
             segmented: segmented,
             into: context,
-            source: source
+            source: source,
+            replacing: replacing
         ) { report(0.75 + $0 * 0.25) }
         if let cover = parsed.cover {
             CoverStore.save(cover, bookID: id)
@@ -116,9 +120,10 @@ enum BookWriter {
         segmented: SegmentedBook,
         into context: ModelContext,
         source: (name: String, size: Int)? = nil,
+        replacing: UUID? = nil,
         progress: (Double) -> Void = { _ in }
     ) throws -> UUID {
-        try rejectDuplicate(parsed: parsed, segmented: segmented, in: context)
+        try rejectDuplicate(parsed: parsed, segmented: segmented, in: context, except: replacing)
         let ordinal = try nextOrdinal(in: context)
 
         let book = Book(
@@ -168,15 +173,14 @@ enum BookWriter {
     }
 
     /// The same title, author and text length means the same book.
-    static func rejectDuplicate(parsed: ParsedBook, segmented: SegmentedBook, in context: ModelContext) throws {
+    static func rejectDuplicate(parsed: ParsedBook, segmented: SegmentedBook, in context: ModelContext, except: UUID? = nil) throws {
         let title = parsed.title
         let author = parsed.author
         let total = segmented.totalCharacters
-        var descriptor = FetchDescriptor<Book>(predicate: #Predicate {
+        let descriptor = FetchDescriptor<Book>(predicate: #Predicate {
             $0.title == title && $0.author == author && $0.totalCharacters == total && $0.deletionPending == false
         })
-        descriptor.fetchLimit = 1
-        if try context.fetchCount(descriptor) > 0 {
+        if try context.fetch(descriptor).contains(where: { $0.id != except }) {
             throw BookImportError.duplicate(title)
         }
     }
