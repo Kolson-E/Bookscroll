@@ -85,12 +85,13 @@ struct BookDetailsSheet: View {
                     .accessibilityLabel(previewDescription)
                     .accessibilityIdentifier("details.avatar")
                 PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label {
+                    // An HStack, not a Label: see the Finished line in the Library.
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Image(systemName: "photo")
+                            .accessibilityHidden(true)
                         Text(currentPhoto == nil ? "Choose Photo\u{2026}" : "Choose Another Photo\u{2026}")
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                    } icon: {
-                        Image(systemName: "photo")
                     }
                 }
                 .accessibilityIdentifier("details.photo")

@@ -56,6 +56,14 @@ final class ShelfStore {
         return "\(base) \(number)"
     }
 
+    /// The name typed in the New Shelf alert, or "New Shelf" when it is empty. (An alert
+    /// button cannot be turned off reliably while the reader types: iOS 17 keeps its first
+    /// state.)
+    nonisolated static func newShelfName(_ typed: String) -> String {
+        let name = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? "New Shelf" : name
+    }
+
     /// Makes a shelf at the end of the list. Returns nil when the name is empty.
     @discardableResult
     func create(name: String, bookIDs: [UUID] = []) -> UUID? {

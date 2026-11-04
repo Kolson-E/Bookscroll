@@ -51,10 +51,9 @@ struct LibraryView: View {
                 TextField("Name", text: $newShelfName)
                 Button("Create") {
                     if let id = newShelfBookID {
-                        app.shelves.create(name: newShelfName, bookIDs: [id])
+                        app.shelves.create(name: ShelfStore.newShelfName(newShelfName), bookIDs: [id])
                     }
                 }
-                .disabled(newShelfName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("The book goes on the new shelf.")
@@ -410,12 +409,14 @@ private struct BookRow: View {
             }
             ProgressView(value: book.finishedAt == nil ? book.progress : 1)
             if let finishedAt = book.finishedAt {
-                Label {
+                // An HStack, not a Label: the audit measures a Label's text from the icon and
+                // reports it as clipped.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .accessibilityHidden(true)
                     Text("Finished \(finishedAt.formatted(date: .abbreviated, time: .omitted))")
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                } icon: {
-                    Image(systemName: "checkmark.circle.fill")
                 }
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.secondaryText)

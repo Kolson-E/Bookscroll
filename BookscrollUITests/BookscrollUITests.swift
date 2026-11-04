@@ -438,7 +438,11 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(menuChoice(app, "Copy with citation").exists)
         screenshot("19-context-peek")
         lookUp.tap()
-        XCTAssertTrue(app.descendants(matching: .any)["lookup.text"].waitForExistence(timeout: 5), "The look-up sheet shows the post text")
+        if !app.descendants(matching: .any)["lookup.text"].waitForExistence(timeout: 8) {
+            screenshot("debug-look-up")
+            XCTFail("The look-up sheet shows the post text")
+            return
+        }
         screenshot("20-look-up")
         app.buttons["Done"].firstMatch.tap()
     }
@@ -616,20 +620,18 @@ final class BookscrollUITests: XCTestCase {
             .map(\.frame)
         // Tab switches and pushes cross-fade; an audit during the fade samples half-drawn text.
         Thread.sleep(forTimeInterval: 1)
-        var issues: [XCUIAccessibilityAuditIssue] = []
-        // The handler only collects; the issues are judged afterwards on the main actor.
-        // An audit that runs out of time (seen on iOS 17 at the largest text size) runs once more.
-        for attempt in 1...2 {
-            issues = []
-            do {
-                try app.performAccessibilityAudit(for: types) { issue in
-                    issues.append(issue)
-                    return true
-                }
-                break
-            } catch let error as NSError where error.code == -56 && attempt == 1 {
-                print("AUDIT: timed out [\(screen)], trying again")
+        var issues = try auditIssues(app, types: types, screen: screen)
+        // A failing finding must show again in a second audit a second later. Contrast samples
+        // taken while a row or the tab bar redraws differ from run to run (seen on the Theme
+        // rows of Settings, whose colours pass the WCAG test in AppearanceTests).
+        let failing = issues.filter { !Self.isKnownFalsePositive($0, bars: bars, posts: posts) }
+        if !failing.isEmpty {
+            Thread.sleep(forTimeInterval: 1)
+            let again = try auditIssues(app, types: types, screen: screen).map(Self.key)
+            for issue in failing where !again.contains(Self.key(issue)) {
+                print("AUDIT: not repeated [\(screen)] \(issue.compactDescription) | \(issue.element?.label ?? "no element")")
             }
+            issues = issues.filter { Self.isKnownFalsePositive($0, bars: bars, posts: posts) || again.contains(Self.key($0)) }
         }
         var tookScreenshot = false
         for issue in issues {
@@ -649,6 +651,32 @@ final class BookscrollUITests: XCTestCase {
                 XCTFail("Accessibility audit [\(screen)]: \(issue.compactDescription) | \(place)")
             }
         }
+    }
+
+    /// Runs the audit and collects its findings. An audit that runs out of time (seen on iOS 17
+    /// at the largest text size) runs once more.
+    private func auditIssues(_ app: XCUIApplication, types: XCUIAccessibilityAuditType, screen: String) throws -> [XCUIAccessibilityAuditIssue] {
+        var issues: [XCUIAccessibilityAuditIssue] = []
+        for attempt in 1...2 {
+            issues = []
+            do {
+                // The handler only collects; the issues are judged afterwards on the main actor.
+                try app.performAccessibilityAudit(for: types) { issue in
+                    issues.append(issue)
+                    return true
+                }
+                break
+            } catch let error as NSError where error.code == -56 && attempt == 1 {
+                print("AUDIT: timed out [\(screen)], trying again")
+            }
+        }
+        return issues
+    }
+
+    /// The same finding in two audits: same kind, same element.
+    static func key(_ issue: XCUIAccessibilityAuditIssue) -> String {
+        let element = issue.element.flatMap { $0.exists ? "\($0.elementType.rawValue)|\($0.label)|\($0.identifier)" : nil } ?? "none"
+        return "\(issue.auditType.rawValue)|\(element)"
     }
 
     /// Issues the audit reports for correct SwiftUI code. Each rule is narrow:

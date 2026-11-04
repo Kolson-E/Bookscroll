@@ -224,6 +224,12 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(String(localized: "\(2) of \(12) books"), "2 of 12 books")
     }
 
+    func testNewShelfNameFallsBack() {
+        XCTAssertEqual(ShelfStore.newShelfName("  Calm  "), "Calm")
+        XCTAssertEqual(ShelfStore.newShelfName(""), "New Shelf")
+        XCTAssertEqual(ShelfStore.newShelfName(" \n "), "New Shelf")
+    }
+
     // MARK: Drag and drop
 
     func testDroppedFilesAreCopiedAndTextIsNotAFile() async throws {

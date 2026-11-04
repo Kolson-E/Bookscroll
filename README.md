@@ -365,7 +365,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 219 tests):
+`BookscrollTests` (XCTest, 220 tests):
 
 | Area | File |
 |---|---|
@@ -381,7 +381,7 @@ property is named `passagesOnly` because that is what it means.
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
 | Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
 | Reader window and paging, like/bookmark, deletion, position saving, reading counted once | `AppFlowTests.swift` |
-| Links (round trip, bad links; opening the last book, a book, a highlight, a missing one), widget content (book read last, day change, streak, file), the app's widget data after reading, Spotlight entries, Live Activity update rules, Focus filter shelf before your own choice, dropped files (copy, name, text is not a file), String Catalog plural forms | `PlatformTests.swift` |
+| Links (round trip, bad links; opening the last book, a book, a highlight, a missing one), widget content (book read last, day change, streak, file), the app's widget data after reading, Spotlight entries, Live Activity update rules, Focus filter shelf before your own choice, dropped files (copy, name, text is not a file), String Catalog plural forms, the default New Shelf name | `PlatformTests.swift` |
 | Reading time only for short gaps, jumps ignored, pause, measured speed after 10 minutes, time left, streak, last 14 days, week, saving and loading, duration formats | `ReadingStatsTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
 | Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
@@ -445,7 +445,7 @@ VoiceOver values, not only colour. Like and bookmark give haptic feedback. Every
 accent passes a WCAG contrast test (4.5:1 for text), and the UI tests run Apple's accessibility
 audit on each theme.
 
-Audit policy: every finding fails the UI test except a short list of known false positives
+Audit policy: a finding fails the UI test when a second audit one second later reports it again (contrast samples taken while a row redraws vary between runs), except a short list of known false positives
 (see `isKnownFalsePositive` in the UI tests). Findings that the audit reports without an
 element cannot be located or judged; they are printed (`AUDIT: ignored`) with a screenshot of
 the screen (`audit-<screen>`) but do not fail. On iOS 26 they come from the glass tab bar over

@@ -65,9 +65,8 @@ struct ShelvesView: View {
                 TextField("Name", text: $newName)
                     .accessibilityIdentifier("shelf.name")
                 Button("Create") {
-                    if let id = app.shelves.create(name: newName) { path = [id] }
+                    if let id = app.shelves.create(name: ShelfStore.newShelfName(newName)) { path = [id] }
                 }
-                .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("Cancel", role: .cancel) {}
             }
         }
@@ -152,12 +151,13 @@ struct ShelfDetailView: View {
         List {
             if !books.isEmpty {
                 Button { readInFeed() } label: {
-                    Label {
+                    // An HStack, not a Label: see the Finished line in the Library.
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Image(systemName: "text.bubble")
+                            .accessibilityHidden(true)
                         Text("Read as Feed")
                             .fixedSize(horizontal: false, vertical: true)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                    } icon: {
-                        Image(systemName: "text.bubble")
                     }
                     .font(.headline)
                 }
