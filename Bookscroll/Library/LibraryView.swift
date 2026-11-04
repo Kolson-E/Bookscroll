@@ -19,7 +19,7 @@ struct LibraryView: View {
                     LibrarySearchResults(query: trimmedQuery)
                 }
             }
-            .searchable(text: $query, prompt: "Search")
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
             .navigationTitle("Library")
             .themedNavigationBar()
             .toolbar {
