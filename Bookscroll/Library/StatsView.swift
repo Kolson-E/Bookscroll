@@ -69,7 +69,7 @@ struct StatsView: View {
                 Section {
                     StatRow(title: String(localized: "Speed"), value: "about \(stats.wordsPerMinute) words a minute")
                     StatRow(title: String(localized: "Total reading time"), value: ReadingStats.formatReadingTime(stats.totalSeconds))
-                    StatRow(title: String(localized: "Finished this year"), value: finishedThisYear == 1 ? "1 book" : "\(finishedThisYear) books")
+                    StatRow(title: String(localized: "Finished this year"), value: String(localized: "\(finishedThisYear) books"))
                 } footer: {
                     Text(stats.measuredCharactersPerMinute == nil
                          ? "Your speed is measured after 10 minutes of reading. Until then, times left use 200 words a minute."

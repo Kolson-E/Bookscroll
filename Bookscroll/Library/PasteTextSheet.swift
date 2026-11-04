@@ -10,6 +10,8 @@ struct PasteTextSheet: View {
     @State private var author = ""
     @State private var text = ""
     @ScaledMetric(relativeTo: .body) private var editorHeight: CGFloat = 220
+    private enum Field { case title, author, text }
+    @FocusState private var focus: Field?
 
     private var hasText: Bool { TextUtils.hasLetterOrDigit(text) }
 
@@ -20,9 +22,11 @@ struct PasteTextSheet: View {
                     TextField("Title", text: $title)
                         .foregroundStyle(Theme.primaryText)
                         .accessibilityIdentifier("paste.title")
+                        .focused($focus, equals: .title)
                     TextField("Author (optional)", text: $author)
                         .foregroundStyle(Theme.primaryText)
                         .accessibilityIdentifier("paste.author")
+                        .focused($focus, equals: .author)
                 } header: {
                     SectionHeader("Book")
                 }
@@ -36,6 +40,7 @@ struct PasteTextSheet: View {
                         .frame(minHeight: editorHeight)
                         .accessibilityLabel("Text")
                         .accessibilityIdentifier("paste.text")
+                        .focused($focus, equals: .text)
                     PasteButton(payloadType: String.self) { strings in
                         let pasted = strings.joined(separator: "\n\n")
                         Task { @MainActor in
@@ -52,6 +57,7 @@ struct PasteTextSheet: View {
                 .listRowBackground(Theme.secondaryBackground)
             }
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .background(Theme.background)
             .navigationTitle("Paste Text")
             .navigationBarTitleDisplayMode(.inline)
@@ -59,6 +65,13 @@ struct PasteTextSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                }
+                // Hides the keyboard, so the word count and the Paste button show again.
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focus = nil }
+                        .fontWeight(.semibold)
+                        .accessibilityIdentifier("paste.keyboardDone")
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {

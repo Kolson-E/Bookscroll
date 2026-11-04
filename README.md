@@ -337,6 +337,16 @@ The search screen comes in a later phase; this part is the engine.
     lines beside it are not taken as indented.
   - Ligature characters (such as “ﬁ”) become plain letters.
 
+### String Catalogs
+
+The app's text is in `Bookscroll/Resources/Localizable.xcstrings` and the widgets' text in
+`BookscrollWidgets/Localizable.xcstrings` (English only). Counts use plural forms ("1 book",
+"3 books"). Xcode adds new strings to the catalogs when you build in Xcode; CI runs
+`xcodebuild -exportLocalizations` and prints the catalogs it makes (step "Export strings"), so
+the files in git can be compared with them. To add a language, add it in the project's Info
+tab and translate in the catalogs. Text the app builds in code (for example the restore
+summary and the time-left lines) is English only.
+
 ### Dependency: ZIPFoundation
 
 EPUBs are ZIP files, and Foundation on iOS has no public unzip API. Bookscroll uses
@@ -355,7 +365,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 218 tests):
+`BookscrollTests` (XCTest, 219 tests):
 
 | Area | File |
 |---|---|
@@ -371,7 +381,7 @@ property is named `passagesOnly` because that is what it means.
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
 | Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
 | Reader window and paging, like/bookmark, deletion, position saving, reading counted once | `AppFlowTests.swift` |
-| Links (round trip, bad links; opening the last book, a book, a highlight, a missing one), widget content (book read last, day change, streak, file), the app's widget data after reading, Spotlight entries, Live Activity update rules, Focus filter shelf before your own choice, dropped files (copy, name, text is not a file) | `PlatformTests.swift` |
+| Links (round trip, bad links; opening the last book, a book, a highlight, a missing one), widget content (book read last, day change, streak, file), the app's widget data after reading, Spotlight entries, Live Activity update rules, Focus filter shelf before your own choice, dropped files (copy, name, text is not a file), String Catalog plural forms | `PlatformTests.swift` |
 | Reading time only for short gaps, jumps ignored, pause, measured speed after 10 minutes, time left, streak, last 14 days, week, saving and loading, duration formats | `ReadingStatsTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
 | Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |

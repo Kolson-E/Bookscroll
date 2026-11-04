@@ -88,6 +88,7 @@ struct BookDetailsSheet: View {
                     Label {
                         Text(currentPhoto == nil ? "Choose Photo\u{2026}" : "Choose Another Photo\u{2026}")
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } icon: {
                         Image(systemName: "photo")
                     }

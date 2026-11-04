@@ -215,6 +215,15 @@ final class PlatformTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: FocusFeed.key))
     }
 
+    // MARK: String Catalog
+
+    func testStringCatalogPluralForms() {
+        XCTAssertEqual(String(localized: "\(1) books"), "1 book")
+        XCTAssertEqual(String(localized: "\(3) books"), "3 books")
+        XCTAssertEqual(String(localized: "\(1) of \(1) books"), "1 of 1 book")
+        XCTAssertEqual(String(localized: "\(2) of \(12) books"), "2 of 12 books")
+    }
+
     // MARK: Drag and drop
 
     func testDroppedFilesAreCopiedAndTextIsNotAFile() async throws {

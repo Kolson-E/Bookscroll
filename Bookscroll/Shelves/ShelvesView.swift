@@ -117,7 +117,7 @@ private struct ShelfRow: View {
                 Text(shelf.name)
                     .font(.headline)
                     .foregroundStyle(Theme.primaryText)
-                Text(count == 1 ? "1 book" : "\(count) books")
+                Text("\(count) books")
                     .font(.subheadline)
                     .foregroundStyle(Theme.secondaryText)
             }
@@ -153,7 +153,9 @@ struct ShelfDetailView: View {
             if !books.isEmpty {
                 Button { readInFeed() } label: {
                     Label {
-                        Text("Read as Feed").fixedSize(horizontal: false, vertical: true)
+                        Text("Read as Feed")
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     } icon: {
                         Image(systemName: "text.bubble")
                     }

@@ -1,7 +1,77 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-
+    "%@ · %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld%%"
+          }
+        }
+      }
+    },
+    "%@ · today %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · today %2$lld min"
+          }
+        }
+      }
+    },
+    "%@, %lld percent read" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld percent read"
+          }
+        }
+      }
+    },
+    "%lld" : {},
+    "%lld percent read" : {},
+    "%lld%%" : {},
+    "%lld%% · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% · %2$@"
+          }
+        }
+      }
+    },
+    "Bookscroll" : {},
+    "Current Book" : {},
+    "No book in progress" : {},
+    "Open a book to see it here." : {},
+    "Paused · %@ · today %lld min · tap to continue" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Paused · %1$@ · today %2$lld min · tap to continue"
+          }
+        }
+      }
+    },
+    "The book you are reading, how far you are, and today’s reading time." : {},
+    "Today %lld min" : {},
+    "Today %lld min · %lld d streak" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Today %1$lld min · %2$lld d streak"
+          }
+        }
+      }
+    },
+    "Today: %lld min" : {},
+    "Up next: %@" : {}
   },
   "version" : "1.0"
 }

@@ -413,6 +413,7 @@ private struct BookRow: View {
                 Label {
                     Text("Finished \(finishedAt.formatted(date: .abbreviated, time: .omitted))")
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 } icon: {
                     Image(systemName: "checkmark.circle.fill")
                 }

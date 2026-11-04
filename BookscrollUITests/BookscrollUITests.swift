@@ -91,6 +91,15 @@ final class BookscrollUITests: XCTestCase {
         }
     }
 
+    /// Scrolls a list until `element` is on screen (rows below the fold are not in the tree).
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<8 {
+            if element.exists && element.isHittable { break }
+            app.swipeUp(velocity: .slow)
+        }
+        scrollAboveTabBar(element, in: app)
+    }
+
     private func screenshot(_ name: String) {
         let shot = XCUIScreen.main.screenshot()
         let attachment = XCTAttachment(screenshot: shot)
@@ -305,12 +314,18 @@ final class BookscrollUITests: XCTestCase {
         // iOS 17 can drop the first tap right after a tab switch; it is tried once more.
         if !alert.waitForExistence(timeout: 3) { newShelf.tap() }
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
-        alert.textFields.firstMatch.typeText("Favourites")
+        let name = alert.textFields.firstMatch
+        name.tap()
+        name.typeText("Favourites")
         alert.buttons["Create"].tap()
 
         // The new shelf opens; add a book.
         let add = app.buttons["shelf.empty.add"]
-        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        if !add.waitForExistence(timeout: 10) {
+            screenshot("debug-new-shelf")
+            XCTFail("The new shelf did not open")
+            return
+        }
         add.tap()
         let member = app.descendants(matching: .any).matching(identifier: "shelf.member")
             .matching(NSPredicate(format: "label BEGINSWITH %@", "\(firstTitle), by")).firstMatch
@@ -346,6 +361,13 @@ final class BookscrollUITests: XCTestCase {
         text.tap()
         text.typeText("Part One\n\nThe bread rose overnight in the cold kitchen.\n\nBy noon it was ready for the oven.")
         XCTAssertTrue(add.isEnabled)
+        // The keyboard covers the footer; the audit would sample the keyboard.
+        let keyboardDone = app.buttons["paste.keyboardDone"].firstMatch
+        XCTAssertTrue(keyboardDone.waitForExistence(timeout: 5))
+        keyboardDone.tap()
+        let keyboardGone = Date().addingTimeInterval(5)
+        while app.keyboards.firstMatch.exists && Date() < keyboardGone { Thread.sleep(forTimeInterval: 0.2) }
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "The keyboard is hidden")
         screenshot("27-paste-text")
         try audit(app, screen: "paste text")
         add.tap()
@@ -555,15 +577,18 @@ final class BookscrollUITests: XCTestCase {
         tab(app, "Settings")
         XCTAssertTrue(app.buttons["accent.blue"].waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) settings")
+        reveal(app.buttons["settings.storage"], in: app)
         app.buttons["settings.storage"].tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "storage.book").firstMatch.waitForExistence(timeout: 10))
         screenshot("28-\(prefix)-storage")
         try audit(app, screen: "\(prefix) storage")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        reveal(app.buttons["settings.folderSync"], in: app)
         app.buttons["settings.folderSync"].tap()
         XCTAssertTrue(app.buttons["folderSync.choose"].waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) synced folder")
         app.navigationBars.buttons.element(boundBy: 0).tap()
+        reveal(app.buttons["settings.backup"], in: app)
         app.buttons["settings.backup"].tap()
         XCTAssertTrue(app.buttons["backup.export"].waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) backup")
@@ -593,9 +618,18 @@ final class BookscrollUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
         var issues: [XCUIAccessibilityAuditIssue] = []
         // The handler only collects; the issues are judged afterwards on the main actor.
-        try app.performAccessibilityAudit(for: types) { issue in
-            issues.append(issue)
-            return true
+        // An audit that runs out of time (seen on iOS 17 at the largest text size) runs once more.
+        for attempt in 1...2 {
+            issues = []
+            do {
+                try app.performAccessibilityAudit(for: types) { issue in
+                    issues.append(issue)
+                    return true
+                }
+                break
+            } catch let error as NSError where error.code == -56 && attempt == 1 {
+                print("AUDIT: timed out [\(screen)], trying again")
+            }
         }
         var tookScreenshot = false
         for issue in issues {
@@ -605,8 +639,9 @@ final class BookscrollUITests: XCTestCase {
             }
             let ignored = Self.isKnownFalsePositive(issue, bars: bars, posts: posts)
             print("AUDIT: \(ignored ? "ignored" : "FAIL") [\(screen)] \(issue.compactDescription) | \(place) | \(issue.detailedDescription)")
-            if place == "no element" && !tookScreenshot {
-                // An issue without an element can only be found on a picture of the screen.
+            if (place == "no element" || !ignored) && !tookScreenshot {
+                // An issue without an element can only be found on a picture of the screen;
+                // a failing one is easier to fix with the picture.
                 screenshot("audit-\(screen.replacingOccurrences(of: " ", with: "-"))")
                 tookScreenshot = true
             }
@@ -629,6 +664,7 @@ final class BookscrollUITests: XCTestCase {
     ///   wrapped. The audit flags a one-line text whose width would not fit at a larger size.
     /// - Contrast and clipping on the search field (the system draws its placeholder) and the
     ///   size of its clear button (a system control).
+    /// - "Text clipped" on an empty text field: the system draws the placeholder.
     /// - Any issue with no element: the audit cannot say what it checked, so it cannot be
     ///   fixed or judged from the report. On iOS 26 contrast issues of this kind come from the
     ///   glass tab bar over scrolled content; on iOS 17 Dynamic Type and clipping issues of
@@ -648,6 +684,9 @@ final class BookscrollUITests: XCTestCase {
         // and sizes; the app cannot style them.
         if issue.auditType == .contrast || issue.auditType == .textClipped, element.elementType == .searchField { return true }
         if issue.auditType == .hitRegion, issue.detailedDescription.contains("_UITextFieldClearButton") { return true }
+        // An empty text field shows its placeholder, which UIKit draws; typed text is checked.
+        if issue.auditType == .textClipped, element.elementType == .textField,
+           (element.value as? String).map({ $0.isEmpty || $0 == element.placeholderValue }) ?? true { return true }
         return false
     }
 }

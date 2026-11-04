@@ -66,7 +66,7 @@ struct ShelfEntity: AppEntity {
     let count: Int
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)", subtitle: count == 1 ? "1 book" : "\(count) books")
+        DisplayRepresentation(title: "\(name)", subtitle: "\(count) books")
     }
 }
 
