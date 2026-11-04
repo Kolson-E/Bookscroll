@@ -6,7 +6,7 @@ struct ParsedParagraph: Equatable, Sendable {
     var chapter: String
 }
 
-/// Output of a format parser (EPUB or PDF).
+/// Output of a format parser (EPUB, PDF, text formats, pasted text).
 struct ParsedBook: Sendable {
     var title: String
     var author: String

@@ -1,7 +1,7 @@
 # Bookscroll
 
-Scroll through your own books like a social timeline. Bookscroll cuts DRM-free EPUB and PDF
-files into posts and shows them in an endless vertical feed. Stop on any post and read on from
+Scroll through your own books like a social timeline. Bookscroll cuts DRM-free EPUB, PDF, plain
+text, Markdown, HTML and RTF files, and text you paste, into posts and shows them in an endless vertical feed. Stop on any post and read on from
 there in normal book layout.
 
 Fully offline: no accounts, no server, no analytics, no network calls.
@@ -47,8 +47,9 @@ the Books library. Import DRM-free files instead:
 | Files picker | Library tab → **+**, or **Import Books** on the empty Feed or Library screen. Pick one or more files from iCloud Drive, On My iPhone or any file provider. |
 | Open in Bookscroll | In Files, Mail, Safari downloads or another app: Share → **Bookscroll**. The app opens on the Library tab and imports the file. |
 
-Bookscroll registers EPUB (`org.idpf.epub-container`) and PDF (`com.adobe.pdf`) as document
-types with rank *Alternate*, so it never replaces your default app for these files. A file
+Bookscroll registers EPUB (`org.idpf.epub-container`), PDF (`com.adobe.pdf`), plain text
+(`public.plain-text`), Markdown (`net.daringfireball.markdown`, declared as an imported type),
+HTML (`public.html`) and RTF (`public.rtf`) as document types with rank *Alternate*, so it never replaces your default app for these files. A file
 sent from another app arrives as a copy in `Documents/Inbox`; Bookscroll deletes that copy
 after the import, and your original stays where it was.
 
@@ -57,7 +58,9 @@ for extra time to finish. Failed files show a clear reason:
 
 | Problem | Message |
 |---|---|
-| Not an EPUB or PDF | "This is not an EPUB or PDF file." |
+| Not a supported format | "Bookscroll imports EPUB, PDF, plain text, Markdown, HTML and RTF files. This file is none of these." |
+| Binary data in a `.txt`, `.md` or `.html` file | "The file could not be read. It does not contain text." |
+| Empty text file or paste | "No readable text was found in this book." |
 | Damaged archive, missing `container.xml` or OPF, missing file | "The file could not be read. …" |
 | Apple FairPlay (`sinf.xml`), Adobe (`rights.xml`) or encrypted content in `encryption.xml` | "This book is DRM-protected. …" |
 | PDF that needs a password | "This PDF is password-protected or encrypted. …" |
@@ -66,12 +69,25 @@ for extra time to finish. Failed files show a clear reason:
 
 Font obfuscation in `encryption.xml` is not DRM and is accepted.
 
+### Text formats
+
+| Format | Paragraphs | Chapters | Title and author |
+|---|---|---|---|
+| Plain text (`.txt`) | Blank lines separate paragraphs; the lines inside one are joined (hard-wrapped files). Without blank lines, one paragraph per line. UTF-8, UTF-16 with BOM, else Windows-1252. | A line on its own: Chapter, Part, Book, Prologue, Epilogue and similar words alone or with a number ("Chapter 2: The Flood", "Part Two", "Book I"), a number, or a Roman numeral. "Part of me knew." stays a paragraph. | File name. A Project Gutenberg file: its `Title:` and `Author:` lines; the licence before `*** START OF` and after `*** END OF` is removed. |
+| Markdown (`.md`, `.markdown`) | As plain text; list items and code blocks are paragraphs; emphasis, links, images and quotes lose their markup. | `#` to `###` headings. | Front matter `title:` and `author:`; else a first `#` heading before any text is the title. |
+| HTML (`.html`, `.htm`) | The same block rules as EPUB chapters. | `h1` to `h3`. | `<title>` and `<meta name="author">`. |
+| RTF (`.rtf`, or any file that starts with `{\rtf`) | One per paragraph of the document. | As plain text. | File name. |
+| Pasted text | As plain text. | As plain text. | What you type; else "Pasted text" and "Unknown author". |
+
+**Paste Text** (Library toolbar) opens a sheet: title, author, the text (with a Paste button),
+and a word count. **Add** queues it like a file import.
+
 ## Using the app
 
 | Tab | What it does |
 |---|---|
 | Feed | The timeline. Toolbar left: **Mix all books**, a **Shelf**, or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
-| Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB or PDF only. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
+| Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB, PDF or text formats only. **Paste Text** (toolbar right) adds text as a book. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
 | Shelves | Your own groups of books (a book can be on more than one shelf). **New Shelf**, rename, reorder, delete (the books stay in the library). In a shelf: **Add or Remove Books…**, reorder, swipe to remove, and **Read as Feed**: a Mix of only the shelf's books. In the Library, touch and hold a book for **Add to Shelf**. |
 | Saved | **Bookmarks** (your saved places, as a feed), **Likes**, and **Highlights**, newest first. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
 | Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. |
@@ -277,7 +293,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 164 tests):
+`BookscrollTests` (XCTest, 179 tests):
 
 | Area | File |
 |---|---|
@@ -288,6 +304,7 @@ property is named `passagesOnly` because that is what it means.
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
 | Store key queries, position clamping, chunked deletion, duplicates, ordinals | `StoreTests.swift` |
 | Files picker, staging, Open in Bookscroll, import queue | `ImportTests.swift` |
+| Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
 | Reader window and paging, like/bookmark, deletion, position saving | `AppFlowTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
 | Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |

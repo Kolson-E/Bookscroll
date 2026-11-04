@@ -227,6 +227,7 @@ struct ShelfDetailView: View {
         }
         .sheet(isPresented: $isAddingBooks) {
             ShelfMembersSheet(shelfID: shelfID)
+                .environment(app)
         }
         .alert("Rename Shelf", isPresented: $isRenaming) {
             TextField("Name", text: $newName)

@@ -8,18 +8,25 @@ import XCTest
 final class ImportTests: XCTestCase {
     // MARK: Info.plist
 
-    func testInfoPlistDeclaresEPUBAndPDFDocumentTypes() throws {
+    func testInfoPlistDeclaresTheBookDocumentTypes() throws {
         // Unit tests run inside the app, so the main bundle is the built app.
         let info = try XCTUnwrap(Bundle.main.infoDictionary)
         let types = try XCTUnwrap(info["CFBundleDocumentTypes"] as? [[String: Any]])
         let contentTypes = Set(types.flatMap { $0["LSItemContentTypes"] as? [String] ?? [] })
-        XCTAssertEqual(contentTypes, ["org.idpf.epub-container", "com.adobe.pdf"])
+        let expected: Set<String> = [
+            "org.idpf.epub-container", "com.adobe.pdf", "public.plain-text",
+            "net.daringfireball.markdown", "public.html", "public.rtf",
+        ]
+        XCTAssertEqual(contentTypes, expected)
         for type in types {
-            XCTAssertEqual(type["LSHandlerRank"] as? String, "Alternate", "Bookscroll must not take over EPUB or PDF from other apps")
+            XCTAssertEqual(type["LSHandlerRank"] as? String, "Alternate", "Bookscroll must not take over these files from other apps")
         }
         XCTAssertEqual(info["LSSupportsOpeningDocumentsInPlace"] as? Bool, false)
         XCTAssertEqual(info["CFBundleDisplayName"] as? String, "Bookscroll", "Generated keys are still merged")
-        XCTAssertEqual(BookFormat.importableTypes.map(\.identifier), ["org.idpf.epub-container", "com.adobe.pdf"])
+        XCTAssertEqual(Set(BookFormat.importableTypes.map(\.identifier)), expected)
+        let imported = try XCTUnwrap(info["UTImportedTypeDeclarations"] as? [[String: Any]])
+        XCTAssertEqual(imported.first?["UTTypeIdentifier"] as? String, "net.daringfireball.markdown")
+        XCTAssertTrue(BookFormat.markdownType.conforms(to: .plainText))
     }
 
     // MARK: Staging
@@ -84,7 +91,7 @@ final class ImportTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: folder) }
         let good = folder.appendingPathComponent("harbour.epub")
         try EPUBFixture.write(to: good)
-        let notABook = folder.appendingPathComponent("notes.txt")
+        let notABook = folder.appendingPathComponent("notes.docx")
         try Data("Just some notes.".utf8).write(to: notABook)
         let missing = folder.appendingPathComponent("gone.pdf")
 
@@ -107,7 +114,7 @@ final class ImportTests: XCTestCase {
         }
         XCTAssertEqual(failures.count, 3)
         guard failures.count == 3 else { return }
-        XCTAssertEqual(failures[0], "notes.txt: This is not an EPUB or PDF file.")
+        XCTAssertEqual(failures[0], "notes.docx: " + BookImportError.unsupportedFormat.errorDescription!)
         XCTAssertTrue(failures[1].hasPrefix("gone.pdf: The file could not be read."), failures[1])
         XCTAssertEqual(failures[2], "harbour.epub: \u{201C}The Harbour Tales\u{201D} is already in your library.")
         XCTAssertFalse(manager.isBusy)

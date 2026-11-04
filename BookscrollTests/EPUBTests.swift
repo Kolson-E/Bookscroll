@@ -312,10 +312,19 @@ final class EPUBTests: XCTestCase {
             }
         }
 
-        let text = folder.appendingPathComponent("notes.txt")
-        try Data("plain text".utf8).write(to: text)
-        XCTAssertThrowsError(try BookImporter.parse(url: text) { _ in }) { error in
+        let other = folder.appendingPathComponent("notes.docx")
+        try Data("not a book format".utf8).write(to: other)
+        XCTAssertThrowsError(try BookImporter.parse(url: other) { _ in }) { error in
             XCTAssertEqual(error as? BookImportError, .unsupportedFormat)
+        }
+
+        // A text file name on binary data.
+        let binary = folder.appendingPathComponent("image.txt")
+        try Data([0x89, 0x50, 0x4E, 0x47, 0x00, 0x00, 0x00, 0x0D]).write(to: binary)
+        XCTAssertThrowsError(try BookImporter.parse(url: binary) { _ in }) { error in
+            guard case .unreadable = error as? BookImportError else {
+                return XCTFail("Expected unreadable, got \(error)")
+            }
         }
 
         let noContainer = folder.appendingPathComponent("nocontainer.epub")

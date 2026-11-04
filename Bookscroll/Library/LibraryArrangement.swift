@@ -83,6 +83,8 @@ enum LibraryFormatFilter: String, CaseIterable, Identifiable {
     case all
     case epub
     case pdf
+    /// Plain text, Markdown, HTML, RTF and pasted text.
+    case text
 
     var id: Self { self }
 
@@ -91,6 +93,7 @@ enum LibraryFormatFilter: String, CaseIterable, Identifiable {
         case .all: return "All formats"
         case .epub: return "EPUB"
         case .pdf: return "PDF"
+        case .text: return "Text"
         }
     }
 
@@ -99,6 +102,7 @@ enum LibraryFormatFilter: String, CaseIterable, Identifiable {
         case .all: return true
         case .epub: return book.format == .epub
         case .pdf: return book.format == .pdf
+        case .text: return ![.epub, .pdf].contains(book.format)
         }
     }
 }

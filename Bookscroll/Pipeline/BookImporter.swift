@@ -3,15 +3,21 @@ import SwiftData
 
 /// Parses a file and stores the book with its segments. Runs off the main thread.
 enum BookImporter {
-    /// Parses an EPUB or PDF file. The format comes from the file's first bytes, so a wrong
-    /// file extension does not matter.
+    /// Parses a book file. EPUB, PDF and RTF are known by their first bytes, so a wrong file
+    /// extension does not matter; text formats are known by their extension.
     static func parse(url: URL, progress: (Double) -> Void) throws -> ParsedBook {
         let fallbackTitle = url.deletingPathExtension().lastPathComponent
-        switch try detectFormat(url) {
+        let format = try detectFormat(url)
+        switch format {
         case .epub:
             return try EPUBBookParser.parse(url: url, fallbackTitle: fallbackTitle, progress: progress)
         case .pdf:
             return try PDFBookParser.parse(url: url, fallbackTitle: fallbackTitle, progress: progress)
+        case .text, .markdown, .html, .rtf:
+            progress(0)
+            let parsed = try TextBookParser.parse(url: url, format: format, fallbackTitle: fallbackTitle)
+            progress(1)
+            return parsed
         }
     }
 
@@ -26,10 +32,18 @@ enum BookImporter {
         let head = (try? handle.read(upToCount: 1024)) ?? Data()
         if head.starts(with: [0x50, 0x4B]) { return .epub }
         if let range = head.range(of: Data("%PDF".utf8)), range.lowerBound < 1024 { return .pdf }
-        switch url.pathExtension.lowercased() {
-        case "epub": throw BookImportError.unreadable("It is not a valid EPUB (ZIP) archive.")
-        case "pdf": throw BookImportError.unreadable("It is not a valid PDF.")
-        default: throw BookImportError.unsupportedFormat
+        if head.starts(with: Data("{\\rtf".utf8)) { return .rtf }
+        switch BookFormat.fromExtension(url.pathExtension) {
+        case .epub: throw BookImportError.unreadable("It is not a valid EPUB (ZIP) archive.")
+        case .pdf: throw BookImportError.unreadable("It is not a valid PDF.")
+        case .rtf: throw BookImportError.unreadable("It is not a valid RTF document.")
+        case let format?:
+            guard TextBookParser.decode(head) != nil || head.isEmpty else {
+                throw BookImportError.unreadable("It does not contain text.")
+            }
+            return format
+        case nil:
+            throw BookImportError.unsupportedFormat
         }
     }
 
@@ -49,17 +63,40 @@ enum BookImporter {
             }
         }
         let parsed = try parse(url: url) { report($0 * 0.7) }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return try store(parsed, source: (name: url.lastPathComponent, size: size), into: container, report: report)
+    }
+
+    /// Imports pasted text as a book. Returns the new book's id.
+    @discardableResult
+    static func importPasted(
+        text: String,
+        title: String,
+        author: String,
+        into container: ModelContainer,
+        progress: @escaping (Double) -> Void = { _ in }
+    ) throws -> UUID {
+        let parsed = TextBookParser.parsePasted(text, title: title, author: author)
+        return try store(parsed, source: nil, into: container, report: progress)
+    }
+
+    /// Segments and stores a parsed book, and saves its cover.
+    private static func store(
+        _ parsed: ParsedBook,
+        source: (name: String, size: Int)?,
+        into container: ModelContainer,
+        report: @escaping (Double) -> Void
+    ) throws -> UUID {
         let segmented = Segmenter.segment(parsed.paragraphs)
         guard !segmented.paragraphs.isEmpty else { throw BookImportError.noText }
         report(0.75)
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         let id = try BookWriter.write(
             parsed: parsed,
             segmented: segmented,
             into: context,
-            source: (name: url.lastPathComponent, size: size)
+            source: source
         ) { report(0.75 + $0 * 0.25) }
         if let cover = parsed.cover {
             CoverStore.save(cover, bookID: id)

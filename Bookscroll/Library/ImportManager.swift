@@ -31,7 +31,13 @@ final class ImportManager {
     /// Called when the queue is empty again.
     @ObservationIgnored var onQueueFinished: (() -> Void)?
     private let container: ModelContainer
-    @ObservationIgnored private var queue: [(id: UUID, url: URL)] = []
+    /// What a job imports: a file, or text pasted into the app.
+    private enum Source: Sendable {
+        case file(URL)
+        case pasted(text: String, title: String, author: String)
+    }
+
+    @ObservationIgnored private var queue: [(id: UUID, source: Source)] = []
     @ObservationIgnored private var isRunning = false
     @ObservationIgnored private var backgroundTask: UIBackgroundTaskIdentifier = .invalid
 
@@ -47,8 +53,21 @@ final class ImportManager {
         for url in urls {
             let job = Job(fileName: url.lastPathComponent)
             jobs.append(job)
-            queue.append((job.id, url))
+            queue.append((job.id, .file(url)))
         }
+        start()
+    }
+
+    /// Imports pasted text as a book. The job shows the title (or "Pasted text").
+    func enqueuePasted(text: String, title: String, author: String) {
+        let name = TextUtils.singleLine(title)
+        let job = Job(fileName: name.isEmpty ? "Pasted text" : name)
+        jobs.append(job)
+        queue.append((job.id, .pasted(text: text, title: title, author: author)))
+        start()
+    }
+
+    private func start() {
         guard !isRunning else { return }
         isRunning = true
         beginBackgroundWork()
@@ -65,22 +84,29 @@ final class ImportManager {
             update(next.id) { $0.status = .importing }
             let container = self.container
             let jobID = next.id
-            let url = next.url
+            let source = next.source
             let result: Result<UUID, Error> = await Task.detached(priority: .userInitiated) {
-                // A file handed over by another app is a copy in Documents/Inbox. It is
-                // removed whatever the outcome; the user's original stays where it was.
-                defer { FileStaging.removeIfInboxCopy(url) }
-                do {
-                    let staged = try FileStaging.stage(url)
-                    defer { FileStaging.cleanUp(staged) }
-                    let id = try BookImporter.importBook(at: staged, into: container) { value in
-                        Task { @MainActor [weak self] in
-                            self?.update(jobID) { $0.progress = value }
-                        }
+                let progress: (Double) -> Void = { value in
+                    Task { @MainActor [weak self] in
+                        self?.update(jobID) { $0.progress = value }
                     }
-                    return .success(id)
-                } catch {
-                    return .failure(error)
+                }
+                switch source {
+                case let .file(url):
+                    // A file handed over by another app is a copy in Documents/Inbox. It is
+                    // removed whatever the outcome; the user's original stays where it was.
+                    defer { FileStaging.removeIfInboxCopy(url) }
+                    do {
+                        let staged = try FileStaging.stage(url)
+                        defer { FileStaging.cleanUp(staged) }
+                        return .success(try BookImporter.importBook(at: staged, into: container, progress: progress))
+                    } catch {
+                        return .failure(error)
+                    }
+                case let .pasted(text, title, author):
+                    return Result {
+                        try BookImporter.importPasted(text: text, title: title, author: author, into: container, progress: progress)
+                    }
                 }
             }.value
 

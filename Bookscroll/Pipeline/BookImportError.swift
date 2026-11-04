@@ -12,11 +12,11 @@ enum BookImportError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unsupportedFormat:
-            return "This is not an EPUB or PDF file."
+            return "Bookscroll imports EPUB, PDF, plain text, Markdown, HTML and RTF files. This file is none of these."
         case let .unreadable(detail):
             return "The file could not be read. \(detail)"
         case .drmProtected:
-            return "This book is DRM-protected. Bookscroll can only import DRM-free EPUB and PDF files."
+            return "This book is DRM-protected. Bookscroll can only import DRM-free books."
         case .passwordProtected:
             return "This PDF is password-protected or encrypted. Bookscroll can only import unlocked files."
         case .scannedPDF:

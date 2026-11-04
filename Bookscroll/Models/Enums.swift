@@ -25,14 +25,45 @@ enum PostStyle: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-enum BookFormat: String, Sendable {
+enum BookFormat: String, CaseIterable, Sendable {
     case epub
     case pdf
+    /// Plain text, also used for pasted text.
+    case text
+    case markdown
+    case html
+    case rtf
 
-    var label: String { rawValue.uppercased() }
+    /// The short badge in the Library.
+    var label: String {
+        switch self {
+        case .epub: return "EPUB"
+        case .pdf: return "PDF"
+        case .text: return "TXT"
+        case .markdown: return "MD"
+        case .html: return "HTML"
+        case .rtf: return "RTF"
+        }
+    }
+
+    /// Markdown files; iOS has no built-in type for them.
+    static let markdownType = UTType(importedAs: "net.daringfireball.markdown", conformingTo: .plainText)
 
     /// File types offered in the Files picker and declared as document types in Info.plist.
-    static let importableTypes: [UTType] = [.epub, .pdf]
+    static let importableTypes: [UTType] = [.epub, .pdf, .plainText, markdownType, .html, .rtf]
+
+    /// The format a file name suggests, for files whose first bytes do not tell.
+    static func fromExtension(_ fileExtension: String) -> BookFormat? {
+        switch fileExtension.lowercased() {
+        case "epub": return .epub
+        case "pdf": return .pdf
+        case "txt", "text": return .text
+        case "md", "markdown", "mdown", "mkd": return .markdown
+        case "html", "htm", "xhtml": return .html
+        case "rtf": return .rtf
+        default: return nil
+        }
+    }
 }
 
 enum MarkKind: String, CaseIterable, Sendable {

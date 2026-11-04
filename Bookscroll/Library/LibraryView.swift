@@ -14,6 +14,7 @@ struct LibraryView: View {
     /// The book that goes on a shelf made from its menu.
     @State private var newShelfBookID: UUID?
     @State private var newShelfName = ""
+    @State private var isPasting = false
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isFiltered: Bool { status != .all || format != .all }
@@ -35,6 +36,11 @@ struct LibraryView: View {
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
             .sheet(item: $detailsTarget) { target in
                 BookDetailsSheet(bookID: target.id)
+                    .environment(app)
+            }
+            .sheet(isPresented: $isPasting) {
+                PasteTextSheet()
+                    .environment(app)
             }
             .alert("New Shelf", isPresented: isNamingShelf) {
                 TextField("Name", text: $newShelfName)
@@ -56,12 +62,21 @@ struct LibraryView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        isPasting = true
+                    } label: {
+                        Label("Paste Text", systemImage: "doc.on.clipboard")
+                    }
+                    .accessibilityHint("Makes a book from text you paste")
+                    .accessibilityIdentifier("library.paste")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         app.presentImporter()
                     } label: {
                         Label("Import", systemImage: "plus")
                     }
                     .accessibilityLabel("Import books")
-                    .accessibilityHint("Opens Files to pick EPUB or PDF files")
+                    .accessibilityHint("Opens Files to pick books")
                     .accessibilityIdentifier("library.import")
                 }
             }
@@ -175,14 +190,14 @@ private struct BookList: View {
                 ContentUnavailableView {
                     Label("Your library is empty", systemImage: "books.vertical")
                 } description: {
-                    Text("Import DRM-free EPUB or PDF files from Files, iCloud Drive or any file provider. You can also share a file to Bookscroll from another app. Apple Books purchases are DRM-protected and cannot be imported.")
+                    Text("Import DRM-free EPUB, PDF, text, Markdown, HTML or RTF files from Files, iCloud Drive or any file provider, or paste text. You can also share a file to Bookscroll from another app. Apple Books purchases are DRM-protected and cannot be imported.")
                         .foregroundStyle(Theme.secondaryText)
                 } actions: {
                     Button { app.presentImporter() } label: {
                         Text("Import Books").foregroundStyle(Theme.background)
                     }
                     .buttonStyle(.borderedProminent)
-                    .accessibilityHint("Opens Files to pick EPUB or PDF files")
+                    .accessibilityHint("Opens Files to pick books")
                     .accessibilityIdentifier("library.empty.import")
                 }
             } else if books.isEmpty && !allBooks.isEmpty {
