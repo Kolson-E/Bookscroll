@@ -64,6 +64,7 @@ final class LibraryStore: SegmentSource {
             guard let book = book(id: result.bookID) else { continue }
             book.autoWordLimit = result.wordLimit
             book.chapterTable = result.chapterTable
+            book.language = result.language
             book.derivedVersion = DerivedData.currentVersion
             changed = true
         }
@@ -81,6 +82,7 @@ final class LibraryStore: SegmentSource {
         let clamped = min(max(0, offset), max(0, book.totalCharacters - 1))
         if book.positionOffset != clamped {
             book.positionOffset = clamped
+            book.lastReadAt = .now
         }
     }
 

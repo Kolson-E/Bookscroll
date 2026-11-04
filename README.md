@@ -70,8 +70,9 @@ Font obfuscation in `encryption.xml` is not DRM and is accepted.
 
 | Tab | What it does |
 |---|---|
-| Feed | The timeline. Toolbar left: **Mix all books** or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
-| Library | Import, see title, author, format, progress and Mix status, swipe to delete. Touch and hold a book for **Jump to…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
+| Feed | The timeline. Toolbar left: **Mix all books**, a **Shelf**, or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
+| Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB or PDF only. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
+| Shelves | Your own groups of books (a book can be on more than one shelf). **New Shelf**, rename, reorder, delete (the books stay in the library). In a shelf: **Add or Remove Books…**, reorder, swipe to remove, and **Read as Feed**: a Mix of only the shelf's books. In the Library, touch and hold a book for **Add to Shelf**. |
 | Saved | **Bookmarks** (your saved places, as a feed), **Likes**, and **Highlights**, newest first. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
 | Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. |
 
@@ -88,6 +89,26 @@ On a post:
 **Jump to** (feed toolbar in One book mode, the reader, or a book in the Library) goes to the
 start, a percent, or a chapter. Chapters you have reached are ticked, and the chapter you are
 in is marked.
+
+**Library order.** Title sort ignores a leading "The", "A" or "An"; author sort uses the
+surname ("Jane Austen" files under A; "Austen, Jane" is read as surname first; for several
+authors the first counts). Ties fall back to the title and then a fixed id, so the order never
+changes between redraws. Books never opened sort after the ones you read, newest import first.
+
+**Finished** books leave Mix (One book mode still shows them), show "Finished" and the date in
+the Library, and count as complete in the progress sort. **Mark as Not Finished** brings a book
+back. Finishing is a Library action only.
+
+**Covers and avatars.** The avatar of a book is its cover: the EPUB cover image (the
+`cover-image` item, else `<meta name="cover">`, else an image named "cover") or the first page
+of a PDF. **Edit Details** can set a photo instead, remove it, or show the first letter on the
+book's colour. Images are stored as JPEG files of at most 360 pixels in
+`Application Support/Covers`, outside the database. Edit Details also changes the title and
+author the app shows (the file is not changed) and shows the file name, file size, detected
+language, and the added, last read and finished dates.
+
+**Language** is detected once per book from the first 6,000 characters (`NaturalLanguage`,
+shown only at 50% confidence or more).
 
 **Highlights** are marks like bookmarks: a book and a character range. Highlights that overlap
 or touch merge into one. They show on a marker colour in the feed and the reader (text on it
@@ -145,8 +166,9 @@ book mode, in the chapter row above it). Resuming in the middle of a chapter doe
 
 ### Mix filters
 
-Mix leaves out books that are hidden or snoozed (until the snooze ends) and picks books in
-proportion to their weight (less 0.5, normal 1, more 2). One book mode ignores the filters.
+Mix leaves out books that are hidden, snoozed (until the snooze ends) or finished, and picks
+books in proportion to their weight (less 0.5, normal 1, more 2). One book mode and shelf
+feeds ignore the filters (the reader chose those books); a shelf feed still uses the weights.
 Hiding or snoozing a book removes its unseen posts at once; posts you already saw stay. Mix
 opens on the book of the last post you had at the top, so a mode switch or a relaunch
 returns to the same place.
@@ -195,10 +217,12 @@ unique keys give the same effect.
 - Reading positions save while you scroll (at most every 5 seconds), when you use "Continue
   in feed from here", and when the app leaves the foreground. A crash loses at most a few
   seconds of position.
-- The store opens through a versioned schema (`BookscrollSchemaV1`) and a migration plan
-  (`BookscrollMigrationPlan`, `Models/Schema.swift`). A test opens a library made before the
-  plan existed. A future model change adds a V2 schema and a migration stage, so an update
-  never needs to delete the library.
+- The store opens through a versioned schema and a migration plan (`BookscrollMigrationPlan`,
+  `Models/Schema.swift`). V1 and V2 are frozen copies of the models; V3 (finished and last read
+  dates, language, source file, cover choice, and the `Shelf` entity) uses the live models.
+  Tests open an unversioned V1 library, a V1 library and a V2 library with the current app.
+  A model change adds a schema and a migration stage, so an update never needs to delete the
+  library.
 - `PrivacyInfo.xcprivacy` declares no tracking, no collected data, and the two required-reason
   APIs the app uses: UserDefaults (CA92.1, settings) and file timestamps (C617.1, clean-up of
   old import copies).
@@ -253,7 +277,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 137 tests):
+`BookscrollTests` (XCTest, 164 tests):
 
 | Area | File |
 |---|---|
@@ -266,13 +290,14 @@ property is named `passagesOnly` because that is what it means.
 | Files picker, staging, Open in Bookscroll, import queue | `ImportTests.swift` |
 | Reader window and paging, like/bookmark, deletion, position saving | `AppFlowTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
-| Schema V1 and V2, unversioned V1 store, V1 to V2 migration with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
+| Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
 | FTS5 search index: query escaping, add/search/remove, backup exclusion, backfill | `SearchIndexTests.swift` |
 | Settings defaults and storage, palette and accent contrast (WCAG), citation | `AppearanceTests.swift` |
 | Word-limit splitting, Auto limit, resume inside a split paragraph, chapter starts, Mix filters and weights, Jump to, peek | `SplitAndFilterTests.swift` |
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
+| Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 15 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 17 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, like and bookmark, Saved tab, read in context, Continue in feed,
@@ -282,7 +307,10 @@ library:
 - Jump to a chapter; long press shows the peek and "Look up a word".
 - Highlight a post, find it in Saved › Highlights and open it in the reader; search the
   Library text and open a result; the share card sheet in each style.
-- `performAccessibilityAudit()` on the feed, library, Saved, Settings and reader screens in the
+- Mark a book as finished, filter the Library to finished books, and rename a book in Edit
+  Details (with audits of the filtered Library and the details sheet).
+- Make a shelf, add a book, and read the shelf as a feed.
+- `performAccessibilityAudit()` on the feed, library, Shelves, Saved, Settings and reader screens in the
   Light, Night and Sepia themes, and in Compact density with focus mode and the serif font.
 - The largest accessibility text size.
 

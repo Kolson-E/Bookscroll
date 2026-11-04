@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 import SwiftData
 
 /// One chapter of a book: its label and where it starts.
@@ -9,24 +10,32 @@ struct ChapterEntry: Codable, Equatable, Hashable, Sendable {
     let charStart: Int
 }
 
-/// Values computed from a book's text once: the automatic word limit and the chapter table.
+/// Values computed from a book's text once: the automatic word limit, the chapter table and
+/// the language.
 /// The importer computes them; `DerivedDataBackfill` computes them for books from before.
 enum DerivedData {
     /// Raise this when the computation changes; older books are then computed again.
-    static let currentVersion = 1
+    /// 2 added the language.
+    static let currentVersion = 2
     /// The automatic limit fits this share of a book's paragraphs in one post.
     static let coverage = 0.95
     /// Very short paragraphs (dialogue) would give a tiny limit; posts never split below this.
     static let minimumWordLimit = 40
+    /// Characters of text the language is detected from.
+    static let languageSampleLength = 6000
 
     /// Collects paragraphs in book order, in any number of batches.
     struct Builder {
         private(set) var wordCounts: [Int] = []
         private(set) var chapters: [ChapterEntry] = []
         private var lastChapter: String?
+        private var sample = ""
 
         mutating func add(index: Int, charStart: Int, chapter: String, text: String) {
             wordCounts.append(TextUtils.wordCount(text))
+            if sample.count < DerivedData.languageSampleLength {
+                sample += text + "\n"
+            }
             if chapter != lastChapter {
                 if !chapter.isEmpty {
                     chapters.append(ChapterEntry(title: chapter, index: index, charStart: charStart))
@@ -36,6 +45,17 @@ enum DerivedData {
         }
 
         var wordLimit: Int { DerivedData.wordLimit(wordCounts: wordCounts) }
+
+        var language: String? { DerivedData.language(of: sample) }
+    }
+
+    /// The dominant language as a BCP 47 code ("en", "de", "zh-Hans"), nil when unsure.
+    static func language(of text: String) -> String? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let language = recognizer.dominantLanguage, language != .undetermined else { return nil }
+        let confidence = recognizer.languageHypotheses(withMaximum: 1)[language] ?? 0
+        return confidence >= 0.5 ? language.rawValue : nil
     }
 
     /// The smallest length that fits `coverage` of the paragraphs, at least `minimumWordLimit`.
@@ -58,6 +78,7 @@ enum DerivedData {
     static func apply(_ builder: Builder, to book: Book) {
         book.autoWordLimit = builder.wordLimit
         book.chapterTable = encode(builder.chapters)
+        book.language = builder.language
         book.derivedVersion = currentVersion
     }
 }
@@ -70,6 +91,7 @@ enum DerivedDataBackfill {
         let bookID: UUID
         let wordLimit: Int
         let chapterTable: Data?
+        var language: String? = nil
     }
 
     static func booksNeedingWork(in context: ModelContext) throws -> [FeedBook] {
@@ -99,7 +121,7 @@ enum DerivedDataBackfill {
                 guard batch.count == batchSize, let last = batch.last else { break }
                 next = last.index + 1
             }
-            results.append(Result(bookID: book.id, wordLimit: builder.wordLimit, chapterTable: DerivedData.encode(builder.chapters)))
+            results.append(Result(bookID: book.id, wordLimit: builder.wordLimit, chapterTable: DerivedData.encode(builder.chapters), language: builder.language))
         }
         return results
     }

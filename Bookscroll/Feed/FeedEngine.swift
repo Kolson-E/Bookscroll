@@ -5,6 +5,22 @@ enum FeedMode: Equatable, Sendable {
     case mix
     /// Go straight through one book.
     case single(UUID)
+    /// Interleave the books of one shelf, like Mix. Mix filters (hidden, snoozed, finished)
+    /// do not apply: the shelf is the reader's own choice.
+    case shelf(ShelfSelection)
+
+    /// Mix and shelf mode interleave books; One book mode does not.
+    var interleaves: Bool {
+        if case .single = self { return false }
+        return true
+    }
+}
+
+/// The shelf a shelf-mode feed shows.
+struct ShelfSelection: Equatable, Sendable {
+    let id: UUID
+    let name: String
+    let bookIDs: [UUID]
 }
 
 /// One post in the timeline.
@@ -302,6 +318,9 @@ final class FeedEngine {
             return bookOrder.filter { books[$0]?.isExcludedFromMix(now: date) == false }
         case let .single(id):
             return books[id] == nil ? [] : [id]
+        case let .shelf(shelf):
+            let ids = Set(shelf.bookIDs)
+            return bookOrder.filter { ids.contains($0) }
         }
     }
 
@@ -371,7 +390,7 @@ final class FeedEngine {
     private func append(_ piece: PostPiece) {
         let segment = piece.segment
         guard let book = books[segment.bookID] else { return }
-        var post = FeedPost(segment: segment, book: book, showsThreadButton: mode == .mix, part: piece.part, partCount: piece.partCount)
+        var post = FeedPost(segment: segment, book: book, showsThreadButton: mode.interleaves, part: piece.part, partCount: piece.partCount)
         let previous = previousChapter[segment.bookID]
         if piece.part == 1 {
             post.startsChapter = !segment.chapter.isEmpty && segment.chapter != previous

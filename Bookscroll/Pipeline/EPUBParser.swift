@@ -115,13 +115,15 @@ enum EPUBBookParser {
 
         let title = package.title.map(TextUtils.singleLine).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackTitle
         let author = package.authors.isEmpty ? "Unknown author" : package.authors.joined(separator: ", ")
+        let cover = try? package.coverPath.flatMap { try archive.data(at: $0) }
         return ParsedBook(
             title: title,
             author: author,
             format: .epub,
             paragraphs: paragraphs,
             passagesOnly: false,
-            note: nil
+            note: nil,
+            cover: cover
         )
     }
 

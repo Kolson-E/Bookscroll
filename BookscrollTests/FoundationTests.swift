@@ -20,12 +20,18 @@ final class FoundationTests: XCTestCase {
     func testSchemaVersionsAndPlan() {
         XCTAssertEqual(BookscrollSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(BookscrollSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
-        XCTAssertEqual(BookscrollMigrationPlan.schemas.count, 2)
-        XCTAssertEqual(BookscrollMigrationPlan.stages.count, 1)
+        XCTAssertEqual(BookscrollSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
+        XCTAssertEqual(BookscrollMigrationPlan.schemas.count, 3)
+        XCTAssertEqual(BookscrollMigrationPlan.stages.count, 2)
         let names = Set(LibraryContainer.schema.entities.map(\.name))
-        XCTAssertEqual(names, ["Book", "Segment", "Mark"])
+        XCTAssertEqual(names, ["Book", "Segment", "Mark", "Shelf"])
         let bookAttributes = Set(LibraryContainer.schema.entities.first { $0.name == "Book" }?.attributes.map(\.name) ?? [])
         XCTAssertTrue(bookAttributes.isSuperset(of: ["hiddenFromMix", "snoozedUntil", "feedWeight", "autoWordLimit", "chapterTable", "derivedVersion"]))
+        XCTAssertTrue(bookAttributes.isSuperset(of: ["finishedAt", "lastReadAt", "language", "sourceFileName", "sourceFileSize", "showsCover"]))
+        let frozenV2 = Schema(versionedSchema: BookscrollSchemaV2.self)
+        let v2Attributes = Set(frozenV2.entities.first { $0.name == "Book" }?.attributes.map(\.name) ?? [])
+        XCTAssertFalse(v2Attributes.contains("finishedAt"), "Version 2 stays frozen")
+        XCTAssertEqual(Set(frozenV2.entities.map(\.name)), ["Book", "Segment", "Mark"])
     }
 
     /// Writes a book the way version 1 of the app did, with the frozen V1 models.
@@ -68,7 +74,7 @@ final class FoundationTests: XCTestCase {
         return book.id
     }
 
-    private func assertOpensAsVersionTwo(url: URL, bookID: UUID) throws {
+    private func assertOpensAsCurrentVersion(url: URL, bookID: UUID) throws {
         let container = try LibraryContainer.make(url: url)
         let context = ModelContext(container)
         let books = try context.fetch(FetchDescriptor<Book>())
@@ -80,6 +86,13 @@ final class FoundationTests: XCTestCase {
         XCTAssertNil(book.snoozedUntil)
         XCTAssertEqual(book.feedWeight, 1)
         XCTAssertEqual(book.derivedVersion, 0, "Derived values wait for the backfill")
+        XCTAssertNil(book.finishedAt)
+        XCTAssertNil(book.lastReadAt)
+        XCTAssertNil(book.language)
+        XCTAssertNil(book.sourceFileName)
+        XCTAssertEqual(book.sourceFileSize, 0)
+        XCTAssertTrue(book.showsCover)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<Shelf>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Mark>()), 1)
         XCTAssertEqual(try Fixtures.segmentCount(bookID: bookID, in: container), book.paragraphSegmentCount + book.passageSegmentCount)
 
@@ -96,13 +109,75 @@ final class FoundationTests: XCTestCase {
     func testUnversionedVersionOneStoreOpensWithThePlan() throws {
         let url = folder.appendingPathComponent("Unversioned.store")
         let bookID = try writeVersionOneLibrary(at: url, versioned: false)
-        try assertOpensAsVersionTwo(url: url, bookID: bookID)
+        try assertOpensAsCurrentVersion(url: url, bookID: bookID)
     }
 
-    func testVersionOneStoreMigratesToVersionTwo() throws {
+    func testVersionOneStoreMigratesToTheCurrentVersion() throws {
         let url = folder.appendingPathComponent("V1.store")
         let bookID = try writeVersionOneLibrary(at: url, versioned: true)
-        try assertOpensAsVersionTwo(url: url, bookID: bookID)
+        try assertOpensAsCurrentVersion(url: url, bookID: bookID)
+    }
+
+    /// Writes a book the way version 2 of the app did, with the frozen V2 models.
+    private func writeVersionTwoLibrary(at url: URL) throws -> UUID {
+        let schema = Schema(versionedSchema: BookscrollSchemaV2.self)
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url))
+        let context = ModelContext(container)
+        let segmented = Segmenter.segment(Fixtures.paragraphs(count: 30, chapterEvery: 10))
+        let book = BookscrollSchemaV2.Book(
+            ordinal: 1,
+            title: "Old Store",
+            author: "Version Two",
+            format: .epub,
+            totalCharacters: segmented.totalCharacters,
+            positionOffset: 120,
+            passagesOnly: false,
+            paragraphSegmentCount: segmented.paragraphs.count,
+            passageSegmentCount: segmented.passages.count,
+            importNote: nil
+        )
+        book.hiddenFromMix = true
+        book.feedWeight = 2
+        book.autoWordLimit = 77
+        context.insert(book)
+        var segments: [BookscrollSchemaV2.Segment] = []
+        for draft in segmented.paragraphs + segmented.passages {
+            let segment = BookscrollSchemaV2.Segment(bookID: book.id, ordinal: 1, draft: draft)
+            context.insert(segment)
+            segments.append(segment)
+        }
+        book.segments = segments
+        context.insert(BookscrollSchemaV2.Mark(bookID: book.id, kind: .bookmark, charStart: 0, charEnd: 10))
+        try context.save()
+        return book.id
+    }
+
+    func testVersionTwoStoreMigratesToVersionThree() throws {
+        let url = folder.appendingPathComponent("V2.store")
+        let bookID = try writeVersionTwoLibrary(at: url)
+        let container = try LibraryContainer.make(url: url)
+        let context = ModelContext(container)
+        let book = try XCTUnwrap(try context.fetch(FetchDescriptor<Book>()).first)
+        XCTAssertEqual(book.id, bookID)
+        XCTAssertEqual(book.author, "Version Two")
+        XCTAssertEqual(book.positionOffset, 120, "The reading position survives")
+        XCTAssertTrue(book.hiddenFromMix, "Version 2 values survive")
+        XCTAssertEqual(book.feedWeight, 2)
+        XCTAssertEqual(book.autoWordLimit, 77)
+        XCTAssertNil(book.finishedAt)
+        XCTAssertNil(book.lastReadAt)
+        XCTAssertTrue(book.showsCover)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Mark>()).map(\.kind), [.bookmark])
+        XCTAssertEqual(try Fixtures.segmentCount(bookID: bookID, in: container), book.paragraphSegmentCount + book.passageSegmentCount)
+
+        // New version 3 values save and read back.
+        book.finishedAt = Date(timeIntervalSince1970: 1_000)
+        book.language = "en"
+        context.insert(Shelf(name: "Favourites", sortIndex: 0, bookIDs: [bookID]))
+        try context.save()
+        let reopened = ModelContext(try LibraryContainer.make(url: url))
+        XCTAssertEqual(try reopened.fetch(FetchDescriptor<Book>()).first?.finishedAt, Date(timeIntervalSince1970: 1_000))
+        XCTAssertEqual(try reopened.fetch(FetchDescriptor<Shelf>()).first?.bookIDs, [bookID])
     }
 
     // MARK: Privacy manifest

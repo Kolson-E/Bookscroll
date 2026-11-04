@@ -1,5 +1,6 @@
 import Foundation
 import PDFKit
+import UIKit
 
 enum PDFBookParser {
     /// Above this average paragraph length the detection is considered failed.
@@ -63,8 +64,19 @@ enum PDFBookParser {
             passagesOnly: passagesOnly,
             note: passagesOnly
                 ? "No paragraph breaks were found in this PDF, so it is shown as passages."
-                : nil
+                : nil,
+            cover: firstPageImage(document)
         )
+    }
+
+    /// The first page as a small JPEG, used as the book's cover.
+    static func firstPageImage(_ document: PDFDocument) -> Data? {
+        guard let page = document.page(at: 0) else { return nil }
+        let bounds = page.bounds(for: .mediaBox)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        let scale = 480 / max(bounds.width, bounds.height)
+        let image = page.thumbnail(of: CGSize(width: bounds.width * scale, height: bounds.height * scale), for: .mediaBox)
+        return image.jpegData(compressionQuality: 0.8)
     }
 
     static func extractLines(from page: PDFPage) -> [PDFTextLine] {

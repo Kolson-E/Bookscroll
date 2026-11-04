@@ -61,6 +61,9 @@ struct EPUBPackage: Equatable {
     var navPath: String?
     /// EPUB 2 NCX table of contents.
     var ncxPath: String?
+    /// The cover image: the EPUB 3 "cover-image" item, else the EPUB 2 `<meta name="cover">`
+    /// item, else an image item named "cover".
+    var coverPath: String? = nil
 }
 
 enum OPFParser {
@@ -84,6 +87,7 @@ enum OPFParser {
         var manifest: [String: EPUBManifestItem] = [:]
         var spineIDs: [String] = []
         var tocID: String?
+        var coverMetaID: String?
 
         var inMetadata = false
         var collecting: String?
@@ -110,6 +114,10 @@ enum OPFParser {
                         mediaType: attributes["media-type"] ?? "",
                         properties: properties
                     )
+                case "meta":
+                    if attributes["name"]?.lowercased() == "cover", let content = attributes["content"], !content.isEmpty {
+                        coverMetaID = content
+                    }
                 case "spine":
                     tocID = attributes["toc"]
                 case "itemref":
@@ -147,13 +155,18 @@ enum OPFParser {
         } else {
             ncxPath = manifest.values.first { $0.mediaType == "application/x-dtbncx+xml" }?.path
         }
+        let images = manifest.values.filter { $0.mediaType.lowercased().hasPrefix("image/") }.sorted { $0.path < $1.path }
+        let coverPath = images.first { $0.properties.contains("cover-image") }?.path
+            ?? coverMetaID.flatMap { id in images.first { $0.id == id } }?.path
+            ?? images.first { $0.id.lowercased().contains("cover") || ($0.path as NSString).lastPathComponent.lowercased().contains("cover") }?.path
         return EPUBPackage(
             title: title,
             authors: authors,
             manifest: manifest,
             spinePaths: spinePaths,
             navPath: navPath,
-            ncxPath: ncxPath
+            ncxPath: ncxPath,
+            coverPath: coverPath
         )
     }
 

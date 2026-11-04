@@ -232,6 +232,91 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertFalse(menuChoice(app, secondTitle).exists, "The deleted book left the feed")
     }
 
+    func testFinishFilterAndEditDetailsInLibrary() throws {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        tab(app, "Library")
+
+        // Mark as finished from the context menu.
+        let second = element(app, labelBeginsWith: "\(secondTitle), by")
+        XCTAssertTrue(second.waitForExistence(timeout: 5))
+        second.press(forDuration: 1.2)
+        let finish = app.buttons["Mark as Finished"].firstMatch
+        XCTAssertTrue(finish.waitForExistence(timeout: 5))
+        finish.tap()
+        let finishedRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "\(secondTitle), by", "Finished"))
+            .firstMatch
+        XCTAssertTrue(finishedRow.waitForExistence(timeout: 5), "The row says the book is finished")
+
+        // Filter to finished books.
+        openToolbarMenu(app, "Sort and filter", choice: "Finished").tap()
+        let clear = app.buttons["library.filter.clear"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        XCTAssertTrue(finishedRow.exists)
+        waitUntilGone(element(app, labelBeginsWith: "\(firstTitle), by"))
+        screenshot("23-library-filtered")
+        try audit(app, screen: "library filtered")
+        clear.tap()
+        XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
+
+        // Edit details.
+        let first = element(app, labelBeginsWith: "\(firstTitle), by")
+        first.press(forDuration: 1.2)
+        let edit = app.buttons["Edit Details\u{2026}"].firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        // A multi-line text field is a text view on some iOS versions.
+        let titleField = app.descendants(matching: .any).matching(identifier: "details.title").firstMatch
+        XCTAssertTrue(titleField.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["details.showsCover"].exists)
+        screenshot("24-edit-details")
+        try audit(app, screen: "edit details")
+        // The cursor goes to the end of the text.
+        titleField.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()
+        titleField.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: firstTitle.count + 2) + "Renamed Bridge")
+        app.buttons["details.save"].tap()
+        XCTAssertTrue(element(app, labelBeginsWith: "Renamed Bridge, by").waitForExistence(timeout: 5))
+
+        // The feed shows the new title.
+        tab(app, "Feed")
+        XCTAssertTrue(openToolbarMenu(app, "Feed mode", choice: "Renamed Bridge").exists)
+    }
+
+    func testShelfCreateAddBooksAndReadAsFeed() throws {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        tab(app, "Shelves")
+        let newShelf = app.buttons["shelves.empty.new"]
+        XCTAssertTrue(newShelf.waitForExistence(timeout: 5))
+        screenshot("25-shelves-empty")
+        newShelf.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.textFields.firstMatch.typeText("Favourites")
+        alert.buttons["Create"].tap()
+
+        // The new shelf opens; add a book.
+        let add = app.buttons["shelf.empty.add"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        let member = app.descendants(matching: .any).matching(identifier: "shelf.member")
+            .matching(NSPredicate(format: "label BEGINSWITH %@", "\(firstTitle), by")).firstMatch
+        XCTAssertTrue(member.waitForExistence(timeout: 5))
+        member.tap()
+        app.buttons["shelf.members.done"].tap()
+        XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
+        XCTAssertFalse(element(app, labelBeginsWith: "\(secondTitle), by").exists)
+        screenshot("26-shelf")
+        try audit(app, screen: "shelf")
+
+        // Read the shelf as a feed.
+        app.buttons["shelf.readInFeed"].tap()
+        XCTAssertTrue(app.navigationBars["Favourites"].waitForExistence(timeout: 5))
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["Feed mode"].value as? String, "Shelf: Favourites")
+    }
+
     // MARK: Settings and post look
 
     func testSettingsChangeThemeAccentAndFocusMode() {
@@ -407,6 +492,10 @@ final class BookscrollUITests: XCTestCase {
         tab(app, "Library")
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) library")
+
+        tab(app, "Shelves")
+        XCTAssertTrue(app.buttons["shelves.empty.new"].waitForExistence(timeout: 5))
+        try audit(app, screen: "\(prefix) shelves")
 
         tab(app, "Saved")
         XCTAssertTrue(app.segmentedControls.firstMatch.waitForExistence(timeout: 5))

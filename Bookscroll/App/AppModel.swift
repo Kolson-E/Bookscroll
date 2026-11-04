@@ -171,6 +171,7 @@ final class AppModel {
     enum Tab: Hashable {
         case feed
         case library
+        case shelves
         case saved
         case settings
     }
@@ -191,6 +192,7 @@ final class AppModel {
     let container: ModelContainer
     let store: LibraryStore
     let marks: MarkStore
+    let shelves: ShelfStore
     let feed: FeedViewModel
     let importer: ImportManager
     /// Full-text index of the library. Nil when it could not be opened; search is then off.
@@ -204,6 +206,7 @@ final class AppModel {
         let store = LibraryStore(context: container.mainContext)
         self.store = store
         self.marks = MarkStore(store: store)
+        self.shelves = ShelfStore(context: container.mainContext)
         self.feed = FeedViewModel(store: store)
         self.importer = ImportManager(container: container)
         importer.onImported = { [weak self] in
@@ -214,6 +217,7 @@ final class AppModel {
         // Index books from before the index existed, or after its file was lost.
         syncSearchIndex()
         derivedBackfill = runDerivedBackfill()
+        refreshCoverChoices()
     }
 
     // MARK: Derived data
@@ -257,6 +261,57 @@ final class AppModel {
     private func feedSettingsChanged() {
         libraryVersion += 1
         feed.reloadBooks()
+    }
+
+    // MARK: Book details
+
+    /// Marks the book as finished (it leaves Mix) or as not finished.
+    func setFinished(_ finished: Bool, bookID: UUID, now: Date = .now) {
+        store.updateBook(id: bookID) { $0.finishedAt = finished ? now : nil }
+        store.save()
+        feedSettingsChanged()
+    }
+
+    /// Changes the title and author the app shows. Empty values keep the old ones.
+    func editDetails(bookID: UUID, title: String, author: String) {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let author = author.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.updateBook(id: bookID) { book in
+            if !title.isEmpty { book.title = title }
+            if !author.isEmpty { book.author = author }
+        }
+        store.save()
+        libraryDidChange()
+    }
+
+    /// Uses a photo (any image data) as the book's avatar. Returns false when it is not an image.
+    @discardableResult
+    func setAvatarPhoto(bookID: UUID, data: Data) -> Bool {
+        guard CoverStore.save(data, bookID: bookID, photo: true, in: CoverCache.shared.folder) else { return false }
+        CoverCache.shared.invalidate(bookID)
+        libraryVersion += 1
+        return true
+    }
+
+    /// Removes the reader's photo; the cover (or the initial) shows again.
+    func removeAvatarPhoto(bookID: UUID) {
+        CoverStore.remove(bookID: bookID, photo: true, in: CoverCache.shared.folder)
+        CoverCache.shared.invalidate(bookID)
+        libraryVersion += 1
+    }
+
+    /// False shows the initial on its colour instead of the cover or photo.
+    func setShowsCover(_ shows: Bool, bookID: UUID) {
+        store.updateBook(id: bookID) { $0.showsCover = shows }
+        store.save()
+        refreshCoverChoices()
+        libraryVersion += 1
+    }
+
+    /// Tells the avatar cache which books show their initial by choice.
+    private func refreshCoverChoices() {
+        let hidden = Set(store.allBooks().filter { !$0.showsCover }.map(\.id))
+        CoverCache.shared.setHidden(hidden)
     }
 
     // MARK: Search index
@@ -316,6 +371,7 @@ final class AppModel {
         libraryVersion += 1
         feed.reloadBooks()
         marks.reload()
+        refreshCoverChoices()
         syncSearchIndex()
     }
 
@@ -343,6 +399,9 @@ final class AppModel {
                 errorMessage = "The book could not be deleted: \(error.localizedDescription)"
             }
             store.forgetBook(id: id)
+            shelves.removeEverywhere(id)
+            CoverStore.removeAll(bookID: id, in: CoverCache.shared.folder)
+            CoverCache.shared.invalidate(id)
             libraryDidChange()
         }
     }
@@ -442,7 +501,8 @@ final class AppModel {
 
     func shareImage(_ item: HighlightItem) {
         shareCardRequest = ShareCardRequest(content: ShareCardContent(
-            text: item.text, title: item.bookTitle, author: item.bookAuthor, chapter: item.chapter, percent: item.percent
+            text: item.text, title: item.bookTitle, author: item.bookAuthor, chapter: item.chapter, percent: item.percent,
+            bookID: item.mark.bookID
         ))
     }
 

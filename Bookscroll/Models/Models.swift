@@ -38,6 +38,20 @@ final class Book {
     /// Version of the values computed from the text (`DerivedData.currentVersion`).
     var derivedVersion: Int = 0
 
+    // Version 3.
+    /// Set when the reader marks the book as finished (Library). Finished books leave Mix.
+    var finishedAt: Date? = nil
+    /// Last time a post of this book was shown or the reader moved in it.
+    var lastReadAt: Date? = nil
+    /// BCP 47 language code detected from the text (for example "en", "de"). Nil until detected.
+    var language: String? = nil
+    /// Name of the imported file, for re-import and folder sync.
+    var sourceFileName: String? = nil
+    /// Size of the imported file in bytes; 0 when unknown.
+    var sourceFileSize: Int = 0
+    /// The avatar shows the book's cover (or the reader's photo) when true, the initial when false.
+    var showsCover: Bool = true
+
     @Relationship(deleteRule: .cascade, inverse: \Segment.book) var segments: [Segment]? = []
     @Relationship(deleteRule: .cascade, inverse: \Mark.book) var marks: [Mark]? = []
 
@@ -125,4 +139,23 @@ final class Mark {
     }
 
     var kind: MarkKind { MarkKind(rawValue: kindRaw) ?? .like }
+}
+
+/// A named list of books (Shelves tab). Books keep their place in the list.
+@Model
+final class Shelf {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var createdAt: Date
+    /// Position among the shelves.
+    var sortIndex: Int
+    var bookIDs: [UUID]
+
+    init(id: UUID = UUID(), name: String, createdAt: Date = .now, sortIndex: Int, bookIDs: [UUID] = []) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.sortIndex = sortIndex
+        self.bookIDs = bookIDs
+    }
 }

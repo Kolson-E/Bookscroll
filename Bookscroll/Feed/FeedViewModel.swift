@@ -27,10 +27,14 @@ final class FeedViewModel {
     }
 
     var title: String {
-        if case let .single(id) = mode, let book = books.first(where: { $0.id == id }) {
-            return book.title
+        switch mode {
+        case let .single(id):
+            return books.first { $0.id == id }?.title ?? "Feed"
+        case let .shelf(shelf):
+            return shelf.name
+        case .mix:
+            return "Feed"
         }
-        return "Feed"
     }
 
     func configure(style: PostStyle, mode: FeedMode, wordLimit: WordLimit = .off) {

@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -5,24 +6,54 @@ import SwiftUI
 struct LibraryView: View {
     @Environment(AppModel.self) private var app
     @State private var query = ""
+    @AppStorage("librarySort") private var sort: LibrarySort = .recentlyRead
+    @AppStorage("libraryStatus") private var status: LibraryStatusFilter = .all
+    @AppStorage("libraryFormat") private var format: LibraryFormatFilter = .all
+    /// Lives here, not in the list: the list is rebuilt when the library changes.
+    @State private var detailsTarget: DetailsTarget?
+    /// The book that goes on a shelf made from its menu.
+    @State private var newShelfBookID: UUID?
+    @State private var newShelfName = ""
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var isFiltered: Bool { status != .all || format != .all }
 
     var body: some View {
         NavigationStack {
             Group {
                 if trimmedQuery.isEmpty {
                     // A new identity re-runs the @Query after a background import has saved.
-                    BookList()
+                    BookList(sort: sort, status: $status, format: $format, detailsTarget: $detailsTarget) { bookID in
+                        newShelfName = ""
+                        newShelfBookID = bookID
+                    }
                         .id(app.libraryVersion)
                 } else {
                     LibrarySearchResults(query: trimmedQuery)
                 }
             }
             .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+            .sheet(item: $detailsTarget) { target in
+                BookDetailsSheet(bookID: target.id)
+            }
+            .alert("New Shelf", isPresented: isNamingShelf) {
+                TextField("Name", text: $newShelfName)
+                Button("Create") {
+                    if let id = newShelfBookID {
+                        app.shelves.create(name: newShelfName, bookIDs: [id])
+                    }
+                }
+                .disabled(newShelfName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The book goes on the new shelf.")
+            }
             .navigationTitle("Library")
             .themedNavigationBar()
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    arrangeMenu
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         app.presentImporter()
@@ -36,6 +67,50 @@ struct LibraryView: View {
             }
         }
     }
+
+    private var isNamingShelf: Binding<Bool> {
+        Binding(
+            get: { newShelfBookID != nil },
+            set: { if !$0 { newShelfBookID = nil } }
+        )
+    }
+
+    private var arrangeMenu: some View {
+        Menu {
+            Section("Sort by") {
+                ForEach(LibrarySort.allCases) { item in
+                    MenuChoice(title: item.title, symbol: item.symbol, isSelected: sort == item) { sort = item }
+                }
+            }
+            Section("Show") {
+                ForEach(LibraryStatusFilter.allCases) { item in
+                    MenuChoice(title: item.title, isSelected: status == item) { status = item }
+                }
+            }
+            Section("Format") {
+                ForEach(LibraryFormatFilter.allCases) { item in
+                    MenuChoice(title: item.title, isSelected: format == item) { format = item }
+                }
+            }
+        } label: {
+            Label("Sort and filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel("Sort and filter")
+        .accessibilityValue(arrangeDescription)
+        .accessibilityIdentifier("library.arrange")
+    }
+
+    private var arrangeDescription: String {
+        var parts = ["Sorted by \(sort.title.lowercased())"]
+        if status != .all { parts.append(status.title) }
+        if format != .all { parts.append(format.title) }
+        return parts.joined(separator: ", ")
+    }
+}
+
+/// Identifies the book whose details sheet is open.
+struct DetailsTarget: Identifiable {
+    let id: UUID
 }
 
 @MainActor
@@ -45,23 +120,46 @@ private struct BookList: View {
         filter: #Predicate<Book> { $0.deletionPending == false },
         sort: \Book.addedAt,
         order: .reverse
-    ) private var books: [Book]
+    ) private var allBooks: [Book]
+    let sort: LibrarySort
+    @Binding var status: LibraryStatusFilter
+    @Binding var format: LibraryFormatFilter
+    @Binding var detailsTarget: DetailsTarget?
+    /// Asks for a shelf name; the book goes on the new shelf.
+    let onNewShelf: (UUID) -> Void
+
+    private var books: [Book] {
+        LibraryArrangement.arrange(allBooks, sort: sort, status: status, format: format)
+    }
+
+    private var isFiltered: Bool { status != .all || format != .all }
 
     var body: some View {
+        let books = self.books
         List {
             if !app.importer.jobs.isEmpty {
-                Section("Importing") {
+                Section {
+                    SectionHeader("Importing")
+                        .font(.subheadline.weight(.semibold))
+                        .listRowBackground(Theme.background)
                     ForEach(app.importer.jobs) { job in
                         ImportJobRow(job: job) { app.importer.dismiss(job.id) }
                             .listRowBackground(Theme.background)
                     }
                 }
             }
+            if isFiltered && !allBooks.isEmpty {
+                FilterSummaryRow(status: status, format: format, shown: books.count, total: allBooks.count) {
+                    status = .all
+                    format = .all
+                }
+                .listRowBackground(Theme.background)
+            }
             Section {
                 ForEach(books) { book in
                     BookRow(book: book)
                         .listRowBackground(Theme.background)
-                        .contextMenu { feedMenu(for: book) }
+                        .contextMenu { bookMenu(for: book) }
                 }
                 .onDelete { offsets in
                     let ids = offsets.map { books[$0].id }
@@ -73,7 +171,7 @@ private struct BookList: View {
         .scrollContentBackground(.hidden)
         .background(Theme.background)
         .overlay {
-            if books.isEmpty && app.importer.jobs.isEmpty {
+            if allBooks.isEmpty && app.importer.jobs.isEmpty {
                 ContentUnavailableView {
                     Label("Your library is empty", systemImage: "books.vertical")
                 } description: {
@@ -87,19 +185,97 @@ private struct BookList: View {
                     .accessibilityHint("Opens Files to pick EPUB or PDF files")
                     .accessibilityIdentifier("library.empty.import")
                 }
+            } else if books.isEmpty && !allBooks.isEmpty {
+                ContentUnavailableView {
+                    Label("No books match", systemImage: "line.3.horizontal.decrease.circle")
+                } description: {
+                    Text("No book in your library matches the filter.")
+                        .foregroundStyle(Theme.secondaryText)
+                } actions: {
+                    Button {
+                        status = .all
+                        format = .all
+                    } label: {
+                        Text("Show All Books").foregroundStyle(Theme.background)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("library.filter.clear.empty")
+                }
             }
         }
     }
 }
 
+/// "Showing Finished · PDF, 3 of 12 books" with a button that clears the filter.
+@MainActor
+private struct FilterSummaryRow: View {
+    let status: LibraryStatusFilter
+    let format: LibraryFormatFilter
+    let shown: Int
+    let total: Int
+    let onClear: () -> Void
+
+    private var filterText: String {
+        let parts = [status == .all ? nil : status.title, format == .all ? nil : format.title].compactMap { $0 }
+        return parts.isEmpty ? LibraryStatusFilter.all.title : parts.joined(separator: " \u{00B7} ")
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(filterText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.primaryText)
+                Text("\(shown) of \(total) books")
+                    .font(.caption)
+                    .foregroundStyle(Theme.secondaryText)
+            }
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 8)
+            Button("Clear", action: onClear)
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Clear filter")
+                .accessibilityIdentifier("library.filter.clear")
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 extension BookList {
-    /// Mix settings for one book: hide, snooze, weight.
+    /// Book actions and Mix settings for one book: hide, snooze, weight.
     @ViewBuilder
-    func feedMenu(for book: Book) -> some View {
+    func bookMenu(for book: Book) -> some View {
         let id = book.id
         let isSnoozed = (book.snoozedUntil ?? .distantPast) > .now
         Button { app.presentJump(bookID: id) } label: {
             Label("Jump to\u{2026}", systemImage: "list.bullet.indent")
+        }
+        Button { app.setFinished(book.finishedAt == nil, bookID: id) } label: {
+            if book.finishedAt == nil {
+                Label("Mark as Finished", systemImage: "checkmark.circle")
+            } else {
+                Label("Mark as Not Finished", systemImage: "arrow.uturn.backward.circle")
+            }
+        }
+        Button { detailsTarget = DetailsTarget(id: id) } label: {
+            Label("Edit Details\u{2026}", systemImage: "pencil")
+        }
+        Menu {
+            ForEach(app.shelves.shelves) { shelf in
+                Button { app.shelves.toggle(id, on: shelf.id) } label: {
+                    if shelf.contains(id) {
+                        Label(shelf.name, systemImage: "checkmark")
+                    } else {
+                        Text(shelf.name)
+                    }
+                }
+            }
+            Button { onNewShelf(id) } label: {
+                Label("New Shelf\u{2026}", systemImage: "plus")
+            }
+        } label: {
+            Label("Add to Shelf", systemImage: "rectangle.stack.badge.plus")
         }
         Section("In Mix") {
             Button { app.setHiddenFromMix(!book.hiddenFromMix, bookID: id) } label: {
@@ -177,7 +353,7 @@ private struct BookRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
-                AvatarView(title: book.title, author: book.author, size: avatarSize, textStyle: .title3)
+                AvatarView(title: book.title, author: book.author, size: avatarSize, textStyle: .title3, bookID: book.id)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(book.title)
@@ -191,10 +367,20 @@ private struct BookRow: View {
                 Spacer(minLength: 8)
                 if !dynamicTypeSize.isAccessibilitySize { formatBadge }
             }
-            ProgressView(value: book.progress)
-            Text("\(percent)% read")
-                .font(.caption)
+            ProgressView(value: book.finishedAt == nil ? book.progress : 1)
+            if let finishedAt = book.finishedAt {
+                Label {
+                    Text("Finished \(finishedAt.formatted(date: .abbreviated, time: .omitted))")
+                } icon: {
+                    Image(systemName: "checkmark.circle.fill")
+                }
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.secondaryText)
+            } else {
+                Text("\(percent)% read")
+                    .font(.caption)
+                    .foregroundStyle(Theme.secondaryText)
+            }
             if let note = book.importNote {
                 Label(note, systemImage: "info.circle")
                     .font(.caption)
@@ -232,7 +418,12 @@ private struct BookRow: View {
     }
 
     private var accessibilityText: String {
-        var text = "\(book.title), by \(book.author). \(book.format.label). \(percent) percent read."
+        var text = "\(book.title), by \(book.author). \(book.format.label)."
+        if let finishedAt = book.finishedAt {
+            text += " Finished \(finishedAt.formatted(date: .long, time: .omitted))."
+        } else {
+            text += " \(percent) percent read."
+        }
         if let note = book.importNote { text += " \(note)" }
         if let mixStatus { text += " \(mixStatus)." }
         return text
@@ -293,12 +484,17 @@ private struct LibrarySearchResults: View {
         List {
             if !books.isEmpty {
                 Section {
+                    // Headers are rows: a plain list draws section headers on a translucent
+                    // bar whose colour the theme does not control.
+                    SectionHeader("Books")
+                        .font(.subheadline.weight(.semibold))
+                        .listRowBackground(Theme.background)
                     ForEach(books) { book in
                         Button {
                             app.presentJump(bookID: book.id)
                         } label: {
                             HStack(spacing: 12) {
-                                AvatarView(title: book.title, author: book.author, size: 32)
+                                AvatarView(title: book.title, author: book.author, size: 32, bookID: book.id)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(book.title).font(.headline).foregroundStyle(Theme.primaryText)
@@ -315,12 +511,13 @@ private struct LibrarySearchResults: View {
                         .accessibilityAddTraits(.isButton)
                         .listRowBackground(Theme.background)
                     }
-                } header: {
-                    Text("Books").foregroundStyle(Theme.secondaryText)
                 }
             }
             if !paragraphs.isEmpty {
                 Section {
+                    SectionHeader("In the text")
+                        .font(.subheadline.weight(.semibold))
+                        .listRowBackground(Theme.background)
                     ForEach(paragraphs) { result in
                         Button {
                             app.openReader(bookID: result.bookID, charStart: result.charStart, charEnd: result.charEnd)
@@ -330,8 +527,6 @@ private struct LibrarySearchResults: View {
                         .buttonStyle(.plain)
                         .listRowBackground(Theme.background)
                     }
-                } header: {
-                    Text("In the text").foregroundStyle(Theme.secondaryText)
                 }
             }
         }

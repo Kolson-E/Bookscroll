@@ -95,8 +95,11 @@ struct ShareCardContent: Equatable {
     let author: String
     let chapter: String
     let percent: Int
+    /// The book, for its cover in the Post style.
+    var bookID: UUID?
 
-    init(text: String, title: String, author: String, chapter: String, percent: Int) {
+    init(text: String, title: String, author: String, chapter: String, percent: Int, bookID: UUID? = nil) {
+        self.bookID = bookID
         self.text = text
         self.title = title
         self.author = author
@@ -105,7 +108,7 @@ struct ShareCardContent: Equatable {
     }
 
     init(_ post: FeedPost) {
-        self.init(text: post.segment.text, title: post.bookTitle, author: post.bookAuthor, chapter: post.segment.chapter, percent: post.percent)
+        self.init(text: post.segment.text, title: post.bookTitle, author: post.bookAuthor, chapter: post.segment.chapter, percent: post.percent, bookID: post.bookID)
     }
 
     /// "Title, Author · Chapter".
@@ -144,7 +147,7 @@ struct ShareCardView: View {
     private var postCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                AvatarView(title: content.title, author: content.author, size: 44)
+                AvatarView(title: content.title, author: content.author, size: 44, bookID: content.bookID)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(content.title)
                         .font(.headline)

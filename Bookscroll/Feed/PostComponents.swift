@@ -133,19 +133,39 @@ struct AvatarView: View {
     let size: CGFloat
     /// The letter follows Dynamic Type through this style; `size` should be a @ScaledMetric.
     var textStyle: Font.TextStyle = .title2
+    /// The book, to show its cover or the reader's photo. Nil shows the initial.
+    var bookID: UUID? = nil
+    /// An image to show instead of looking one up (share cards render off screen).
+    var image: UIImage? = nil
+
+    private var shownImage: UIImage? {
+        if let image { return image }
+        guard let bookID else { return nil }
+        return CoverCache.shared.image(for: bookID)
+    }
 
     var body: some View {
-        Circle()
-            .fill(BookColor.color(title: title, author: author))
-            .frame(width: size, height: size)
-            .overlay {
-                Text(initial)
-                    .font(.system(textStyle, design: .serif).weight(.bold))
-                    .foregroundStyle(.white)
-                    .minimumScaleFactor(0.5)
-                    .lineLimit(1)
-                    .padding(size * 0.12)
-            }
+        if let shownImage {
+            // A cover is taller than wide; the circle shows its top centre, where titles are.
+            Image(uiImage: shownImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size, alignment: .top)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Theme.separator, lineWidth: 0.5))
+        } else {
+            Circle()
+                .fill(BookColor.color(title: title, author: author))
+                .frame(width: size, height: size)
+                .overlay {
+                    Text(initial)
+                        .font(.system(textStyle, design: .serif).weight(.bold))
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.5)
+                        .lineLimit(1)
+                        .padding(size * 0.12)
+                }
+        }
     }
 
     private var initial: String {
@@ -279,7 +299,7 @@ struct PostRow: View {
         HStack(alignment: .top, spacing: isCompact ? 8 : 12) {
             if !focusMode {
                 Button(action: actions.open) {
-                    AvatarView(title: post.bookTitle, author: post.bookAuthor, size: avatarSize, textStyle: .title3)
+                    AvatarView(title: post.bookTitle, author: post.bookAuthor, size: avatarSize, textStyle: .title3, bookID: post.bookID)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Read \(post.bookTitle) in context")

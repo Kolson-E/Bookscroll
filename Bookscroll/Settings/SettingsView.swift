@@ -3,6 +3,18 @@ import SwiftUI
 @MainActor
 struct SettingsView: View {
     @AppStorage("postStyle") private var styleRaw = PostStyle.paragraph.rawValue
+    @State private var openChoice: SettingChoice?
+
+    /// The settings that open a list of choices.
+    enum SettingChoice: String, Identifiable, Hashable {
+        case density
+        case postFont
+        case postStyle
+        case wordLimit
+        case readerFont
+
+        var id: Self { self }
+    }
 
     var body: some View {
         @Bindable var settings = AppSettings.shared
@@ -16,19 +28,17 @@ struct SettingsView: View {
                         }
                     }
                     AccentPicker(selection: $settings.accent)
-                    ChoiceRow(title: "Density", selection: $settings.density, choices: Density.allCases) { $0.title }
+                    ChoiceRow(title: "Density", value: settings.density.title) { openChoice = .density }
                 } header: {
                     SectionHeader("Appearance")
                 }
                 .listRowBackground(Theme.secondaryBackground)
 
                 Section {
-                    ChoiceRow(title: "Post font", selection: $settings.postTypeface, choices: Typeface.allCases) { $0.title }
-                    ChoiceRow(title: "Post style", selection: $styleRaw, choices: PostStyle.allCases.map(\.rawValue)) {
-                        PostStyle(rawValue: $0)?.title ?? $0
-                    }
-                    ChoiceRow(title: "Maximum words per post", selection: $settings.wordLimit, choices: WordLimit.choices) { $0.title }
-                    .accessibilityIdentifier("settings.wordLimit")
+                    ChoiceRow(title: "Post font", value: settings.postTypeface.title) { openChoice = .postFont }
+                    ChoiceRow(title: "Post style", value: PostStyle(rawValue: styleRaw)?.title ?? styleRaw) { openChoice = .postStyle }
+                    ChoiceRow(title: "Maximum words per post", value: settings.wordLimit.title) { openChoice = .wordLimit }
+                        .accessibilityIdentifier("settings.wordLimit")
                     Toggle("Focus mode", isOn: $settings.focusMode)
                         .accessibilityIdentifier("settings.focusMode")
                     Toggle("Double-tap to like", isOn: $settings.doubleTapToLike)
@@ -41,9 +51,7 @@ struct SettingsView: View {
                 .listRowBackground(Theme.secondaryBackground)
 
                 Section {
-                    ChoiceRow(title: "Reader font", selection: $settings.readerTypeface, choices: Typeface.allCases) {
-                        $0 == .sans ? "Sans" : $0.title
-                    }
+                    ChoiceRow(title: "Reader font", value: Self.readerFontTitle(settings.readerTypeface)) { openChoice = .readerFont }
                 } header: {
                     SectionHeader("Reader")
                 }
@@ -69,7 +77,40 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .themedNavigationBar()
+            .navigationDestination(item: $openChoice) { choice in
+                choiceList(choice)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func choiceList(_ choice: SettingChoice) -> some View {
+        @Bindable var settings = AppSettings.shared
+        switch choice {
+        case .density:
+            ChoiceList(title: "Density", selection: $settings.density, choices: Density.allCases) { $0.title }
+        case .postFont:
+            ChoiceList(title: "Post font", selection: $settings.postTypeface, choices: Typeface.allCases) { $0.title }
+        case .postStyle:
+            ChoiceList(title: "Post style", selection: $styleRaw, choices: PostStyle.allCases.map(\.rawValue)) {
+                PostStyle(rawValue: $0)?.title ?? $0
+            }
+        case .wordLimit:
+            ChoiceList(
+                title: "Maximum words per post",
+                selection: $settings.wordLimit,
+                choices: WordLimit.choices,
+                footer: "Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post."
+            ) { $0.title }
+        case .readerFont:
+            ChoiceList(title: "Reader font", selection: $settings.readerTypeface, choices: Typeface.allCases) {
+                Self.readerFontTitle($0)
+            }
+        }
+    }
+
+    private static func readerFontTitle(_ typeface: Typeface) -> String {
+        typeface == .sans ? "Sans" : typeface.title
     }
 
     private static var version: String {
@@ -123,7 +164,7 @@ private struct AccentPicker: View {
 /// A section header in the theme's secondary text colour (the system grey is too light on
 /// the sepia rows).
 @MainActor
-private struct SectionHeader: View {
+struct SectionHeader: View {
     let title: String
 
     init(_ title: String) {
@@ -163,56 +204,78 @@ private struct CheckRow: View {
     }
 }
 
-/// A setting with a few choices: the title and the current choice in the row, the choices in
-/// a menu. The label is drawn here, not by the system picker, so it wraps at large text sizes
-/// and uses the theme's colours.
+/// A setting with a few choices: the title and the current choice in the row. A tap opens
+/// the list of choices. The row and its chevron are drawn here, not by the system menu or
+/// navigation link, so they follow Dynamic Type, wrap at large text sizes and use the theme's
+/// colours.
 @MainActor
-struct ChoiceRow<Value: Hashable>: View {
+struct ChoiceRow: View {
+    let title: String
+    let value: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                // Title and value share the line when they fit; at large text sizes they stack.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        Text(title).foregroundStyle(Theme.primaryText)
+                        Spacer(minLength: 8)
+                        Text(value).foregroundStyle(Theme.secondaryText)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).foregroundStyle(Theme.primaryText)
+                        Text(value).foregroundStyle(Theme.secondaryText)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.body.weight(.semibold))
+                    .imageScale(.small)
+                    .foregroundStyle(Theme.secondaryText)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// The choices of one setting, with a checkmark on the current one.
+@MainActor
+struct ChoiceList<Value: Hashable>: View {
     let title: String
     @Binding var selection: Value
     let choices: [Value]
+    var footer: String?
     let label: (Value) -> String
 
-    init(title: String, selection: Binding<Value>, choices: [Value], label: @escaping (Value) -> String) {
-        self.title = title
-        _selection = selection
-        self.choices = choices
-        self.label = label
-    }
-
     var body: some View {
-        Menu {
-            Picker(title, selection: $selection) {
+        List {
+            Section {
                 ForEach(choices, id: \.self) { choice in
-                    Text(label(choice)).tag(choice)
+                    CheckRow(title: label(choice), isSelected: choice == selection) {
+                        selection = choice
+                    }
+                    .frame(minHeight: 44)
+                }
+            } footer: {
+                if let footer {
+                    Text(footer).foregroundStyle(Theme.secondaryText)
                 }
             }
-        } label: {
-            // Title and value share the line when they fit; at large text sizes they stack.
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) {
-                    Text(title).foregroundStyle(Theme.primaryText)
-                    Spacer(minLength: 8)
-                    value
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).foregroundStyle(Theme.primaryText)
-                    value
-                }
-            }
-            .contentShape(Rectangle())
+            .listRowBackground(Theme.secondaryBackground)
         }
-        .accessibilityLabel(title)
-        .accessibilityValue(label(selection))
-    }
-
-    private var value: some View {
-        HStack(spacing: 4) {
-            Text(label(selection))
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.footnote.weight(.semibold))
-                .accessibilityHidden(true)
-        }
-        .foregroundStyle(Theme.secondaryText)
+        .scrollContentBackground(.hidden)
+        .background(Theme.background)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .themedNavigationBar()
     }
 }

@@ -63,6 +63,9 @@ struct RootView: View {
             LibraryView()
                 .tabItem { Label("Library", systemImage: "books.vertical") }
                 .tag(AppModel.Tab.library)
+            ShelvesView()
+                .tabItem { Label("Shelves", systemImage: "rectangle.stack") }
+                .tag(AppModel.Tab.shelves)
             SavedView()
                 .tabItem { Label("Saved", systemImage: "bookmark") }
                 .tag(AppModel.Tab.saved)

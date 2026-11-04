@@ -15,6 +15,8 @@ struct ParsedBook: Sendable {
     /// Set when the parser could not find usable paragraph breaks.
     var passagesOnly: Bool
     var note: String?
+    /// Cover image data as found in the file (EPUB cover image, first PDF page). Nil when none.
+    var cover: Data? = nil
 }
 
 /// A segment computed at import, before it is stored.
@@ -128,6 +130,8 @@ struct FeedBook: Equatable, Identifiable, Sendable {
     var hiddenFromMix: Bool
     var snoozedUntil: Date?
     var feedWeight: Double
+    /// Set when the reader marked the book as finished. Finished books leave Mix.
+    var finishedAt: Date?
 
     init(
         id: UUID,
@@ -142,8 +146,10 @@ struct FeedBook: Equatable, Identifiable, Sendable {
         autoWordLimit: Int = 0,
         hiddenFromMix: Bool = false,
         snoozedUntil: Date? = nil,
-        feedWeight: Double = 1
+        feedWeight: Double = 1,
+        finishedAt: Date? = nil
     ) {
+        self.finishedAt = finishedAt
         self.autoWordLimit = autoWordLimit
         self.hiddenFromMix = hiddenFromMix
         self.snoozedUntil = snoozedUntil
@@ -173,13 +179,16 @@ struct FeedBook: Equatable, Identifiable, Sendable {
             autoWordLimit: book.autoWordLimit,
             hiddenFromMix: book.hiddenFromMix,
             snoozedUntil: book.snoozedUntil,
-            feedWeight: book.feedWeight
+            feedWeight: book.feedWeight,
+            finishedAt: book.finishedAt
         )
     }
 
-    /// Mix leaves the book out (hidden, or snoozed until after `now`).
+    var isFinished: Bool { finishedAt != nil }
+
+    /// Mix leaves the book out (hidden, finished, or snoozed until after `now`).
     func isExcludedFromMix(now: Date) -> Bool {
-        if hiddenFromMix { return true }
+        if hiddenFromMix || isFinished { return true }
         if let snoozedUntil, snoozedUntil > now { return true }
         return false
     }

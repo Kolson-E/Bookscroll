@@ -6,6 +6,7 @@ struct FeedView: View {
     @AppStorage("postStyle") private var styleRaw = PostStyle.paragraph.rawValue
     @AppStorage("feedMode") private var modeRaw = "mix"
     @AppStorage("singleBookID") private var singleBookID = ""
+    @AppStorage("feedShelfID") private var feedShelfID = ""
 
     private var selectedStyle: PostStyle { PostStyle(rawValue: styleRaw) ?? .paragraph }
 
@@ -13,16 +14,30 @@ struct FeedView: View {
         if modeRaw == "single", let id = UUID(uuidString: singleBookID) {
             return .single(id)
         }
+        if modeRaw == "shelf", let id = UUID(uuidString: feedShelfID), let shelf = app.shelves.shelf(id: id) {
+            return .shelf(ShelfSelection(id: shelf.id, name: shelf.name, bookIDs: shelf.bookIDs))
+        }
         return .mix
     }
 
-    /// "mix" or a book id. Drives the mode picker.
+    private static let shelfTagPrefix = "shelf:"
+
+    /// "mix", a book id, or "shelf:" and a shelf id. Drives the mode picker.
     private var modeSelection: Binding<String> {
         Binding(
-            get: { modeRaw == "single" ? singleBookID : "mix" },
+            get: {
+                switch modeRaw {
+                case "single": return singleBookID
+                case "shelf": return Self.shelfTagPrefix + feedShelfID
+                default: return "mix"
+                }
+            },
             set: { value in
                 if value == "mix" {
                     modeRaw = "mix"
+                } else if value.hasPrefix(Self.shelfTagPrefix) {
+                    feedShelfID = String(value.dropFirst(Self.shelfTagPrefix.count))
+                    modeRaw = "shelf"
                 } else {
                     singleBookID = value
                     modeRaw = "single"
@@ -77,6 +92,8 @@ struct FeedView: View {
         .onChange(of: styleRaw) { configureFeed() }
         .onChange(of: modeRaw) { configureFeed() }
         .onChange(of: singleBookID) { configureFeed() }
+        .onChange(of: feedShelfID) { configureFeed() }
+        .onChange(of: app.shelves.shelves) { configureFeed() }
         .onChange(of: AppSettings.shared.wordLimit) { configureFeed() }
         .onChange(of: feed.mode) { _, mode in
             if mode == .mix && modeRaw != "mix" { modeRaw = "mix" }
@@ -114,19 +131,50 @@ struct FeedView: View {
 
     private var modeMenu: some View {
         Menu {
-            Picker("Feed mode", selection: modeSelection) {
-                Label("Mix all books", systemImage: "shuffle").tag("mix")
-                Section("One book") {
-                    ForEach(app.feed.books) { book in
-                        Text(book.title).tag(book.id.uuidString)
+            // Buttons, not a Picker: iOS 17 drops the sections of a Picker inside a Menu.
+            let selection = modeSelection
+            MenuChoice(title: "Mix all books", symbol: "shuffle", isSelected: selection.wrappedValue == "mix") {
+                selection.wrappedValue = "mix"
+            }
+            if !app.shelves.shelves.isEmpty {
+                Section("Shelf") {
+                    ForEach(app.shelves.shelves) { shelf in
+                        let tag = Self.shelfTagPrefix + shelf.id.uuidString
+                        MenuChoice(title: shelf.name, isSelected: selection.wrappedValue == tag) {
+                            selection.wrappedValue = tag
+                        }
+                    }
+                }
+            }
+            Section("One book") {
+                ForEach(app.feed.books) { book in
+                    let tag = book.id.uuidString
+                    MenuChoice(title: book.title, isSelected: selection.wrappedValue == tag) {
+                        selection.wrappedValue = tag
                     }
                 }
             }
         } label: {
-            Image(systemName: selectedModeIsMix ? "shuffle" : "book.closed")
+            Image(systemName: modeSymbol)
         }
         .accessibilityLabel("Feed mode")
-        .accessibilityValue(selectedModeIsMix ? "Mix all books" : "One book: \(app.feed.title)")
+        .accessibilityValue(modeDescription)
+    }
+
+    private var modeSymbol: String {
+        switch app.feed.mode {
+        case .mix: return "shuffle"
+        case .single: return "book.closed"
+        case .shelf: return "books.vertical"
+        }
+    }
+
+    private var modeDescription: String {
+        switch app.feed.mode {
+        case .mix: return "Mix all books"
+        case .single: return "One book: \(app.feed.title)"
+        case let .shelf(shelf): return "Shelf: \(shelf.name)"
+        }
     }
 
     /// The book of One book mode; nil in Mix.
@@ -135,16 +183,11 @@ struct FeedView: View {
         return nil
     }
 
-    private var selectedModeIsMix: Bool {
-        if case .mix = app.feed.mode { return true }
-        return false
-    }
-
     private var styleMenu: some View {
         Menu {
-            Picker("Post style", selection: $styleRaw) {
-                ForEach(PostStyle.allCases) { style in
-                    Text(style.title).tag(style.rawValue)
+            ForEach(PostStyle.allCases) { style in
+                MenuChoice(title: style.title, isSelected: styleRaw == style.rawValue) {
+                    styleRaw = style.rawValue
                 }
             }
             Divider()
@@ -156,6 +199,28 @@ struct FeedView: View {
         }
         .accessibilityLabel("Post style")
         .accessibilityValue(selectedStyle.title)
+    }
+}
+
+/// One choice in a menu: a checkmark when selected, else its symbol (if any).
+@MainActor
+struct MenuChoice: View {
+    let title: String
+    var symbol: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            if isSelected {
+                Label(title, systemImage: "checkmark")
+            } else if let symbol {
+                Label(title, systemImage: symbol)
+            } else {
+                Text(title)
+            }
+        }
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 }
 

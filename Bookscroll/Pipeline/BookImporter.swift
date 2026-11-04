@@ -54,7 +54,17 @@ enum BookImporter {
         report(0.75)
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        return try BookWriter.write(parsed: parsed, segmented: segmented, into: context) { report(0.75 + $0 * 0.25) }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let id = try BookWriter.write(
+            parsed: parsed,
+            segmented: segmented,
+            into: context,
+            source: (name: url.lastPathComponent, size: size)
+        ) { report(0.75 + $0 * 0.25) }
+        if let cover = parsed.cover {
+            CoverStore.save(cover, bookID: id)
+        }
+        return id
     }
 }
 
@@ -68,6 +78,7 @@ enum BookWriter {
         parsed: ParsedBook,
         segmented: SegmentedBook,
         into context: ModelContext,
+        source: (name: String, size: Int)? = nil,
         progress: (Double) -> Void = { _ in }
     ) throws -> UUID {
         try rejectDuplicate(parsed: parsed, segmented: segmented, in: context)
@@ -84,6 +95,8 @@ enum BookWriter {
             passageSegmentCount: segmented.passages.count,
             importNote: parsed.note
         )
+        book.sourceFileName = source?.name
+        book.sourceFileSize = source?.size ?? 0
         let bookID = book.id
         var derived = DerivedData.Builder()
         for draft in segmented.paragraphs {
