@@ -196,12 +196,14 @@ final class AppModel {
     let feed: FeedViewModel
     let importer: ImportManager
     let folderSync: FolderSync
+    let stats: ReadingStats
     /// Full-text index of the library. Nil when it could not be opened; search is then off.
     let searchIndex: SearchIndex?
     @ObservationIgnored private(set) var resumedDeletions: [Task<Void, Never>] = []
     @ObservationIgnored private var searchSync: Task<Void, Never>?
 
-    init(container: ModelContainer, searchIndex: SearchIndex? = nil, folderSync: FolderSync? = nil) {
+    /// `stats` nil keeps reading stats in memory only.
+    init(container: ModelContainer, searchIndex: SearchIndex? = nil, folderSync: FolderSync? = nil, stats: ReadingStats? = nil) {
         self.container = container
         self.searchIndex = searchIndex
         let store = LibraryStore(context: container.mainContext)
@@ -211,10 +213,14 @@ final class AppModel {
         self.feed = FeedViewModel(store: store)
         self.importer = ImportManager(container: container)
         self.folderSync = folderSync ?? FolderSync()
+        self.stats = stats ?? ReadingStats(fileURL: nil)
         importer.onImported = { [weak self] in
             self?.libraryDidChange()
         }
         importer.coverFolder = CoverCache.shared.folder
+        feed.onRead = { [weak stats = self.stats] characters in
+            stats?.record(characters: characters)
+        }
         importer.onReplaced = { [weak self] old, new in
             self?.bookWasReplaced(old, by: new)
         }

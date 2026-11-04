@@ -178,6 +178,7 @@ final class AppFlowTests: XCTestCase {
         XCTAssertEqual(app.store.book(id: ids[0])?.positionOffset, posts[10].segment.charStart)
         app.feed.didScroll(to: posts[4].id)
         XCTAssertEqual(app.store.book(id: ids[0])?.positionOffset, posts[10].segment.charStart, "Scrolling back never moves the position back")
+        XCTAssertEqual(app.stats.totalCharacters, posts[10].segment.charStart, "Reading stats count the text moved past, once")
 
         // Switching style resumes at the passage that holds the saved offset.
         app.feed.configure(style: .passage, mode: .single(ids[0]))

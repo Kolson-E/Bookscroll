@@ -15,6 +15,7 @@ struct LibraryView: View {
     @State private var newShelfBookID: UUID?
     @State private var newShelfName = ""
     @State private var isPasting = false
+    @State private var showsStats = false
 
     private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isFiltered: Bool { status != .all || format != .all }
@@ -42,6 +43,10 @@ struct LibraryView: View {
                 PasteTextSheet()
                     .environment(app)
             }
+            .sheet(isPresented: $showsStats) {
+                StatsView()
+                    .environment(app)
+            }
             .alert("New Shelf", isPresented: isNamingShelf) {
                 TextField("Name", text: $newShelfName)
                 Button("Create") {
@@ -59,6 +64,15 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     arrangeMenu
+                }
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showsStats = true
+                    } label: {
+                        Label("Reading Stats", systemImage: "chart.bar")
+                    }
+                    .accessibilityHint("Shows your reading time, speed and time left")
+                    .accessibilityIdentifier("library.stats")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -362,12 +376,19 @@ enum FeedWeightChoice: CaseIterable, Identifiable {
 
 @MainActor
 private struct BookRow: View {
+    @Environment(AppModel.self) private var app
     let book: Book
     @ScaledMetric(relativeTo: .headline) private var scaledAvatarSize: CGFloat = 40
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     private var avatarSize: CGFloat { min(scaledAvatarSize, 56) }
 
     private var percent: Int { TextUtils.percent(book.positionOffset, of: book.totalCharacters) }
+
+    /// "about 3 h 20 min left" at the reader's speed.
+    private var timeLeft: String {
+        let seconds = app.stats.timeToRead(characters: book.totalCharacters - book.positionOffset)
+        return "about \(ReadingStats.formatDuration(seconds)) left"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -397,9 +418,10 @@ private struct BookRow: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(Theme.secondaryText)
             } else {
-                Text("\(percent)% read")
+                Text("\(percent)% read \u{00B7} \(timeLeft)")
                     .font(.caption)
                     .foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if let note = book.importNote {
                 Label(note, systemImage: "info.circle")
@@ -442,7 +464,7 @@ private struct BookRow: View {
         if let finishedAt = book.finishedAt {
             text += " Finished \(finishedAt.formatted(date: .long, time: .omitted))."
         } else {
-            text += " \(percent) percent read."
+            text += " \(percent) percent read, \(timeLeft)."
         }
         if let note = book.importNote { text += " \(note)" }
         if let mixStatus { text += " \(mixStatus)." }

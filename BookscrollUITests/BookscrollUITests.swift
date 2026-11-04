@@ -537,6 +537,12 @@ final class BookscrollUITests: XCTestCase {
         tab(app, "Library")
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
         try audit(app, screen: "\(prefix) library")
+        tapToolbarButton(app, "library.stats")
+        XCTAssertTrue(app.buttons["stats.done"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "stats.chart").firstMatch.waitForExistence(timeout: 5))
+        screenshot("30-\(prefix)-stats")
+        try audit(app, screen: "\(prefix) stats")
+        app.buttons["stats.done"].tap()
 
         tab(app, "Shelves")
         XCTAssertTrue(app.buttons["shelves.empty.new"].waitForExistence(timeout: 5))

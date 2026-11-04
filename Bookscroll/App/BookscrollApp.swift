@@ -11,21 +11,25 @@ struct BookscrollApp: App {
     init() {
         let container: ModelContainer
         let searchIndex: SearchIndex?
+        let stats: ReadingStats
         #if DEBUG
         if let testContainer = UITestSupport.makeContainerIfRequested() {
             container = testContainer
             searchIndex = try? SearchIndex.inMemory()
+            stats = ReadingStats(fileURL: nil)
         } else {
             container = Self.makeContainer()
             searchIndex = try? SearchIndex(url: SearchIndex.defaultURL)
+            stats = ReadingStats()
         }
         #else
         container = Self.makeContainer()
         searchIndex = try? SearchIndex(url: SearchIndex.defaultURL)
+        stats = ReadingStats()
         #endif
         FileStaging.removeLeftovers()
         self.container = container
-        _app = State(initialValue: AppModel(container: container, searchIndex: searchIndex))
+        _app = State(initialValue: AppModel(container: container, searchIndex: searchIndex, stats: stats))
     }
 
     private static func makeContainer() -> ModelContainer {
@@ -116,6 +120,7 @@ struct RootView: View {
                 app.folderSync.sync()
             } else {
                 app.store.save()
+                app.stats.pause()
             }
         }
     }

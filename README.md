@@ -90,7 +90,7 @@ and a word count. **Add** queues it like a file import.
 | Tab | What it does |
 |---|---|
 | Feed | The timeline. Toolbar left: **Mix all books**, a **Shelf**, or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
-| Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB, PDF or text formats only. **Paste Text** (toolbar right) adds text as a book. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…** (with **Replace File…**: a new version of the book takes over its place, marks, details and shelves; where the text changed they go to the nearest matching words), **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
+| Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB, PDF or text formats only. **Reading Stats** (toolbar left): reading time today and this week, words today, streak, a chart of the last 14 days, speed, total time, books finished this year, and the time left in each book you are reading. **Paste Text** (toolbar right) adds text as a book. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…** (with **Replace File…**: a new version of the book takes over its place, marks, details and shelves; where the text changed they go to the nearest matching words), **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
 | Shelves | Your own groups of books (a book can be on more than one shelf). **New Shelf**, rename, reorder, delete (the books stay in the library). In a shelf: **Add or Remove Books…**, reorder, swipe to remove, and **Read as Feed**: a Mix of only the shelf's books. In the Library, touch and hold a book for **Add to Shelf**. |
 | Saved | **Bookmarks** (your saved places, as a feed), **Likes**, and **Highlights**, newest first. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
 | Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. **Synced folder** (see Getting books in). **Back Up and Restore**: export a JSON file with every book's place, finish date, Mix settings, title, author, avatar photo and marks, and the shelves (not the books or settings); restore it after importing the books again (books are found by title, author and length; marks are not added twice). **Storage**: total space, split into library, search index, and covers and photos; every book with its estimated size, largest first (its share of the library and index follows its length); swipe to delete. |
@@ -125,6 +125,16 @@ book's colour. Images are stored as JPEG files of at most 360 pixels in
 `Application Support/Covers`, outside the database. Edit Details also changes the title and
 author the app shows (the file is not changed) and shows the file name, file size, detected
 language, and the added, last read and finished dates.
+
+**Reading stats and time left.** The feed counts the text it moves past (a book's place moving
+forward; a move of more than 20,000 characters at once is a jump and does not count). Time
+counts between two such moves when they are at most 2 minutes apart, so time with the app open
+but unused does not count, and the first move after the app goes to the background adds no
+time. Your speed is the counted text over the counted time, after 10 minutes of reading; until
+then the app uses 200 words a minute (a word is 6 characters). Each book in the Library shows
+"N% read · about X left" at that speed (rounded to 5 minutes, or 1 minute under 10 minutes).
+Stats are kept per day in `Application Support/ReadingStats.json`, outside the database and
+the backup.
 
 **Language** is detected once per book from the first 6,000 characters (`NaturalLanguage`,
 shown only at 50% confidence or more).
@@ -306,7 +316,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 203 tests):
+`BookscrollTests` (XCTest, 208 tests):
 
 | Area | File |
 |---|---|
@@ -321,7 +331,8 @@ property is named `passagesOnly` because that is what it means.
 | Folder scan (subfolders, hidden files, iCloud placeholders), synced folder (each file once, kept across launches, stop, missing folder), quiet duplicates, folder import | `FolderSyncTests.swift` |
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
 | Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
-| Reader window and paging, like/bookmark, deletion, position saving | `AppFlowTests.swift` |
+| Reader window and paging, like/bookmark, deletion, position saving, reading counted once | `AppFlowTests.swift` |
+| Reading time only for short gaps, jumps ignored, pause, measured speed after 10 minutes, time left, streak, last 14 days, week, saving and loading, duration formats | `ReadingStatsTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
 | Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
 | FTS5 search index: query escaping, add/search/remove, backup exclusion, backfill | `SearchIndexTests.swift` |
