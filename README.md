@@ -66,55 +66,67 @@ runner against the newest available iPhone simulator.
 
 ## Install with TestFlight (no Mac)
 
-`.github/workflows/testflight.yml` builds, signs and uploads the app on a GitHub macOS runner.
-You install it on your iPhone with Apple's TestFlight app. You need a paid Apple Developer
-Program membership (99 USD a year). You can do all steps from a phone browser and the GitHub app.
+`.github/workflows/testflight.yml` builds, signs and uploads the app on a GitHub macOS runner
+with the newest release Xcode (26 or later; App Store Connect refuses older builds). You
+install it on your iPhone with Apple's TestFlight app. You need a paid Apple Developer Program
+membership (99 USD a year). You can do all steps from a phone browser and the GitHub app.
 
-1. **Join the Apple Developer Program.** Use the Apple Developer app on iPhone, or
+The workflow also runs by itself on the 1st of every odd month. With automatic distribution
+(step 8) and automatic updates (step 9), a new build installs before the old one expires, so you
+never refresh the app by hand.
+
+1. **Put the workflows on `main`.** GitHub shows "Run workflow" and runs schedules only for
+   workflows on the default branch. Open a pull request from `claude/new-session-c3goac` to
+   `main` and merge it.
+2. **Join the Apple Developer Program.** Use the Apple Developer app on iPhone, or
    developer.apple.com/programs/enroll. Approval can take up to 48 hours.
-2. **Find your Team ID.** developer.apple.com/account › Membership details › Team ID
+3. **Find your Team ID.** developer.apple.com/account › Membership details › Team ID
    (10 characters, like `ABCDE12345`).
-3. **Make an App Store Connect API key.** appstoreconnect.apple.com › Users and Access ›
+4. **Make an App Store Connect API key.** appstoreconnect.apple.com › Users and Access ›
    Integrations › App Store Connect API › Team Keys › **+**. Name: `GitHub`. Access: **Admin**
    (the upload uses a cloud-managed distribution certificate, which needs Admin). Download the
    `.p8` file; Apple lets you download it one time only. Write down the **Key ID** and the
    **Issuer ID** (above the key list).
-4. **Add the secrets to GitHub.** In this repository: Settings › Secrets and variables › Actions.
+5. **Add the secrets to GitHub.** In this repository: Settings › Secrets and variables › Actions.
 
    | Kind | Name | Value |
    |---|---|---|
-   | Secret | `APP_STORE_CONNECT_KEY_ID` | Key ID from step 3 |
-   | Secret | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from step 3 |
+   | Secret | `APP_STORE_CONNECT_KEY_ID` | Key ID from step 4 |
+   | Secret | `APP_STORE_CONNECT_ISSUER_ID` | Issuer ID from step 4 |
    | Secret | `APP_STORE_CONNECT_KEY` | All the text of the `.p8` file, including the `BEGIN` and `END` lines |
-   | Secret | `APPLE_TEAM_ID` | Team ID from step 2 |
+   | Secret | `APPLE_TEAM_ID` | Team ID from step 3 |
    | Variable (Variables tab) | `BUNDLE_ID` | A bundle id of your own, like `com.yourname.bookscroll` |
 
    On a phone, open the `.p8` file in the Files app, select all, copy, and paste it into the
    secret.
-5. **Run the workflow.** Actions › TestFlight › Run workflow. The first run registers the
-   bundle ids (`BUNDLE_ID`, `BUNDLE_ID.Widgets`) and the app group (`group.BUNDLE_ID`) in your
-   account. If App Store Connect has no app for the bundle id yet, the upload step fails with
-   "has no app with the bundle id". This is expected.
-6. **Make the app record.** appstoreconnect.apple.com › Apps › **+** › New App. Platform: iOS.
+6. **Run the workflow.** Actions › TestFlight › Run workflow › branch `main`. The first run
+   registers the bundle ids (`BUNDLE_ID`, `BUNDLE_ID.Widgets`) and the app group
+   (`group.BUNDLE_ID`) in your account. If App Store Connect has no app for the bundle id yet,
+   the upload step fails with "has no app with the bundle id". This is expected.
+7. **Make the app record.** appstoreconnect.apple.com › Apps › **+** › New App. Platform: iOS.
    Name: any name not used on the App Store (for example `Bookscroll <your initials>`).
-   Language: yours. Bundle ID: pick the one from step 4. SKU: any text, like `bookscroll`.
-   User access: Full Access.
-7. **Run the workflow again.** When it succeeds, Apple processes the build (usually 5 to
-   30 minutes). Then in App Store Connect › your app › TestFlight › Internal Testing, make a
-   group, add yourself, and add the build.
-8. **Install.** Install TestFlight from the App Store, sign in with the same Apple ID, and
-   accept the invite. Tap **Install**.
+   Language: yours. Bundle ID: pick the one from step 5. SKU: any text, like `bookscroll`.
+   User access: Full Access. Then run the workflow again. When it succeeds, Apple processes the
+   build (usually 5 to 30 minutes).
+8. **Make the tester group.** App Store Connect › your app › TestFlight › Internal Testing ›
+   **+**. Name it, turn on **Enable automatic distribution**, add yourself as a tester, and add
+   the build if it is not added already. Apple emails you an invite.
+9. **Install.** On the iPhone, install **TestFlight** from the App Store and sign in with the
+   same Apple ID. Open the invite email (or the TestFlight app) and tap **Accept**, then
+   **Install**. In TestFlight › Bookscroll, turn on **Automatic Updates**.
 
-To update the app, run the workflow again; TestFlight shows the new build. Each run uses the
-UTC date and time as the build number, so builds always go up.
+To get a new build at any time, run the workflow again. Each run uses the UTC date and time as
+the build number, so builds always go up.
 
 | Fact | Detail |
 |---|---|
 | Review | Internal testing (up to 100 members of your team) needs no App Review. |
-| Expiry | A TestFlight build stops opening after 90 days. Run the workflow again to get a new one. Your library stays. |
+| Expiry | A TestFlight build stops opening after 90 days. The schedule makes a new one every 2 months or less. Your library stays through updates. |
 | Encryption question | Not asked: `ITSAppUsesNonExemptEncryption` is `NO`. |
 | Certificates | Signing makes an "Apple Development" certificate on the runner. The last step revokes it through the API, so certificates do not pile up (the limit is small). |
 | Secrets | The key is written to the runner's temp folder only for the run and is removed at the end. |
+| Actions minutes | In a private repository, macOS minutes use your Actions allowance at a higher rate than Linux. One TestFlight run takes about 10 to 20 minutes. |
+| Failures | GitHub emails you when a scheduled run fails. Run it again by hand; the old build still has about a month left. |
 
 If the Archive step fails with a signing or provisioning error about the app group:
 developer.apple.com/account › Identifiers › App Groups › **+**, add `group.<BUNDLE_ID>`. Then
@@ -122,7 +134,8 @@ open the App IDs `<BUNDLE_ID>` and `<BUNDLE_ID>.Widgets`, turn on **App Groups**
 that group, save, and run the workflow again.
 
 Status: the workflow cannot run in CI without your Apple account, so its first real test is
-your first run. The app build itself is checked by CI on every push.
+your first run. CI checks the same Release build for a device with the same Xcode on every push
+(job "Release build"), without signing.
 
 ## Getting books in
 

@@ -6,6 +6,11 @@ name: TestFlight
 
 on:
   workflow_dispatch:
+  # A new build on the 1st of every odd month (10:49 UTC). Builds stop opening after 90 days,
+  # so a new one always arrives before the old one expires. Schedules run only from the
+  # default branch.
+  schedule:
+    - cron: "49 10 1 */2 *"
 
 concurrency:
   group: testflight
@@ -46,8 +51,8 @@ jobs:
           esac
           echo "Bundle id: $BUNDLE_ID (widgets: $BUNDLE_ID.Widgets, app group: group.$BUNDLE_ID)"
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Select Xcode
+        run: .github/scripts/select_newest_xcode.sh 26
 
       - name: Generate Xcode project
         run: |
