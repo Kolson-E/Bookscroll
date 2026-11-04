@@ -152,8 +152,12 @@ struct ShelfDetailView: View {
         List {
             if !books.isEmpty {
                 Button { readInFeed() } label: {
-                    Label("Read as Feed", systemImage: "text.bubble")
-                        .font(.headline)
+                    Label {
+                        Text("Read as Feed").fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "text.bubble")
+                    }
+                    .font(.headline)
                 }
                 .listRowBackground(Theme.background)
                 .accessibilityHint("Shows the books of this shelf, mixed, in the feed")

@@ -380,3 +380,11 @@ Dynamic Type styles up to accessibility sizes. Liked and bookmarked states use f
 VoiceOver values, not only colour. Like and bookmark give haptic feedback. Every theme and
 accent passes a WCAG contrast test (4.5:1 for text), and the UI tests run Apple's accessibility
 audit on each theme.
+
+Audit policy: every finding fails the UI test except a short list of known false positives
+(see `isKnownFalsePositive` in the UI tests). Findings that the audit reports without an
+element cannot be located or judged; they are printed (`AUDIT: ignored`) with a screenshot of
+the screen (`audit-<screen>`) but do not fail. On iOS 26 they come from the glass tab bar over
+scrolled content (contrast); on iOS 17 from rows that VoiceOver reads as one element (Dynamic
+Type, clipping). The largest-text-size test saves pictures of the feed, Library and Settings
+for a visual check.

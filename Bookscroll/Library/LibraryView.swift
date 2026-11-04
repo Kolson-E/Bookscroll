@@ -247,8 +247,12 @@ private struct FilterSummaryRow: View {
             }
             .accessibilityElement(children: .combine)
             Spacer(minLength: 8)
-            Button("Clear", action: onClear)
-                .font(.subheadline.weight(.semibold))
+            Button(action: onClear) {
+                Text("Clear")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Clear filter")
                 .accessibilityIdentifier("library.filter.clear")
@@ -386,6 +390,7 @@ private struct BookRow: View {
             if let finishedAt = book.finishedAt {
                 Label {
                     Text("Finished \(finishedAt.formatted(date: .abbreviated, time: .omitted))")
+                        .fixedSize(horizontal: false, vertical: true)
                 } icon: {
                     Image(systemName: "checkmark.circle.fill")
                 }

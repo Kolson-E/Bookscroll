@@ -85,7 +85,12 @@ struct BookDetailsSheet: View {
                     .accessibilityLabel(previewDescription)
                     .accessibilityIdentifier("details.avatar")
                 PhotosPicker(selection: $photoItem, matching: .images) {
-                    Label(currentPhoto == nil ? "Choose Photo\u{2026}" : "Choose Another Photo\u{2026}", systemImage: "photo")
+                    Label {
+                        Text(currentPhoto == nil ? "Choose Photo\u{2026}" : "Choose Another Photo\u{2026}")
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "photo")
+                    }
                 }
                 .accessibilityIdentifier("details.photo")
                 if currentPhoto != nil {

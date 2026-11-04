@@ -125,6 +125,12 @@ final class FeedViewModel {
         scrolledID = posts.first?.id
     }
 
+    /// Starts the feed again from the places stored in the library (after a restore).
+    func reloadFromLibrary() {
+        guard configured else { return }
+        rebuild()
+    }
+
     private func rebuild(excluding excluded: UUID? = nil) {
         books = store.feedBooks().filter { $0.id != excluded }
         if case let .single(id) = mode, !books.contains(where: { $0.id == id }) {

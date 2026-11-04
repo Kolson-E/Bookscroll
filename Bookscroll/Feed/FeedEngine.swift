@@ -280,12 +280,11 @@ final class FeedEngine {
         }
         bookOrder.removeAll { removed.contains($0) }
         for book in newBooks {
-            if var current = books[book.id] {
-                current.hiddenFromMix = book.hiddenFromMix
-                current.snoozedUntil = book.snoozedUntil
-                current.feedWeight = book.feedWeight
-                current.autoWordLimit = book.autoWordLimit
-                books[book.id] = current
+            if let current = books[book.id] {
+                // New details, Mix settings and finish date; the feed keeps its own place.
+                var updated = book
+                updated.positionOffset = current.positionOffset
+                books[book.id] = updated
             } else {
                 books[book.id] = book
                 bookOrder.append(book.id)

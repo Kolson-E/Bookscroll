@@ -531,6 +531,7 @@ final class AppModel {
             shelfCount += 1
         }
         libraryDidChange()
+        feed.reloadFromLibrary()
         let missing = zip(backup.books, matches).filter { $0.1 == nil }.map(\.0.title)
         return RestoreSummary(restored: resolved.count, missing: missing, shelves: shelfCount)
     }
