@@ -58,7 +58,7 @@ final class LibraryArrangementTests: XCTestCase {
 
     func testTiesAreStable() {
         let same = date(1)
-        let books = (0..<20).map { Item(id: UUID(), title: "Same", addedAt: same) }
+        let books = (0..<20).map { _ in Item(id: UUID(), title: "Same", addedAt: same) }
         let first = LibraryArrangement.arrange(books, sort: .recentlyAdded).map(\.id)
         let again = LibraryArrangement.arrange(Array(books.reversed()), sort: .recentlyAdded).map(\.id)
         XCTAssertEqual(first, again, "Equal keys fall back to the id, so the order never depends on input order")
