@@ -15,6 +15,7 @@ struct SettingsView: View {
         case wordLimit
         case readerFont
         case storage
+        case folderSync
 
         var id: Self { self }
     }
@@ -61,6 +62,8 @@ struct SettingsView: View {
                 .listRowBackground(Theme.secondaryBackground)
 
                 Section {
+                    ChoiceRow(title: "Synced folder", value: app.folderSync.folderName ?? "Off") { openChoice = .folderSync }
+                        .accessibilityIdentifier("settings.folderSync")
                     ChoiceRow(title: "Storage", value: storageTotal) { openChoice = .storage }
                         .accessibilityIdentifier("settings.storage")
                 } header: {
@@ -122,6 +125,8 @@ struct SettingsView: View {
             }
         case .storage:
             StorageView()
+        case .folderSync:
+            FolderSyncView()
         }
     }
 

@@ -535,6 +535,10 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "storage.book").firstMatch.waitForExistence(timeout: 10))
         screenshot("28-\(prefix)-storage")
         try audit(app, screen: "\(prefix) storage")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.buttons["settings.folderSync"].tap()
+        XCTAssertTrue(app.buttons["folderSync.choose"].waitForExistence(timeout: 5))
+        try audit(app, screen: "\(prefix) synced folder")
 
         tab(app, "Feed")
         // A tap on the post text opens the reader (focus mode has no action bar).

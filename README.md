@@ -46,6 +46,9 @@ the Books library. Import DRM-free files instead:
 |---|---|
 | Files picker | Library tab → **+**, or **Import Books** on the empty Feed or Library screen. Pick one or more files from iCloud Drive, On My iPhone or any file provider. |
 | Open in Bookscroll | In Files, Mail, Safari downloads or another app: Share → **Bookscroll**. The app opens on the Library tab and imports the file. |
+| A folder | In the Files picker, pick a folder: every book file in it and its subfolders is queued. Books already in the library are skipped without an error. |
+| Synced folder | Settings › **Synced folder** › **Choose Folder…**. Each new book file in that folder (and its subfolders) is imported when the app opens or comes back to the front, or on **Sync Now**. A file is imported once, by its path. Removing a file does not delete the book; a deleted book is not imported again. iCloud files that are not downloaded yet are asked to download and come in on the next sync. |
+| Paste Text | Library toolbar → **Paste Text**. |
 
 Bookscroll registers EPUB (`org.idpf.epub-container`), PDF (`com.adobe.pdf`), plain text
 (`public.plain-text`), Markdown (`net.daringfireball.markdown`, declared as an imported type),
@@ -90,7 +93,7 @@ and a word count. **Add** queues it like a file import.
 | Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB, PDF or text formats only. **Paste Text** (toolbar right) adds text as a book. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…**, **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
 | Shelves | Your own groups of books (a book can be on more than one shelf). **New Shelf**, rename, reorder, delete (the books stay in the library). In a shelf: **Add or Remove Books…**, reorder, swipe to remove, and **Read as Feed**: a Mix of only the shelf's books. In the Library, touch and hold a book for **Add to Shelf**. |
 | Saved | **Bookmarks** (your saved places, as a feed), **Likes**, and **Highlights**, newest first. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
-| Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. **Storage**: total space, split into library, search index, and covers and photos; every book with its estimated size, largest first (its share of the library and index follows its length); swipe to delete. |
+| Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. **Synced folder** (see Getting books in). **Storage**: total space, split into library, search index, and covers and photos; every book with its estimated size, largest first (its share of the library and index follows its length); swipe to delete. |
 
 On a post:
 
@@ -293,7 +296,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 184 tests):
+`BookscrollTests` (XCTest, 190 tests):
 
 | Area | File |
 |---|---|
@@ -304,6 +307,7 @@ property is named `passagesOnly` because that is what it means.
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
 | Store key queries, position clamping, chunked deletion, duplicates, ordinals | `StoreTests.swift` |
 | Files picker, staging, Open in Bookscroll, import queue | `ImportTests.swift` |
+| Folder scan (subfolders, hidden files, iCloud placeholders), synced folder (each file once, kept across launches, stop, missing folder), quiet duplicates, folder import | `FolderSyncTests.swift` |
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
 | Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
 | Reader window and paging, like/bookmark, deletion, position saving | `AppFlowTests.swift` |
@@ -330,7 +334,7 @@ library:
 - Make a shelf, add a book, and read the shelf as a feed.
 - Paste text as a book; it shows in the Library and in the Feed mode menu (with an audit of
   the Paste Text sheet).
-- `performAccessibilityAudit()` on the feed, library, Shelves, Saved, Settings, Storage and reader screens in the
+- `performAccessibilityAudit()` on the feed, library, Shelves, Saved, Settings, Storage, Synced folder and reader screens in the
   Light, Night and Sepia themes, and in Compact density with focus mode and the serif font.
 - The largest accessibility text size.
 

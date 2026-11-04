@@ -195,12 +195,13 @@ final class AppModel {
     let shelves: ShelfStore
     let feed: FeedViewModel
     let importer: ImportManager
+    let folderSync: FolderSync
     /// Full-text index of the library. Nil when it could not be opened; search is then off.
     let searchIndex: SearchIndex?
     @ObservationIgnored private(set) var resumedDeletions: [Task<Void, Never>] = []
     @ObservationIgnored private var searchSync: Task<Void, Never>?
 
-    init(container: ModelContainer, searchIndex: SearchIndex? = nil) {
+    init(container: ModelContainer, searchIndex: SearchIndex? = nil, folderSync: FolderSync? = nil) {
         self.container = container
         self.searchIndex = searchIndex
         let store = LibraryStore(context: container.mainContext)
@@ -209,8 +210,13 @@ final class AppModel {
         self.shelves = ShelfStore(context: container.mainContext)
         self.feed = FeedViewModel(store: store)
         self.importer = ImportManager(container: container)
+        self.folderSync = folderSync ?? FolderSync()
         importer.onImported = { [weak self] in
             self?.libraryDidChange()
+        }
+        // Synced files import quietly: their progress shows in the Library if it is open.
+        self.folderSync.enqueue = { [weak importer = self.importer] urls, folder in
+            importer?.enqueue(urls, scope: folder, skipsDuplicates: true)
         }
         // Finish deletions that were cut short when the app last stopped.
         resumedDeletions = BookDeleter.pendingBookIDs(in: container.mainContext).map { runDeletion(of: $0) }
@@ -360,11 +366,28 @@ final class AppModel {
         importFiles([url])
     }
 
-    /// Queues files and shows the Library, where their progress and errors appear.
+    /// Queues files and shows the Library, where their progress and errors appear. A folder
+    /// queues the book files inside it and its subfolders; books already in the library are
+    /// skipped without an error.
     func importFiles(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         selectedTab = .library
-        importer.enqueue(urls)
+        var files: [URL] = []
+        for url in urls {
+            let accessing = url.startAccessingSecurityScopedResource()
+            let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+            let found = isFolder ? FolderScan.bookFiles(in: url) : []
+            if accessing { url.stopAccessingSecurityScopedResource() }
+            guard isFolder else {
+                files.append(url)
+                continue
+            }
+            if found.isEmpty {
+                errorMessage = "The folder \u{201C}\(url.lastPathComponent)\u{201D} has no EPUB, PDF, text, Markdown, HTML or RTF files."
+            }
+            importer.enqueue(found, scope: url, skipsDuplicates: true)
+        }
+        importer.enqueue(files)
     }
 
     func libraryDidChange() {

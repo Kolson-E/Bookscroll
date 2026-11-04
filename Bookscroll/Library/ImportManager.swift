@@ -33,7 +33,9 @@ final class ImportManager {
     private let container: ModelContainer
     /// What a job imports: a file, or text pasted into the app.
     private enum Source: Sendable {
-        case file(URL)
+        /// `scope`: the folder whose security scope covers the file (folder import and sync).
+        /// `skipsDuplicates`: a book already in the library is not an error (sync).
+        case file(URL, scope: URL?, skipsDuplicates: Bool)
         case pasted(text: String, title: String, author: String)
     }
 
@@ -48,12 +50,12 @@ final class ImportManager {
         self.container = container
     }
 
-    func enqueue(_ urls: [URL]) {
+    func enqueue(_ urls: [URL], scope: URL? = nil, skipsDuplicates: Bool = false) {
         guard !urls.isEmpty else { return }
         for url in urls {
             let job = Job(fileName: url.lastPathComponent)
             jobs.append(job)
-            queue.append((job.id, .file(url)))
+            queue.append((job.id, .file(url, scope: scope, skipsDuplicates: skipsDuplicates)))
         }
         start()
     }
@@ -85,6 +87,8 @@ final class ImportManager {
             let container = self.container
             let jobID = next.id
             let source = next.source
+            var skipsDuplicates = false
+            if case let .file(_, _, skips) = source { skipsDuplicates = skips }
             let result: Result<UUID, Error> = await Task.detached(priority: .userInitiated) {
                 let progress: (Double) -> Void = { value in
                     Task { @MainActor [weak self] in
@@ -92,12 +96,12 @@ final class ImportManager {
                     }
                 }
                 switch source {
-                case let .file(url):
+                case let .file(url, scope, _):
                     // A file handed over by another app is a copy in Documents/Inbox. It is
                     // removed whatever the outcome; the user's original stays where it was.
                     defer { FileStaging.removeIfInboxCopy(url) }
                     do {
-                        let staged = try FileStaging.stage(url)
+                        let staged = try FileStaging.stage(url, scope: scope)
                         defer { FileStaging.cleanUp(staged) }
                         return .success(try BookImporter.importBook(at: staged, into: container, progress: progress))
                     } catch {
@@ -115,6 +119,10 @@ final class ImportManager {
                 jobs.removeAll { $0.id == jobID }
                 onImported?()
             case let .failure(error):
+                if skipsDuplicates, case .duplicate = error as? BookImportError {
+                    jobs.removeAll { $0.id == jobID }
+                    continue
+                }
                 let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 update(jobID) { $0.status = .failed(message) }
             }
@@ -146,9 +154,11 @@ final class ImportManager {
 
 /// Copies a picked file into the app's temporary folder, inside its security scope.
 enum FileStaging {
-    static func stage(_ url: URL) throws -> URL {
-        let accessing = url.startAccessingSecurityScopedResource()
-        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+    /// `scope` is the folder the file was found in, when the file's access comes from it.
+    static func stage(_ url: URL, scope: URL? = nil) throws -> URL {
+        let scoped = scope ?? url
+        let accessing = scoped.startAccessingSecurityScopedResource()
+        defer { if accessing { scoped.stopAccessingSecurityScopedResource() } }
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent(stagingPrefix + UUID().uuidString, isDirectory: true)
         do {

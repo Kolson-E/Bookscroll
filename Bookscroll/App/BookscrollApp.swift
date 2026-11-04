@@ -78,7 +78,8 @@ struct RootView: View {
         .toolbarBackground(Theme.background, for: .tabBar)
         .fileImporter(
             isPresented: $app.isImporterPresented,
-            allowedContentTypes: BookFormat.importableTypes,
+            // A folder imports the books inside it.
+            allowedContentTypes: BookFormat.importableTypes + [.folder],
             allowsMultipleSelection: true
         ) { result in
             app.handleImporterResult(result)
@@ -110,8 +111,12 @@ struct RootView: View {
             actions: { Button("OK", role: .cancel) {} },
             message: { Text(app.errorMessage ?? "") }
         )
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active { app.store.save() }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active {
+                app.folderSync.sync()
+            } else {
+                app.store.save()
+            }
         }
     }
 }
