@@ -277,6 +277,16 @@ The search screen comes in a later phase; this part is the engine.
   bottom 15% of most pages (digits ignored, so page numbers match) are removed. If paragraphs
   average more than 300 words, the book uses Passages style only and the Library says so. The
   PDF outline, when present, gives the chapter labels.
+  - Two columns: when at least three lines sit in each half of a page and together hold 70%
+    of its lines, the page is read as title, left column, right column; a paragraph can run on
+    from one column to the next.
+  - Headings: a short line (15 words or fewer) set at least 1.3 × the median line height starts
+    a new paragraph. Without an outline, each heading starts a chapter and is not a post; with
+    an outline, a heading that repeats its chapter's label is dropped. If more than a third of
+    the paragraphs look like headings, type size is ignored.
+  - A drop cap (one capital at least 1.8 × the line height) is joined to its word, and the
+    lines beside it are not taken as indented.
+  - Ligature characters (such as “ﬁ”) become plain letters.
 
 ### Dependency: ZIPFoundation
 
@@ -296,14 +306,14 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 190 tests):
+`BookscrollTests` (XCTest, 196 tests):
 
 | Area | File |
 |---|---|
 | Paragraph segmentation, passage chunker, tiling, style switch, marks | `SegmentationTests.swift` |
 | HTML to text | `HTMLTextTests.swift` |
 | EPUB paths, OPF/NCX/nav parsing, end-to-end import into SwiftData, DRM and error cases | `EPUBTests.swift` |
-| PDF paragraph detection on a generated PDF (headers, footers, hyphenation, page break, outline), scanned PDF | `PDFTests.swift` |
+| PDF paragraph detection on a generated PDF (headers, footers, hyphenation, page break, outline), scanned PDF, two-column order, headings by type size, drop caps, ligatures | `PDFTests.swift` |
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
 | Store key queries, position clamping, chunked deletion, duplicates, ordinals | `StoreTests.swift` |
 | Files picker, staging, Open in Bookscroll, import queue | `ImportTests.swift` |
@@ -356,8 +366,9 @@ Not verified:
 - No run on a physical device.
 - Share sheets, the Files picker contents, haptics and the system Look Up panel are shown by
   the system; the tests check that they open, not what they contain.
-- PDF paragraph detection is tested on generated PDFs. Real PDFs (multi-column layouts,
-  unusual fonts, ligatures) can give worse paragraphs.
+- PDF paragraph detection is tested on generated PDFs and synthetic line geometry (two
+  columns, headings, drop caps). Real PDFs with three or more columns, text in boxes, or
+  footnotes can still give worse paragraphs.
 
 ## Accessibility
 

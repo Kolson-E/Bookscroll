@@ -33,7 +33,8 @@ enum PDFBookParser {
                 guard let page = document.page(at: index) else {
                     return PDFPageLines(lines: [], height: 0)
                 }
-                return PDFPageLines(lines: extractLines(from: page), height: page.bounds(for: .mediaBox).height)
+                let bounds = page.bounds(for: .mediaBox)
+                return PDFPageLines(lines: extractLines(from: page), height: bounds.height, width: bounds.width)
             }
             letterCount += pageLines.lines.reduce(0) { sum, line in
                 sum + line.text.unicodeScalars.filter { $0.properties.isAlphabetic }.count
@@ -44,7 +45,7 @@ enum PDFBookParser {
             throw BookImportError.scannedPDF
         }
 
-        let cleaned = PDFParagraphDetector.removeRunningHeadersAndFooters(pages)
+        let cleaned = PDFParagraphDetector.removeRunningHeadersAndFooters(pages).map(PDFParagraphDetector.readingOrder)
         let detected = PDFParagraphDetector.detect(cleaned)
         guard !detected.isEmpty else { throw BookImportError.noText }
 
@@ -122,10 +123,18 @@ enum PDFBookParser {
     }
 
     /// Gives each paragraph the last outline entry that starts at or before it.
+    ///
+    /// Headings (short lines in larger type): without an outline, each heading starts a
+    /// chapter and is not a post. With an outline, a heading that repeats its chapter's label
+    /// is dropped; others stay as posts. When more than a third of the paragraphs look like
+    /// headings, type size says nothing in this PDF and is ignored.
     static func assignChapters(_ paragraphs: [DetectedParagraph], outline: [OutlineEntry]) -> [ParsedParagraph] {
+        let headingCount = paragraphs.filter(\.isHeading).count
+        let usesHeadings = headingCount > 0 && headingCount * 3 <= paragraphs.count
         var pointer = 0
         var label = ""
-        return paragraphs.map { paragraph in
+        var result: [ParsedParagraph] = []
+        for paragraph in paragraphs {
             while pointer < outline.count {
                 let entry = outline[pointer]
                 let isBefore = entry.pageIndex < paragraph.pageIndex
@@ -134,7 +143,17 @@ enum PDFBookParser {
                 label = entry.label
                 pointer += 1
             }
-            return ParsedParagraph(text: paragraph.text, chapter: label)
+            if usesHeadings, paragraph.isHeading {
+                if outline.isEmpty {
+                    label = paragraph.text
+                    continue
+                }
+                if paragraph.text.compare(label, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame {
+                    continue
+                }
+            }
+            result.append(ParsedParagraph(text: paragraph.text, chapter: label))
         }
+        return result
     }
 }

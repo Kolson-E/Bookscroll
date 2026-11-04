@@ -207,6 +207,102 @@ final class PDFTests: XCTestCase {
         ])
     }
 
+    private func line(_ text: String, x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat = 12) -> PDFTextLine {
+        PDFTextLine(text: text, rect: CGRect(x: x, y: y, width: width, height: height))
+    }
+
+    func testTwoColumnPageIsReadInColumnOrder() {
+        let left = ["The left column starts here and", "runs down the page in lines", "that wrap as columns do and", "go on at the top of the right"]
+        let right = ["column, where the sentence ends", "with more words and more lines", "until the paragraph is done at", "the bottom of the page."]
+        // PDFKit can return the two columns interleaved, row by row.
+        var lines = [line("A Two Column Page", x: 150, y: 720, width: 300)]
+        for row in 0..<4 {
+            let y = 650 - CGFloat(row) * 14
+            lines.append(line(left[row], x: 50, y: y, width: 230))
+            lines.append(line(right[row], x: 320, y: y, width: row == 3 ? 150 : 230))
+        }
+        let page = PDFPageLines(lines: lines, height: 792, width: 600)
+        let ordered = PDFParagraphDetector.readingOrder(page)
+        XCTAssertEqual(ordered.lines.map(\.text), ["A Two Column Page"] + left + right)
+        XCTAssertEqual(ordered.lines.last?.rect.minX, 50, "The right column moves onto the left margin")
+        XCTAssertEqual(PDFParagraphDetector.detect([ordered]).map(\.text), [
+            "A Two Column Page",
+            (left + right).joined(separator: " "),
+        ])
+
+        let oneColumn = PDFPageLines(lines: (0..<8).map { line("Line \($0) of a single column", x: 72, y: 700 - CGFloat($0) * 14, width: 450) }, height: 792, width: 612)
+        XCTAssertEqual(PDFParagraphDetector.readingOrder(oneColumn), oneColumn)
+    }
+
+    private var headingPage: PDFPageLines {
+        PDFPageLines(lines: [
+            line("Chapter One", x: 72, y: 700, width: 150, height: 24),
+            line("The first paragraph of the first chapter is", x: 72, y: 660, width: 400),
+            line("here.", x: 72, y: 646, width: 40),
+            line("A second paragraph, indented.", x: 92, y: 632, width: 380),
+            line("Chapter Two", x: 72, y: 590, width: 150, height: 24),
+            line("The second chapter starts with this line and", x: 72, y: 550, width: 400),
+            line("ends here.", x: 72, y: 536, width: 80),
+            line("Its last paragraph.", x: 92, y: 522, width: 380),
+        ], height: 792, width: 612)
+    }
+
+    func testLargeShortLinesBecomeChaptersWithoutAnOutline() {
+        let detected = PDFParagraphDetector.detect([headingPage])
+        XCTAssertEqual(detected.filter(\.isHeading).map(\.text), ["Chapter One", "Chapter Two"])
+        XCTAssertEqual(PDFBookParser.assignChapters(detected, outline: []), [
+            ParsedParagraph(text: "The first paragraph of the first chapter is here.", chapter: "Chapter One"),
+            ParsedParagraph(text: "A second paragraph, indented.", chapter: "Chapter One"),
+            ParsedParagraph(text: "The second chapter starts with this line and ends here.", chapter: "Chapter Two"),
+            ParsedParagraph(text: "Its last paragraph.", chapter: "Chapter Two"),
+        ])
+    }
+
+    func testAHeadingThatRepeatsItsOutlineLabelIsDropped() {
+        let detected = PDFParagraphDetector.detect([headingPage])
+        let outline = [PDFBookParser.OutlineEntry(label: "CHAPTER ONE", pageIndex: 0, y: 724)]
+        XCTAssertEqual(PDFBookParser.assignChapters(detected, outline: outline).map(\.text), [
+            "The first paragraph of the first chapter is here.",
+            "A second paragraph, indented.",
+            "Chapter Two",
+            "The second chapter starts with this line and ends here.",
+            "Its last paragraph.",
+        ])
+    }
+
+    func testTypeSizeIsIgnoredWhenTooManyLinesAreLarge() {
+        let page = PDFPageLines(lines: [
+            line("Big One", x: 72, y: 700, width: 150, height: 24),
+            line("A body line.", x: 72, y: 660, width: 400),
+            line("Big Two", x: 72, y: 620, width: 150, height: 24),
+            line("Another body line.", x: 72, y: 580, width: 400),
+        ], height: 792, width: 612)
+        let paragraphs = PDFBookParser.assignChapters(PDFParagraphDetector.detect([page]), outline: [])
+        XCTAssertEqual(paragraphs.map(\.text), ["Big One", "A body line.", "Big Two", "Another body line."])
+        XCTAssertEqual(Set(paragraphs.map(\.chapter)), [""])
+    }
+
+    func testDropCapJoinsItsWord() {
+        let page = PDFPageLines(lines: [
+            line("T", x: 50, y: 660, width: 22, height: 30),
+            line("he river ran fast under the old stone bridge and", x: 80, y: 676, width: 400),
+            line("nobody in the town could remember when it was", x: 80, y: 662, width: 400),
+            line("built, or by whom, so long ago was it built there.", x: 50, y: 648, width: 430),
+            line("A second paragraph begins with an indent", x: 70, y: 634, width: 410),
+            line("and ends.", x: 50, y: 620, width: 80),
+        ], height: 792, width: 612)
+        XCTAssertEqual(PDFParagraphDetector.detect([page]).map(\.text), [
+            "The river ran fast under the old stone bridge and nobody in the town could remember when it was built, or by whom, so long ago was it built there.",
+            "A second paragraph begins with an indent and ends.",
+        ])
+    }
+
+    func testLigaturesBecomeLetters() {
+        XCTAssertEqual(PDFParagraphDetector.joinLines(["The \u{FB01}rst \u{FB02}oor was", "e\u{FB03}cient"]), "The first floor was efficient")
+        XCTAssertEqual(PDFParagraphDetector.normalizeGlyphs("o\u{FB00} and wa\u{FB04}e and \u{FB06}op"), "off and waffle and stop")
+        XCTAssertEqual(PDFParagraphDetector.normalizeGlyphs("plain"), "plain")
+    }
+
     func testLongParagraphsForcePassages() {
         let long = String(repeating: "word ", count: 350)
         XCTAssertTrue(PDFBookParser.shouldForcePassages([ParsedParagraph(text: long, chapter: "")]))
