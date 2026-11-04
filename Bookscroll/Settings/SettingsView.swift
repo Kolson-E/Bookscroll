@@ -202,9 +202,9 @@ private struct AccentPicker: View {
 /// the sepia rows).
 @MainActor
 struct SectionHeader: View {
-    let title: String
+    let title: LocalizedStringKey
 
-    init(_ title: String) {
+    init(_ title: LocalizedStringKey) {
         self.title = title
     }
 
@@ -247,7 +247,7 @@ private struct CheckRow: View {
 /// colours.
 @MainActor
 struct ChoiceRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: String
     let action: () -> Void
 
@@ -287,10 +287,10 @@ struct ChoiceRow: View {
 /// The choices of one setting, with a checkmark on the current one.
 @MainActor
 struct ChoiceList<Value: Hashable>: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var selection: Value
     let choices: [Value]
-    var footer: String?
+    var footer: LocalizedStringKey?
     let label: (Value) -> String
 
     var body: some View {

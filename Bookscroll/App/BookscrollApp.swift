@@ -127,13 +127,12 @@ struct RootView: View {
             actions: { Button("OK", role: .cancel) {} },
             message: { Text(app.errorMessage ?? "") }
         )
-        .onDrop(of: BookFormat.importableTypes, isTargeted: $isDropTargeted) { providers in
+        .onDrop(of: BookFormat.importableTypes, delegate: BookDropDelegate(isTargeted: $isDropTargeted) { providers in
             Task {
                 let urls = await DroppedFiles.copy(from: providers)
                 if !urls.isEmpty { app.importFiles(urls) }
             }
-            return true
-        }
+        })
         .overlay {
             if isDropTargeted {
                 DropOverlay()

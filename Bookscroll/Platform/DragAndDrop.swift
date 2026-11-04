@@ -84,3 +84,38 @@ struct DropOverlay: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+/// Accepts a drop only when it holds book files, so text dragged from a post inside the app
+/// does not show the import overlay.
+struct BookDropDelegate: DropDelegate {
+    @Binding var isTargeted: Bool
+    let onFiles: ([NSItemProvider]) -> Void
+
+    private func bookProviders(_ info: DropInfo) -> [NSItemProvider] {
+        info.itemProviders(for: BookFormat.importableTypes).filter { DroppedFiles.bookType(of: $0) != nil }
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        !bookProviders(info).isEmpty
+    }
+
+    func dropEntered(info: DropInfo) {
+        isTargeted = validateDrop(info: info)
+    }
+
+    func dropExited(info: DropInfo) {
+        isTargeted = false
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: validateDrop(info: info) ? .copy : .forbidden)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        isTargeted = false
+        let providers = bookProviders(info)
+        guard !providers.isEmpty else { return false }
+        onFiles(providers)
+        return true
+    }
+}

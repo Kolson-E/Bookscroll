@@ -116,6 +116,24 @@ jobs:
             xcrun xccov view --report --files-for-target Bookscroll.app TestResults.xcresult || true
           fi
 
+      # Xcode fills the String Catalogs with every string it finds in the code. The result is
+      # printed so the catalogs in the repository can be kept equal to it.
+      - name: Export strings
+        if: always() && matrix.ios_major == ''
+        continue-on-error: true
+        run: |
+          xcodebuild -exportLocalizations \
+            -project Bookscroll.xcodeproj \
+            -localizationPath localizations \
+            -exportLanguage en \
+            CODE_SIGNING_ALLOWED=NO > export.log 2>&1 || { tail -40 export.log; exit 1; }
+          for file in Bookscroll/Resources/Localizable.xcstrings BookscrollWidgets/Localizable.xcstrings; do
+            echo "XCSTRINGS-BEGIN $file"
+            gzip -9 -c "$file" | base64 -b 120
+            echo "XCSTRINGS-END $file"
+          done
+          git status --short -- '*.xcstrings'
+
       - name: Print screenshots
         if: always()
         run: |

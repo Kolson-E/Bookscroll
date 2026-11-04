@@ -67,9 +67,9 @@ struct StatsView: View {
                 .listRowBackground(Theme.secondaryBackground)
 
                 Section {
-                    StatRow(title: "Speed", value: "about \(stats.wordsPerMinute) words a minute")
-                    StatRow(title: "Total reading time", value: ReadingStats.formatReadingTime(stats.totalSeconds))
-                    StatRow(title: "Finished this year", value: finishedThisYear == 1 ? "1 book" : "\(finishedThisYear) books")
+                    StatRow(title: String(localized: "Speed"), value: "about \(stats.wordsPerMinute) words a minute")
+                    StatRow(title: String(localized: "Total reading time"), value: ReadingStats.formatReadingTime(stats.totalSeconds))
+                    StatRow(title: String(localized: "Finished this year"), value: finishedThisYear == 1 ? "1 book" : "\(finishedThisYear) books")
                 } footer: {
                     Text(stats.measuredCharactersPerMinute == nil
                          ? "Your speed is measured after 10 minutes of reading. Until then, times left use 200 words a minute."
@@ -112,7 +112,7 @@ struct StatsView: View {
         let today = stats.day(.now)
         let week = stats.week()
         let streak = stats.streak()
-        let items: [(String, String)] = [
+        let items: [(LocalizedStringKey, String)] = [
             ("Today", ReadingStats.formatReadingTime(today.seconds)),
             ("Words today", Self.words(today.characters)),
             ("This week", ReadingStats.formatReadingTime(week.seconds)),
@@ -171,7 +171,7 @@ struct StatsView: View {
 
 @MainActor
 private struct Tile: View {
-    let title: String
+    let title: LocalizedStringKey
     let value: String
 
     var body: some View {
