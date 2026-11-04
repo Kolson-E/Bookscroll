@@ -19,7 +19,8 @@ concurrency:
 jobs:
   upload:
     name: Build and upload
-    runs-on: macos-15
+    # The same runner as the CI job "Release build".
+    runs-on: macos-26
     timeout-minutes: 60
     env:
       ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
