@@ -190,12 +190,21 @@ final class FeedEngineTests: XCTestCase {
         XCTAssertEqual(library.source.fetchCount, 2, "30 posts come from two batches of \(FeedEngine.fetchBatchSize)")
     }
 
-    func testProgressLine() {
+    func testProgressLineShowsThePercentOnlyWhereAChapterStarts() throws {
         let library = makeLibrary(bookCount: 1, paragraphs: 20)
         let engine = FeedEngine(source: library.source, books: library.books, style: .paragraph, mode: .mix, seed: 2)
         engine.loadMore()
-        let post = engine.posts[10]
-        XCTAssertEqual(post.progressLine, "Chapter 2 \u{00B7} \(TextUtils.percent(post.segment.charStart, of: library.books[0].totalCharacters))%")
-        XCTAssertEqual(ShareFormatter.quote(post), "\u{201C}\(post.segment.text)\u{201D}\n\nBook 0 by Author 1")
+        let total = library.books[0].totalCharacters
+        let first = try XCTUnwrap(engine.posts.first)
+        XCTAssertTrue(first.startsChapter)
+        XCTAssertEqual(first.progressLine, "Chapter 1 \u{00B7} 0%", "The book's first post shows 0%")
+        let start = try XCTUnwrap(engine.posts.first { $0.segment.chapter == "Chapter 2" })
+        XCTAssertTrue(start.startsChapter)
+        XCTAssertEqual(start.progressLine, "Chapter 2 \u{00B7} \(TextUtils.percent(start.segment.charStart, of: total))%")
+        let middle = try XCTUnwrap(engine.posts.last { $0.segment.chapter == "Chapter 2" })
+        XCTAssertFalse(middle.startsChapter)
+        XCTAssertEqual(middle.progressLine, "Chapter 2", "No percent inside a chapter")
+        XCTAssertEqual(middle.fullProgressLine, "Chapter 2 \u{00B7} \(TextUtils.percent(middle.segment.charStart, of: total))%")
+        XCTAssertEqual(ShareFormatter.quote(start), "\u{201C}\(start.segment.text)\u{201D}\n\nBook 0 by Author 1")
     }
 }

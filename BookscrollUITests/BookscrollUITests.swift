@@ -153,34 +153,45 @@ final class BookscrollUITests: XCTestCase {
 
     // MARK: Feed, marks, Saved
 
-    func testLikeAndBookmarkShowInSaved() {
+    func testBookmarkColoursShowInSaved() {
         let app = launch(sampleBooks: true)
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
         screenshot("04-feed-mix")
 
-        let like = app.buttons["Like"].firstMatch
-        XCTAssertTrue(like.waitForExistence(timeout: 5))
-        like.tap()
-        XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5))
-        app.buttons["Bookmark"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["Remove bookmark"].firstMatch.waitForExistence(timeout: 5))
+        // The first tap bookmarks the post and opens the colour bubble.
+        let bookmark = app.buttons["Bookmark"].firstMatch
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5))
+        bookmark.tap()
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5))
+        let red = app.buttons["bookmark.color.red"].firstMatch
+        XCTAssertTrue(red.waitForExistence(timeout: 5), "The colour bubble opens")
+        screenshot("05-bookmark-colours")
+        red.tap()
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["Change bookmark"].firstMatch.value as? String, "Bookmarked, Red highlight")
 
         tab(app, "Saved")
-        XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5))
+        let chips = app.descendants(matching: .any)["saved.colors"]
+        XCTAssertTrue(chips.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["All, 1"].exists)
+        app.buttons["Red, 1"].tap()
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5))
         screenshot("05-saved")
 
         let filter = app.segmentedControls.firstMatch
-        filter.buttons["Likes"].tap()
-        XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5))
+        filter.buttons["Highlights"].tap()
+        XCTAssertTrue(app.staticTexts["No highlights"].waitForExistence(timeout: 5))
         filter.buttons["Bookmarks"].tap()
-        XCTAssertTrue(app.buttons["Remove bookmark"].firstMatch.waitForExistence(timeout: 5))
 
-        // Unliking in Saved removes the post from Likes.
-        filter.buttons["Likes"].tap()
-        let unlike = app.buttons["Unlike"].firstMatch
-        XCTAssertTrue(unlike.waitForExistence(timeout: 5))
-        unlike.tap()
-        XCTAssertTrue(app.staticTexts["No liked posts"].waitForExistence(timeout: 5))
+        // Remove, from the bubble, takes the post out of Saved.
+        let change = app.buttons["Change bookmark"].firstMatch
+        XCTAssertTrue(change.waitForExistence(timeout: 5))
+        change.tap()
+        let remove = app.buttons["Remove bookmark"].firstMatch
+        XCTAssertTrue(remove.waitForExistence(timeout: 5))
+        remove.tap()
+        XCTAssertTrue(app.staticTexts["No bookmarks"].waitForExistence(timeout: 5))
     }
 
     func testReadInContextAndContinueInFeed() {
@@ -402,7 +413,7 @@ final class BookscrollUITests: XCTestCase {
 
         tab(app, "Feed")
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Like"].exists, "Focus mode hides the action bar")
+        XCTAssertFalse(app.buttons["Bookmark"].exists, "Focus mode hides the buttons")
         screenshot("16-feed-sepia-focus")
     }
 
@@ -501,16 +512,16 @@ final class BookscrollUITests: XCTestCase {
         app.buttons["Cancel"].firstMatch.tap()
     }
 
-    func testDoubleTapLikesAPost() {
+    func testDoubleTapBookmarksAPost() {
         let app = launch(sampleBooks: true)
         let post = firstPost(app)
         XCTAssertTrue(post.waitForExistence(timeout: 15))
-        XCTAssertFalse(app.buttons["Unlike"].exists)
+        XCTAssertFalse(app.buttons["Change bookmark"].exists)
         post.doubleTap()
-        XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5), "Double tap liked the post")
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5), "Double tap bookmarked the post")
         XCTAssertFalse(app.buttons["Continue in feed from here"].exists, "A double tap does not open the reader")
         post.doubleTap()
-        XCTAssertTrue(app.buttons["Unlike"].firstMatch.exists, "A second double tap does not unlike")
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.exists, "A second double tap does not remove the bookmark")
     }
 
     // MARK: Accessibility
@@ -538,11 +549,11 @@ final class BookscrollUITests: XCTestCase {
             stopOnFailure: false
         )
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
-        let like = app.buttons["Like"].firstMatch
-        XCTAssertTrue(like.waitForExistence(timeout: 5))
+        let bookmark = app.buttons["Bookmark"].firstMatch
+        XCTAssertTrue(bookmark.waitForExistence(timeout: 5))
         screenshot("12-feed-largest-text")
-        like.tap()
-        XCTAssertTrue(app.buttons["Unlike"].firstMatch.waitForExistence(timeout: 5))
+        bookmark.tap()
+        XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5))
         tab(app, "Library")
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
         screenshot("13-library-largest-text")

@@ -21,8 +21,9 @@ final class FoundationTests: XCTestCase {
         XCTAssertEqual(BookscrollSchemaV1.versionIdentifier, Schema.Version(1, 0, 0))
         XCTAssertEqual(BookscrollSchemaV2.versionIdentifier, Schema.Version(2, 0, 0))
         XCTAssertEqual(BookscrollSchemaV3.versionIdentifier, Schema.Version(3, 0, 0))
-        XCTAssertEqual(BookscrollMigrationPlan.schemas.count, 3)
-        XCTAssertEqual(BookscrollMigrationPlan.stages.count, 2)
+        XCTAssertEqual(BookscrollSchemaV4.versionIdentifier, Schema.Version(4, 0, 0))
+        XCTAssertEqual(BookscrollMigrationPlan.schemas.count, 4)
+        XCTAssertEqual(BookscrollMigrationPlan.stages.count, 3)
         let names = Set(LibraryContainer.schema.entities.map(\.name))
         XCTAssertEqual(names, ["Book", "Segment", "Mark", "Shelf"])
         let bookAttributes = Set(LibraryContainer.schema.entities.first { $0.name == "Book" }?.attributes.map(\.name) ?? [])
@@ -32,6 +33,11 @@ final class FoundationTests: XCTestCase {
         let v2Attributes = Set(frozenV2.entities.first { $0.name == "Book" }?.attributes.map(\.name) ?? [])
         XCTAssertFalse(v2Attributes.contains("finishedAt"), "Version 2 stays frozen")
         XCTAssertEqual(Set(frozenV2.entities.map(\.name)), ["Book", "Segment", "Mark"])
+        let markAttributes = Set(LibraryContainer.schema.entities.first { $0.name == "Mark" }?.attributes.map(\.name) ?? [])
+        XCTAssertTrue(markAttributes.contains("colorRaw"))
+        let frozenV3 = Schema(versionedSchema: BookscrollSchemaV3.self)
+        let v3MarkAttributes = Set(frozenV3.entities.first { $0.name == "Mark" }?.attributes.map(\.name) ?? [])
+        XCTAssertFalse(v3MarkAttributes.contains("colorRaw"), "Version 3 stays frozen")
     }
 
     /// Writes a book the way version 1 of the app did, with the frozen V1 models.
@@ -94,6 +100,7 @@ final class FoundationTests: XCTestCase {
         XCTAssertTrue(book.showsCover)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Shelf>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Mark>()), 1)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Mark>()).first?.color, .noHighlight, "Old marks get the default colour")
         XCTAssertEqual(try Fixtures.segmentCount(bookID: bookID, in: container), book.paragraphSegmentCount + book.passageSegmentCount)
 
         let results = try DerivedDataBackfill.compute(container: container)
@@ -178,6 +185,68 @@ final class FoundationTests: XCTestCase {
         let reopened = ModelContext(try LibraryContainer.make(url: url))
         XCTAssertEqual(try reopened.fetch(FetchDescriptor<Book>()).first?.finishedAt, Date(timeIntervalSince1970: 1_000))
         XCTAssertEqual(try reopened.fetch(FetchDescriptor<Shelf>()).first?.bookIDs, [bookID])
+    }
+
+    /// Writes a library the way version 3 of the app did, with the frozen V3 models.
+    private func writeVersionThreeLibrary(at url: URL) throws -> UUID {
+        let schema = Schema(versionedSchema: BookscrollSchemaV3.self)
+        let container = try ModelContainer(for: schema, configurations: ModelConfiguration(schema: schema, url: url))
+        let context = ModelContext(container)
+        let segmented = Segmenter.segment(Fixtures.paragraphs(count: 30, chapterEvery: 10))
+        let book = BookscrollSchemaV3.Book(
+            ordinal: 1,
+            title: "Old Store",
+            author: "Version Three",
+            format: .epub,
+            totalCharacters: segmented.totalCharacters,
+            positionOffset: 120,
+            passagesOnly: false,
+            paragraphSegmentCount: segmented.paragraphs.count,
+            passageSegmentCount: segmented.passages.count,
+            importNote: nil
+        )
+        book.finishedAt = Date(timeIntervalSince1970: 2_000)
+        book.language = "en"
+        context.insert(book)
+        var segments: [BookscrollSchemaV3.Segment] = []
+        for draft in segmented.paragraphs + segmented.passages {
+            let segment = BookscrollSchemaV3.Segment(bookID: book.id, ordinal: 1, draft: draft)
+            context.insert(segment)
+            segments.append(segment)
+        }
+        book.segments = segments
+        context.insert(BookscrollSchemaV3.Mark(bookID: book.id, kind: .bookmark, charStart: 0, charEnd: 10))
+        context.insert(BookscrollSchemaV3.Mark(bookID: book.id, kind: .like, charStart: 500, charEnd: 600))
+        context.insert(BookscrollSchemaV3.Shelf(name: "Favourites", sortIndex: 0, bookIDs: [book.id]))
+        try context.save()
+        return book.id
+    }
+
+    func testVersionThreeStoreMigratesToVersionFourAndLikesBecomeBookmarks() throws {
+        let url = folder.appendingPathComponent("V3.store")
+        let bookID = try writeVersionThreeLibrary(at: url)
+        let container = try LibraryContainer.make(url: url)
+        let context = ModelContext(container)
+        let book = try XCTUnwrap(try context.fetch(FetchDescriptor<Book>()).first)
+        XCTAssertEqual(book.id, bookID)
+        XCTAssertEqual(book.positionOffset, 120, "The reading position survives")
+        XCTAssertEqual(book.finishedAt, Date(timeIntervalSince1970: 2_000), "Version 3 values survive")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Shelf>()).first?.bookIDs, [bookID])
+        let marks = try context.fetch(FetchDescriptor<Mark>())
+        XCTAssertEqual(marks.count, 2)
+        XCTAssertTrue(marks.allSatisfy { $0.color == .noHighlight }, "Old bookmarks have no highlight")
+
+        // The app turns the like into a bookmark without a highlight.
+        let app = AppModel(container: container)
+        let kinds = app.store.allMarks().map(\.kind)
+        XCTAssertEqual(kinds, [.bookmark, .bookmark])
+        XCTAssertEqual(app.bookmarkCounts(), [.noHighlight: 2])
+
+        // A colour saves and reads back.
+        let mark = try XCTUnwrap(app.store.allMarks().first)
+        app.store.setMarkColor(ids: [mark.id], color: .red)
+        let reopened = ModelContext(try LibraryContainer.make(url: url))
+        XCTAssertEqual(try reopened.fetch(FetchDescriptor<Mark>()).first { $0.id == mark.id }?.color, .red)
     }
 
     // MARK: Privacy manifest

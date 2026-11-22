@@ -99,6 +99,7 @@ struct ContextReaderView: View {
                                     highlight: model.highlight,
                                     isHighlighted: model.isHighlighted(paragraph),
                                     marks: app.marks.highlightRanges(bookID: model.book.id, start: paragraph.charStart, end: paragraph.textEnd),
+                                    bookmarkMarks: app.marks.bookmarkHighlights(bookID: model.book.id, start: paragraph.charStart, end: paragraph.textEnd),
                                     onHighlight: { range in
                                         _ = app.marks.addHighlight(bookID: model.book.id, start: paragraph.charStart + range.location, end: paragraph.charStart + NSMaxRange(range))
                                     },
@@ -186,6 +187,8 @@ private struct ReaderParagraph: View {
     let isHighlighted: Bool
     /// The reader's highlights in this paragraph (UTF-16 ranges of its text).
     let marks: [NSRange]
+    /// Coloured bookmarks in this paragraph (UTF-16 ranges of its text).
+    var bookmarkMarks: [MarkerRange] = []
     let onHighlight: (NSRange) -> Void
     let onRemoveHighlight: (NSRange) -> Void
 
@@ -204,6 +207,9 @@ private struct ReaderParagraph: View {
             color: UIColor(Theme.primaryText),
             highlight: partialHighlight,
             highlightColor: UIColor(Theme.highlight),
+            tints: bookmarkMarks.compactMap { marker in
+                Theme.bookmarkHighlight(marker.color).map { (range: marker.range, color: UIColor($0)) }
+            },
             marks: marks,
             markColor: UIColor(Theme.marker),
             onHighlight: onHighlight,

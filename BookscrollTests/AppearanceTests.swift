@@ -28,7 +28,7 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(settings.postTypeface, .sans)
         XCTAssertEqual(settings.readerTypeface, .serif)
         XCTAssertFalse(settings.focusMode)
-        XCTAssertTrue(settings.doubleTapToLike)
+        XCTAssertTrue(settings.doubleTapToBookmark)
     }
 
     @MainActor
@@ -40,7 +40,7 @@ final class AppearanceTests: XCTestCase {
         settings.postTypeface = .serif
         settings.readerTypeface = .sans
         settings.focusMode = true
-        settings.doubleTapToLike = false
+        settings.doubleTapToBookmark = false
 
         let reloaded = AppSettings(defaults: defaults)
         XCTAssertEqual(reloaded.theme, .sepia)
@@ -50,19 +50,19 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(reloaded.postTypeface, .serif)
         XCTAssertEqual(reloaded.readerTypeface, .sans)
         XCTAssertTrue(reloaded.focusMode)
-        XCTAssertFalse(reloaded.doubleTapToLike)
+        XCTAssertFalse(reloaded.doubleTapToBookmark)
     }
 
     @MainActor
     func testLaunchArgumentStringsAndUnknownValues() {
         // Launch arguments arrive as strings ("-focusMode YES").
         defaults.set("YES", forKey: AppSettings.Key.focusMode)
-        defaults.set("NO", forKey: AppSettings.Key.doubleTapToLike)
+        defaults.set("NO", forKey: AppSettings.Key.doubleTapToBookmark)
         defaults.set("mauve", forKey: AppSettings.Key.accent)
         defaults.set("neon", forKey: AppSettings.Key.theme)
         let settings = AppSettings(defaults: defaults)
         XCTAssertTrue(settings.focusMode)
-        XCTAssertFalse(settings.doubleTapToLike)
+        XCTAssertFalse(settings.doubleTapToBookmark)
         XCTAssertEqual(settings.accent, .blue, "Unknown values fall back to the default")
         XCTAssertEqual(settings.theme, .night)
     }

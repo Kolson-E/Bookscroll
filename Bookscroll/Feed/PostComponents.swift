@@ -11,6 +11,13 @@ enum PaletteHex {
     static let lightHighlight: UInt32 = 0xFDE8D9
     /// Background of the reader's own highlights (a marker pen).
     static let lightMarker: UInt32 = 0xFFF0A8
+    /// Bookmark highlights (yellow uses the marker colour).
+    static let lightRedMarker: UInt32 = 0xFFD9D9
+    static let lightBlueMarker: UInt32 = 0xD6E9FF
+    /// Bookmark icons.
+    static let lightYellowIcon: UInt32 = 0xA87800
+    static let lightRedIcon: UInt32 = 0xD0021B
+    static let lightBlueIcon: UInt32 = 0x1A73C8
 
     static let darkBackground: UInt32 = 0x000000
     static let darkSecondaryBackground: UInt32 = 0x16181C
@@ -19,6 +26,11 @@ enum PaletteHex {
     static let darkSecondary: UInt32 = 0x7E858B
     static let darkHighlight: UInt32 = 0x452912
     static let darkMarker: UInt32 = 0x4A3D00
+    static let darkRedMarker: UInt32 = 0x5A1B1F
+    static let darkBlueMarker: UInt32 = 0x13324F
+    static let darkYellowIcon: UInt32 = 0xFFD400
+    static let darkRedIcon: UInt32 = 0xF4212E
+    static let darkBlueIcon: UInt32 = 0x1D9BF0
 
     static let sepiaBackground: UInt32 = 0xF8F0E0
     static let sepiaSecondaryBackground: UInt32 = 0xF1E6CF
@@ -26,6 +38,11 @@ enum PaletteHex {
     static let sepiaSecondary: UInt32 = 0x6B5A45
     static let sepiaHighlight: UInt32 = 0xEEDCB8
     static let sepiaMarker: UInt32 = 0xF0D98A
+    static let sepiaRedMarker: UInt32 = 0xF0C8BC
+    static let sepiaBlueMarker: UInt32 = 0xCCDDE6
+    static let sepiaYellowIcon: UInt32 = 0x946A00
+    static let sepiaRedIcon: UInt32 = 0xB3261E
+    static let sepiaBlueIcon: UInt32 = 0x1E64A8
 
     /// WCAG 2 contrast ratio of two sRGB colours.
     static func contrast(_ a: UInt32, _ b: UInt32) -> Double {
@@ -86,8 +103,35 @@ enum Theme {
     /// Background of the reader's own highlights. Opaque; primary text keeps 8.8:1 or more.
     static var marker: Color { isSepia ? sepiaMarker : systemMarker }
     static var accent: Color { AppSettings.shared.accent.color }
-    /// X's like colour.
-    static let like = adaptive(light: 0xC2135F, dark: 0xF91880)
+    /// Text background of a bookmark in `color`; nil for a bookmark without a highlight.
+    static func bookmarkHighlight(_ color: MarkColor) -> Color? {
+        switch color {
+        case .noHighlight: return nil
+        case .yellow: return marker
+        case .red:
+            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaRedMarker))
+                : adaptive(light: PaletteHex.lightRedMarker, dark: PaletteHex.darkRedMarker)
+        case .blue:
+            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaBlueMarker))
+                : adaptive(light: PaletteHex.lightBlueMarker, dark: PaletteHex.darkBlueMarker)
+        }
+    }
+
+    /// Colour of a bookmark icon or colour dot. A bookmark without a highlight uses the accent.
+    static func bookmarkIcon(_ color: MarkColor) -> Color {
+        switch color {
+        case .noHighlight: return accent
+        case .yellow:
+            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaYellowIcon))
+                : adaptive(light: PaletteHex.lightYellowIcon, dark: PaletteHex.darkYellowIcon)
+        case .red:
+            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaRedIcon))
+                : adaptive(light: PaletteHex.lightRedIcon, dark: PaletteHex.darkRedIcon)
+        case .blue:
+            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaBlueIcon))
+                : adaptive(light: PaletteHex.lightBlueIcon, dark: PaletteHex.darkBlueIcon)
+        }
+    }
 }
 
 @MainActor
@@ -204,8 +248,12 @@ struct ChapterHeaderRow: View {
 struct PostActions {
     /// The book's current Mix weight, to tick the right menu item.
     var bookFeedWeight: Double = 1
-    var like: () -> Void
+    /// Adds a bookmark (no highlight), or removes the post's bookmarks.
     var bookmark: () -> Void
+    /// Adds a bookmark (no highlight) when the post has none (double tap).
+    var addBookmark: () -> Void = {}
+    /// Gives the post's bookmark a colour, bookmarking it first when needed.
+    var setBookmarkColor: (_ color: MarkColor) -> Void = { _ in }
     var open: () -> Void
     var shareText: () -> Void
     var shareImage: () -> Void
@@ -220,8 +268,8 @@ struct PostActions {
     var highlight: () -> Void = {}
 }
 
-/// Single tap opens the reader. With double-tap to like on, a double tap likes the post and
-/// the single tap waits for the double tap to fail (as in X).
+/// Single tap opens the reader. With double-tap to bookmark on, a double tap bookmarks the post
+/// and the single tap waits for the double tap to fail.
 @MainActor
 private struct PostTapGestures: ViewModifier {
     let doubleTapEnabled: Bool
@@ -240,22 +288,28 @@ private struct PostTapGestures: ViewModifier {
 }
 
 /// One timeline post in X's layout: avatar, bold title with the author in grey, chapter and
-/// progress, and the text. The bookmark sits beside "⋯" at the top right; read in context,
-/// share and like sit under the avatar, so there is no action bar under the text. Focus mode
-/// shows the text only.
+/// progress, and the text. The bookmark sits beside "⋯" at the top right; read in context and
+/// share sit under the avatar, so there is no action bar under the text. A bookmark with a
+/// colour highlights the text in it. Focus mode shows the text only.
 @MainActor
 struct PostRow: View {
     let post: FeedPost
-    let isLiked: Bool
-    let isBookmarked: Bool
+    /// Colour of the post's bookmark; nil when the post has no bookmark.
+    let bookmarkColor: MarkColor?
     /// The reader's highlights inside this post, as UTF-16 ranges of the post text.
     var highlights: [NSRange] = []
+    /// Coloured bookmarks inside this post, as UTF-16 ranges of the post text.
+    var bookmarkHighlights: [MarkerRange] = []
     let actions: PostActions
+
+    private var isBookmarked: Bool { bookmarkColor != nil }
 
     @State private var expanded = false
     @State private var limitedHeight: CGFloat = 0
     @State private var fullHeight: CGFloat = 0
-    @State private var heartBurst = false
+    @State private var bookmarkBurst = false
+    /// The bubble of bookmark colours beside the bookmark button.
+    @State private var showsColorBubble = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var comfortableAvatar: CGFloat = 40
     @ScaledMetric(relativeTo: .body) private var compactAvatar: CGFloat = 32
@@ -272,7 +326,9 @@ struct PostRow: View {
     private static let topTrailingInset: CGFloat = 80
     /// Height of one button under the avatar (the minimum touch target).
     private static let columnButtonHeight: CGFloat = 44
-    private static let columnButtonCount: CGFloat = 3
+    private static let columnButtonCount: CGFloat = 2
+    /// The colour bubble closes by itself after this many seconds.
+    private static let bubbleSeconds: UInt64 = 5
     /// Gap between the avatar and the first button under it.
     private static let columnGap: CGFloat = 4
 
@@ -366,21 +422,23 @@ struct PostRow: View {
                     }
                 }
                 .padding(.trailing, showsChapterStartLine ? 0 : Self.topTrailingInset)
-                Text(post.progressLine)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.secondaryText)
+                if !post.progressLine.isEmpty {
+                    Text(post.progressLine)
+                        .font(.footnote)
+                        .foregroundStyle(Theme.secondaryText)
+                }
             }
             postText
                 .padding(.top, focusMode ? 0 : 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .modifier(PostTapGestures(doubleTapEnabled: settings.doubleTapToLike, onSingle: actions.open, onDouble: doubleTapLike))
+        .modifier(PostTapGestures(doubleTapEnabled: settings.doubleTapToBookmark, onSingle: actions.open, onDouble: doubleTapBookmark))
         .overlay {
-            if heartBurst {
-                Image(systemName: "heart.fill")
+            if bookmarkBurst {
+                Image(systemName: "bookmark.fill")
                     .font(.system(size: 64))
-                    .foregroundStyle(Theme.like)
+                    .foregroundStyle(Theme.bookmarkIcon(bookmarkColor ?? .noHighlight))
                     .shadow(color: .black.opacity(0.25), radius: 6)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.4).combined(with: .opacity))
                     .accessibilityHidden(true)
@@ -395,7 +453,7 @@ struct PostRow: View {
             if let content = actions.peek() {
                 PeekView(content: content)
             } else {
-                PeekView(content: PeekContent(bookTitle: post.bookTitle, progressLine: post.progressLine, before: [], post: [post.segment], after: [], highlight: post.segment.charStart..<post.segment.charEnd))
+                PeekView(content: PeekContent(bookTitle: post.bookTitle, progressLine: post.fullProgressLine, before: [], post: [post.segment], after: [], highlight: post.segment.charStart..<post.segment.charEnd))
             }
         }
         .accessibilityElement(children: .ignore)
@@ -403,8 +461,11 @@ struct PostRow: View {
         .accessibilityHint("Double-tap to read in context")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(.default, actions.open)
-        .accessibilityAction(named: isLiked ? "Unlike" : "Like", actions.like)
         .accessibilityAction(named: isBookmarked ? "Remove bookmark" : "Bookmark", actions.bookmark)
+        .accessibilityAction(named: "Bookmark with no highlight") { actions.setBookmarkColor(.noHighlight) }
+        .accessibilityAction(named: "Bookmark in yellow") { actions.setBookmarkColor(.yellow) }
+        .accessibilityAction(named: "Bookmark in red") { actions.setBookmarkColor(.red) }
+        .accessibilityAction(named: "Bookmark in blue") { actions.setBookmarkColor(.blue) }
         .accessibilityAction(named: highlights.isEmpty ? "Highlight" : "Remove highlight", actions.highlight)
         .accessibilityAction(named: "Copy with citation") { actions.copy(true) }
         .accessibilityIdentifier("post")
@@ -413,11 +474,21 @@ struct PostRow: View {
     /// Long-press menu under the context peek.
     @ViewBuilder
     private var contextMenuItems: some View {
-        Button(action: actions.like) {
-            Label(isLiked ? "Unlike" : "Like", systemImage: isLiked ? "heart.slash" : "heart")
-        }
         Button(action: actions.bookmark) {
             Label(isBookmarked ? "Remove bookmark" : "Bookmark", systemImage: isBookmarked ? "bookmark.slash" : "bookmark")
+        }
+        Menu {
+            ForEach(MarkColor.allCases) { color in
+                Button { actions.setBookmarkColor(color) } label: {
+                    if bookmarkColor == color {
+                        Label(color.title, systemImage: "checkmark")
+                    } else {
+                        Text(color.title)
+                    }
+                }
+            }
+        } label: {
+            Label("Bookmark colour", systemImage: "paintpalette")
         }
         Button(action: actions.highlight) {
             Label(highlights.isEmpty ? "Highlight" : "Remove highlight", systemImage: "highlighter")
@@ -478,30 +549,109 @@ struct PostRow: View {
         .accessibilityIdentifier("post.more")
     }
 
-    /// Bookmark beside X's "⋯" menu at the top right of the post.
+    /// Bookmark beside X's "⋯" menu at the top right of the post. The colour bubble opens to
+    /// the left of the bookmark.
     private var topTrailingButtons: some View {
         HStack(spacing: 0) {
-            Button(action: actions.bookmark) {
+            if showsColorBubble {
+                colorBubble
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.2, anchor: .trailing).combined(with: .opacity))
+            }
+            Button(action: bookmarkTapped) {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                     .font(.subheadline)
-                    .foregroundStyle(isBookmarked ? Theme.accent : Theme.secondaryText)
+                    .foregroundStyle(isBookmarked ? Theme.bookmarkIcon(bookmarkColor ?? .noHighlight) : Theme.secondaryText)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark")
-            .accessibilityValue(isBookmarked ? "Bookmarked" : "Not bookmarked")
+            .accessibilityLabel(isBookmarked ? "Change bookmark" : "Bookmark")
+            .accessibilityValue(bookmarkValue)
+            .accessibilityIdentifier("post.bookmark")
             moreMenu
         }
         .offset(x: 12, y: -12)
+        .task(id: showsColorBubble) {
+            guard showsColorBubble else { return }
+            try? await Task.sleep(nanoseconds: Self.bubbleSeconds * 1_000_000_000)
+            if !Task.isCancelled { setBubble(false) }
+        }
+        .onDisappear { showsColorBubble = false }
     }
 
-    /// Double tap only likes (never unlikes), like X and Instagram, and shows a heart.
-    private func doubleTapLike() {
-        if !isLiked { actions.like() }
-        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6)) { heartBurst = true }
+    private var bookmarkValue: String {
+        guard let bookmarkColor else { return String(localized: "Not bookmarked") }
+        return bookmarkColor.highlightsText
+            ? String(localized: "Bookmarked, \(bookmarkColor.title) highlight")
+            : String(localized: "Bookmarked, no highlight")
+    }
+
+    /// The first tap bookmarks the post (no highlight) and opens the colours; on a bookmarked
+    /// post the tap opens or closes the colours, which also hold Remove.
+    private func bookmarkTapped() {
+        if !isBookmarked {
+            actions.bookmark()
+            setBubble(true)
+        } else {
+            setBubble(!showsColorBubble)
+        }
+    }
+
+    private func setBubble(_ shown: Bool) {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
+            showsColorBubble = shown
+        }
+        if shown {
+            UIAccessibility.post(notification: .announcement, argument: String(localized: "Bookmarked. Choose a highlight colour."))
+        }
+    }
+
+    /// No highlight, yellow, red and blue, then Remove bookmark.
+    private var colorBubble: some View {
+        HStack(spacing: 0) {
+            ForEach(MarkColor.allCases) { color in
+                Button {
+                    actions.setBookmarkColor(color)
+                    setBubble(false)
+                } label: {
+                    BookmarkColorDot(color: color, size: 22, isSelected: bookmarkColor == color)
+                        .frame(width: 40, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel(color.title)
+                .accessibilityAddTraits(bookmarkColor == color ? .isSelected : [])
+                .accessibilityIdentifier("bookmark.color.\(color.rawValue)")
+            }
+            Button {
+                actions.bookmark()
+                setBubble(false)
+            } label: {
+                Image(systemName: "bookmark.slash")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Remove bookmark")
+        }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 4)
+        .background(Theme.secondaryBackground, in: Capsule())
+        .overlay(Capsule().stroke(Theme.separator, lineWidth: 1))
+        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Bookmark colours")
+    }
+
+    /// Double tap only bookmarks (never removes), shows a bookmark and opens the colours.
+    private func doubleTapBookmark() {
+        if !isBookmarked {
+            actions.addBookmark()
+            setBubble(true)
+        }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6)) { bookmarkBurst = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { heartBurst = false }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { bookmarkBurst = false }
         }
     }
 
@@ -519,9 +669,13 @@ struct PostRow: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// The post text with the reader's highlights marked.
+    /// The post text with the bookmark colour and the reader's highlights (drawn over it).
     private var markedText: AttributedString {
         var text = AttributedString(post.segment.text)
+        for marker in bookmarkHighlights {
+            guard let color = Theme.bookmarkHighlight(marker.color), let bounds = Range(marker.range, in: text) else { continue }
+            text[bounds][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = color
+        }
         for range in highlights {
             guard let bounds = Range(range, in: text) else { continue }
             text[bounds][AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] = Theme.marker
@@ -564,7 +718,7 @@ struct PostRow: View {
             }
     }
 
-    /// Read in context, share and like, one above the other under the avatar. Each is a full
+    /// Read in context and share, one above the other under the avatar. Each is a full
     /// 44 pt touch target; the column is as wide as the avatar and the targets reach a little
     /// past it.
     private var avatarColumnButtons: some View {
@@ -597,14 +751,6 @@ struct PostRow: View {
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Share")
-            Button(action: actions.like) {
-                Image(systemName: isLiked ? "heart.fill" : "heart")
-                    .foregroundStyle(isLiked ? Theme.like : Theme.secondaryText)
-                    .frame(width: 44, height: Self.columnButtonHeight)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel(isLiked ? "Unlike" : "Like")
-            .accessibilityValue(isLiked ? "Liked" : "Not liked")
         }
         .font(.subheadline)
         .buttonStyle(.borderless)
@@ -640,10 +786,41 @@ struct PostRow: View {
         if !post.segment.chapter.isEmpty { parts.append("\(post.segment.chapter).") }
         parts.append("\(post.percent) percent.")
         if post.partCount > 1 { parts.append("Part \(post.part) of \(post.partCount).") }
-        if isLiked { parts.append("Liked.") }
-        if isBookmarked { parts.append("Bookmarked.") }
+        if let bookmarkColor {
+            parts.append(bookmarkColor.highlightsText ? "Bookmarked, \(bookmarkColor.title) highlight." : "Bookmarked.")
+        }
         if !highlights.isEmpty { parts.append("Highlighted.") }
         parts.append(post.segment.text)
         return parts.joined(separator: " ")
+    }
+}
+
+/// A bookmark colour as a dot: a filled circle, or a struck-through circle for no highlight.
+/// A selected colour has a ring.
+@MainActor
+struct BookmarkColorDot: View {
+    let color: MarkColor
+    var size: CGFloat = 22
+    var isSelected = false
+
+    var body: some View {
+        ZStack {
+            if color.highlightsText {
+                Circle()
+                    .fill(Theme.bookmarkIcon(color))
+            } else {
+                Image(systemName: "circle.slash")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(Theme.secondaryText)
+            }
+            if isSelected {
+                Circle()
+                    .strokeBorder(Theme.primaryText, lineWidth: 2)
+                    .padding(-4)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }

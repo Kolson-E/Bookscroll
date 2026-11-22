@@ -262,17 +262,17 @@ final class MarkTests: XCTestCase {
         let segmented = Segmenter.segment(Fixtures.paragraphs(count: 40))
         let id = UUID()
         let liked = segmented.paragraphs[12]
-        let index = MarkIndex([MarkRecord(bookID: id, kind: .like, charStart: liked.charStart, charEnd: liked.charEnd)])
+        let index = MarkIndex([MarkRecord(bookID: id, kind: .bookmark, charStart: liked.charStart, charEnd: liked.charEnd)])
 
         var likedPassages = 0
         for passage in segmented.passages {
             let overlaps = passage.charStart < liked.charEnd && liked.charStart < passage.charEnd
-            XCTAssertEqual(index.isMarked(.like, bookID: id, start: passage.charStart, end: passage.charEnd), overlaps)
+            XCTAssertEqual(index.isMarked(.bookmark, bookID: id, start: passage.charStart, end: passage.charEnd), overlaps)
             XCTAssertFalse(index.isMarked(.bookmark, bookID: id, start: passage.charStart, end: passage.charEnd))
             if overlaps { likedPassages += 1 }
         }
         XCTAssertGreaterThan(likedPassages, 0)
-        XCTAssertFalse(index.isMarked(.like, bookID: UUID(), start: liked.charStart, end: liked.charEnd))
+        XCTAssertFalse(index.isMarked(.bookmark, bookID: UUID(), start: liked.charStart, end: liked.charEnd))
 
         // And the other way: a passage like marks every paragraph it touches.
         let passage = segmented.passages[5]
@@ -304,14 +304,14 @@ final class MarkTests: XCTestCase {
         let book = try XCTUnwrap(store.feedBook(id: bookID))
 
         let paragraph = try XCTUnwrap(store.segments(book: book, style: .paragraph, from: 7, limit: 1).first)
-        XCTAssertNotNil(store.addMark(kind: .like, bookID: bookID, charStart: paragraph.charStart, charEnd: paragraph.charEnd))
+        XCTAssertNotNil(store.addMark(kind: .bookmark, bookID: bookID, charStart: paragraph.charStart, charEnd: paragraph.charEnd))
 
         let index = MarkIndex(store.allMarks())
         let overlapping = store.segmentsOverlapping(start: paragraph.charStart, end: paragraph.charEnd, book: book, style: .passage)
         XCTAssertFalse(overlapping.isEmpty)
         for passage in store.segments(book: book, style: .passage, from: 0, limit: 1000) {
             let expected = overlapping.contains(passage)
-            XCTAssertEqual(index.isMarked(.like, bookID: bookID, start: passage.charStart, end: passage.charEnd), expected)
+            XCTAssertEqual(index.isMarked(.bookmark, bookID: bookID, start: passage.charStart, end: passage.charEnd), expected)
         }
 
         store.deleteMarks(ids: store.allMarks().map(\.id))

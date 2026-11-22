@@ -129,16 +129,23 @@ final class Mark {
     var createdAt: Date
     var book: Book?
 
-    init(id: UUID = UUID(), bookID: UUID, kind: MarkKind, charStart: Int, charEnd: Int, createdAt: Date = .now) {
+    // Version 4.
+    /// Bookmark colour (`MarkColor`): "none" (no highlight, the default), "yellow", "red" or
+    /// "blue". Other kinds keep the default.
+    var colorRaw: String = "none"
+
+    init(id: UUID = UUID(), bookID: UUID, kind: MarkKind, charStart: Int, charEnd: Int, createdAt: Date = .now, color: MarkColor = .noHighlight) {
         self.id = id
         self.bookID = bookID
         self.kindRaw = kind.rawValue
         self.charStart = charStart
         self.charEnd = charEnd
         self.createdAt = createdAt
+        self.colorRaw = color.rawValue
     }
 
-    var kind: MarkKind { MarkKind(rawValue: kindRaw) ?? .like }
+    var kind: MarkKind { MarkKind(rawValue: kindRaw) ?? .bookmark }
+    var color: MarkColor { MarkColor(rawValue: colorRaw) ?? .noHighlight }
 }
 
 /// A named list of books (Shelves tab). Books keep their place in the list.

@@ -42,9 +42,10 @@ final class MarksAndSearchTests: XCTestCase {
         XCTAssertEqual(items[0].bookTitle, "Alpha")
         XCTAssertEqual(items[0].chapter, target.chapter)
 
-        // Likes and bookmarks do not see highlights, and highlights survive a relaunch.
+        // Bookmarks do not see highlights, and highlights survive a relaunch.
         let post = try XCTUnwrap(app.feed.posts.first)
-        XCTAssertFalse(app.marks.isMarked(.like, post))
+        XCTAssertFalse(app.marks.isMarked(.bookmark, post))
+        XCTAssertNil(app.marks.bookmarkColor(post))
         let relaunched = AppModel(container: app.container)
         XCTAssertEqual(relaunched.highlights().map(\.text), [expected])
     }
@@ -103,8 +104,10 @@ final class MarksAndSearchTests: XCTestCase {
     }
 
     func testSavedFiltersMapToMarkKinds() {
-        XCTAssertEqual(SavedFilter.allCases, [.bookmarked, .liked, .highlights], "Bookmarks come first")
-        XCTAssertEqual(SavedFilter.allCases.map(\.kind), [.bookmark, .like, .highlight])
+        XCTAssertEqual(SavedFilter.allCases, [.bookmarked, .highlights], "Bookmarks come first")
+        XCTAssertEqual(SavedFilter.allCases.map(\.kind), [.bookmark, .highlight])
+        XCTAssertEqual(MarkColor.allCases, [.noHighlight, .yellow, .red, .blue], "No highlight comes first: it is the default")
+        XCTAssertEqual(MarkColor.noHighlight.rawValue, "none")
         XCTAssertEqual(SavedFilter.allCases.map(\.title), ["Bookmarks", "Likes", "Highlights"])
     }
 
@@ -112,6 +115,25 @@ final class MarksAndSearchTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(PaletteHex.contrast(PaletteHex.lightPrimary, PaletteHex.lightMarker), 7)
         XCTAssertGreaterThanOrEqual(PaletteHex.contrast(PaletteHex.darkPrimary, PaletteHex.darkMarker), 7)
         XCTAssertGreaterThanOrEqual(PaletteHex.contrast(PaletteHex.sepiaPrimary, PaletteHex.sepiaMarker), 7)
+        // Bookmark colours: text on them keeps 7:1; icons keep 3:1 on the background.
+        for marker in [PaletteHex.lightRedMarker, PaletteHex.lightBlueMarker] {
+            XCTAssertGreaterThanOrEqual(PaletteHex.contrast(PaletteHex.lightPrimary, marker), 7)
+        }
+        for marker in [PaletteHex.darkRedMarker, PaletteHex.darkBlueMarker] {
+            XCTAssertGreaterThanOrEqual(PaletteHex.contrast(PaletteHex.darkPrimary, marker), 7)
+        }
+        for marker in [PaletteHex.sepiaRedMarker, PaletteHex.sepiaBlueMarker] {
+            XCTAssertGreaterThanOrEqual(PaletteHex.contrast(PaletteHex.sepiaPrimary, marker), 7)
+        }
+        for icon in [PaletteHex.lightYellowIcon, PaletteHex.lightRedIcon, PaletteHex.lightBlueIcon] {
+            XCTAssertGreaterThanOrEqual(PaletteHex.contrast(icon, PaletteHex.lightBackground), 3)
+        }
+        for icon in [PaletteHex.darkYellowIcon, PaletteHex.darkRedIcon, PaletteHex.darkBlueIcon] {
+            XCTAssertGreaterThanOrEqual(PaletteHex.contrast(icon, PaletteHex.darkBackground), 3)
+        }
+        for icon in [PaletteHex.sepiaYellowIcon, PaletteHex.sepiaRedIcon, PaletteHex.sepiaBlueIcon] {
+            XCTAssertGreaterThanOrEqual(PaletteHex.contrast(icon, PaletteHex.sepiaBackground), 3)
+        }
     }
 
     // MARK: Search

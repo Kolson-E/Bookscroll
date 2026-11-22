@@ -34,7 +34,7 @@ struct BackupView: View {
                         document = nil
                     }
             } footer: {
-                Text("The backup holds each book\u{2019}s place, finish date, Mix settings, title, author, avatar photo, likes, bookmarks and highlights, and your shelves. It does not hold the books themselves or your settings.")
+                Text("The backup holds each book\u{2019}s place, finish date, Mix settings, title, author, avatar photo, bookmarks (with their colours) and highlights, and your shelves. It does not hold the books themselves or your settings.")
                     .foregroundStyle(Theme.secondaryText)
             }
             .listRowBackground(Theme.secondaryBackground)

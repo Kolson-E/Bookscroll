@@ -258,7 +258,7 @@ final class EPUBTests: XCTestCase {
         XCTAssertEqual(store.allBooks().count, 2)
 
         // Deleting removes the book, its segments and its marks.
-        store.addMark(kind: .like, bookID: bookID, charStart: 0, charEnd: 10)
+        store.addMark(kind: .bookmark, bookID: bookID, charStart: 0, charEnd: 10)
         try store.deleteBook(id: bookID)
         XCTAssertNil(store.book(id: bookID))
         let remaining = try ModelContext(container).fetch(FetchDescriptor<Segment>())

@@ -239,16 +239,17 @@ and a word count. **Add** queues it like a file import.
 | Feed | The timeline. Toolbar left: **Mix all books**, a **Shelf**, or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
 | Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB, PDF or text formats only. **Reading Stats** (toolbar left): reading time today and this week, words today, streak, a chart of the last 14 days, speed, total time, books finished this year, and the time left in each book you are reading. **Paste Text** (toolbar right) adds text as a book. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…** (with **Replace File…**: a new version of the book takes over its place, marks, details and shelves; where the text changed they go to the nearest matching words), **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
 | Shelves | Your own groups of books (a book can be on more than one shelf). **New Shelf**, rename, reorder, delete (the books stay in the library). In a shelf: **Add or Remove Books…**, reorder, swipe to remove, and **Read as Feed**: a Mix of only the shelf's books. In the Library, touch and hold a book for **Add to Shelf**. |
-| Saved | **Bookmarks** (your saved places, as a feed), **Likes**, and **Highlights**, newest first. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
-| Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to like. **Synced folder** (see Getting books in). **Back Up and Restore**: export a JSON file with every book's place, finish date, Mix settings, title, author, avatar photo and marks, and the shelves (not the books or settings); restore it after importing the books again (books are found by title, author and length; marks are not added twice). **Storage**: total space, split into library, search index, and covers and photos; every book with its estimated size, largest first (its share of the library and index follows its length); swipe to delete. |
+| Saved | **Bookmarks** (your saved places, as a feed) and **Highlights**, newest first. Under Bookmarks, colour chips (All, No highlight, Yellow, Red, Blue, each with its count) show only the bookmarks of one colour. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
+| Settings | Theme, accent colour, density, post and reader fonts, maximum words per post, focus mode, double-tap to bookmark. **Synced folder** (see Getting books in). **Back Up and Restore**: export a JSON file with every book's place, finish date, Mix settings, title, author, avatar photo and marks, and the shelves (not the books or settings); restore it after importing the books again (books are found by title, author and length; marks are not added twice). **Storage**: total space, split into library, search index, and covers and photos; every book with its estimated size, largest first (its share of the library and index follows its length); swipe to delete. |
 
 On a post:
 
 | Action | Result |
 |---|---|
 | Tap | **Read in context**: the book around the post, the post highlighted. Select text there for **Highlight** (or **Remove highlight**), **Look Up** (system dictionary), Copy or Translate. |
-| Double tap | Like, with a heart (it never unlikes). Can be turned off in Settings. |
-| Touch and hold | **Context peek**: two paragraphs before and after the post. Menu: Like, Bookmark, Highlight, Copy with citation, Look up a word, Read in context, Continue from here. |
+| Double tap | Bookmark, with no highlight, and open the colour bubble (it never removes a bookmark). Can be turned off in Settings. |
+| Touch and hold | **Context peek**: two paragraphs before and after the post. Menu: Bookmark, Highlight, Copy with citation, Look up a word, Read in context, Continue from here. |
+| **Bookmark** (top right) | On a post with no bookmark: bookmark it with no highlight, and a small bubble opens beside it. On a bookmarked post: open the bubble. The bubble has No highlight, Yellow, Red, Blue and Remove bookmark; it closes after 5 seconds or when you pick. A coloured bookmark puts that colour behind the post's text, in the feed, the peek and the reader. Touch and hold a post for the same choices under **Bookmark colour**. |
 | **⋯** | Show more or less from this book, snooze it for a day or a week, hide it from Mix. |
 | Share | Copy text, copy with citation ("— Title, Author · Chapter 3 · 42%"), share as text, or **Share as image**: a card in the **Post**, **Quote** or **Minimal** style, in Light, Dark or Sepia colours, with a preview. The last choice is remembered. |
 
@@ -305,9 +306,10 @@ keeps at least 7:1 contrast). VoiceOver users highlight a whole paragraph with t
 
 ## Appearance
 
-The post layout follows X: avatar, bold title with the author in grey, chapter and percent,
-and the text. To save space there is no action bar under the text: the bookmark sits beside
-"⋯" at the top right, and read in context, share and like sit under the avatar. X's typeface
+The post layout follows X: avatar, bold title with the author in grey, the chapter,
+and the text. The percent shows only on the first post of a chapter ("Book 1 · 0%"); later posts
+show the chapter name only. To save space there is no action bar under the text: the bookmark sits beside
+"⋯" at the top right, and read in context and share sit under the avatar. X's typeface
 (Chirp) belongs to X and cannot be bundled, so posts use the system font (SF Pro) at x.com's
 metrics: 15 pt text with 20 pt lines, bold 15 pt title, grey 15 pt author. Text follows the
 system Dynamic Type size.
@@ -321,7 +323,7 @@ system Dynamic Type size.
 | Reader font | Serif, Sans |
 | Maximum words per post | Auto, Off, 60, 80, 120, 200 |
 | Focus mode | Off. On: posts show only their text. |
-| Double-tap to like | On |
+| Double-tap to bookmark | On |
 
 `PaletteHex` holds every text and background colour; a unit test checks each text colour
 against each background it is used on (WCAG AA, 4.5:1).
@@ -338,9 +340,9 @@ against each background it is used on (WCAG AA, 4.5:1).
 ### Word limit and split posts
 
 A post over the limit continues in the next post: part one takes as many whole sentences as
-fit, part two continues from there, and so on ("1/3", "2/3", "3/3" after the percent). A
+fit, part two continues from there, and so on ("1/3", "2/3", "3/3" after the chapter). A
 sentence longer than the limit is cut between words. In One book mode the parts form a
-thread. Parts are offset ranges that tile the segment, so likes, bookmarks, the reading
+thread. Parts are offset ranges that tile the segment, so bookmarks, highlights, the reading
 position and resume work inside a paragraph: if you stop after part 2, the feed resumes at
 part 3.
 
@@ -371,13 +373,14 @@ In Mix mode and Saved, tapping a post (or its book button) opens it in context.
 ### Positions are offsets, not post indices
 
 Each book has one normalized text: its paragraphs joined by a blank line. All offsets (reading
-position, segment ranges, likes and bookmarks) are UTF-16 offsets into that text. Both styles
+position, segment ranges, bookmarks and highlights) are UTF-16 offsets into that text. Both styles
 are computed once at import and stored. Each style's segments tile the text exactly (each range
 includes the separator after it), so any offset falls in exactly one segment of each style.
 Switching style resumes at the segment that contains the saved offset.
 
-A post's like or bookmark is stored as a text range. A post shows as liked when its range
-overlaps a liked range, so marks carry over between styles.
+A post's bookmark is stored as a text range with a colour. A post shows as bookmarked when its
+range overlaps a bookmarked range (the newest one gives the colour), so marks carry over between
+styles. Likes from earlier versions became bookmarks with no highlight (data model version 4).
 
 A book's position moves only when a post is actually shown: when it reaches the top of the
 screen or is scrolled past. It never moves backward during scrolling; only "Continue in feed
@@ -488,7 +491,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 221 tests):
+`BookscrollTests` (XCTest, 223 tests):
 
 | Area | File |
 |---|---|
@@ -503,7 +506,7 @@ property is named `passagesOnly` because that is what it means.
 | Folder scan (subfolders, hidden files, iCloud placeholders), synced folder (each file once, kept across launches, stop, missing folder), quiet duplicates, folder import | `FolderSyncTests.swift` |
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
 | Plain text (hard wraps, chapter headings, Gutenberg frame, encodings), Markdown, HTML, RTF by magic bytes, pasted text and its queue job | `TextFormatTests.swift` |
-| Reader window and paging, like/bookmark, deletion, position saving, reading counted once | `AppFlowTests.swift` |
+| Reader window and paging, bookmarks and their colours, likes becoming bookmarks, deletion, position saving, reading counted once | `AppFlowTests.swift` |
 | Links (round trip, bad links; opening the last book, a book, a highlight, a missing one), widget content (book read last, day change, streak, file), the app's widget data after reading, Spotlight entries, Live Activity update rules, Focus filter shelf before your own choice, dropped files (copy, name, text is not a file), String Catalog plural forms, the default New Shelf name | `PlatformTests.swift` |
 | Reading time only for short gaps, jumps ignored, pause, measured speed after 10 minutes, time left, streak, last 14 days, week, saving and loading, duration formats | `ReadingStatsTests.swift` |
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
@@ -517,10 +520,10 @@ property is named `passagesOnly` because that is what it means.
 `BookscrollUITests` (XCUITest, 18 tests) drive the app on a simulator with a seeded in-memory
 library:
 
-- Empty library, Files picker, like and bookmark, Saved tab, read in context, Continue in feed,
+- Empty library, Files picker, bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
   post style and One book thread, swipe to delete.
 - Settings: theme, accent and focus mode change the feed.
-- A long paragraph splits into numbered parts; double tap likes a post.
+- A long paragraph splits into numbered parts; double tap bookmarks a post.
 - Jump to a chapter; long press shows the peek and "Look up a word".
 - Highlight a post, find it in Saved › Highlights and open it in the reader; search the
   Library text and open a result; the share card sheet in each style.
@@ -562,9 +565,9 @@ Not verified:
 
 Every control has a VoiceOver label. Each post is its own element; posts inside a thread start
 with "Continues thread"; split posts say "Part n of m"; the first post of a chapter says "New
-chapter". Like, bookmark and Copy with citation are VoiceOver actions on each post. Text uses
-Dynamic Type styles up to accessibility sizes. Liked and bookmarked states use filled icons and
-VoiceOver values, not only colour. Like and bookmark give haptic feedback. Every theme and
+chapter". Bookmark, each bookmark colour and Copy with citation are VoiceOver actions on each post. Text uses
+Dynamic Type styles up to accessibility sizes. Bookmarked states use filled icons and
+VoiceOver values ("Bookmarked, red highlight"), not only colour. Bookmarking gives haptic feedback. Every theme and
 accent passes a WCAG contrast test (4.5:1 for text), and the UI tests run Apple's accessibility
 audit on each theme.
 

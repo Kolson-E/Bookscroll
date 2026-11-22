@@ -67,10 +67,41 @@ enum BookFormat: String, CaseIterable, Sendable {
 }
 
 enum MarkKind: String, CaseIterable, Sendable {
+    /// Old: likes were removed. Stores and backups can still hold them; they become bookmarks
+    /// (`LibraryStore.convertLikesToBookmarks`, `LibraryStore.addMark`).
     case like
     case bookmark
     /// A range the reader marked, from a selection in the reader or a whole post.
     case highlight
+}
+
+/// Bookmark colours. A new bookmark has no highlight (the default); the reader can pick a
+/// colour, and the bookmark then highlights its text in it.
+enum MarkColor: String, CaseIterable, Identifiable, Sendable {
+    /// Not named `none`, so it never mixes with `Optional.none`.
+    case noHighlight = "none"
+    case yellow
+    case red
+    case blue
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .yellow: return String(localized: "Yellow")
+        case .red: return String(localized: "Red")
+        case .blue: return String(localized: "Blue")
+        case .noHighlight: return String(localized: "No highlight")
+        }
+    }
+
+    var highlightsText: Bool { self != .noHighlight }
+}
+
+/// A coloured range of a text (UTF-16), for bookmark highlights.
+struct MarkerRange: Equatable, Sendable {
+    let range: NSRange
+    let color: MarkColor
 }
 
 /// Composite integer keys for segments. Both keys are unique attributes, so SQLite keeps an

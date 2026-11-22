@@ -106,10 +106,11 @@ final class AppSettings {
         static let postTypeface = "postTypeface"
         static let readerTypeface = "readerTypeface"
         static let focusMode = "focusMode"
-        static let doubleTapToLike = "doubleTapToLike"
+        /// Stored under its old name (double tap used to like).
+        static let doubleTapToBookmark = "doubleTapToLike"
         static let wordLimit = "wordLimit"
         static let liveActivity = "liveActivity"
-        static let all = [theme, accent, density, postTypeface, readerTypeface, focusMode, doubleTapToLike, wordLimit, liveActivity]
+        static let all = [theme, accent, density, postTypeface, readerTypeface, focusMode, doubleTapToBookmark, wordLimit, liveActivity]
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -121,7 +122,7 @@ final class AppSettings {
     var readerTypeface: Typeface { didSet { defaults.set(readerTypeface.rawValue, forKey: Key.readerTypeface) } }
     /// Posts show only their text: no title line, progress line or actions.
     var focusMode: Bool { didSet { defaults.set(focusMode, forKey: Key.focusMode) } }
-    var doubleTapToLike: Bool { didSet { defaults.set(doubleTapToLike, forKey: Key.doubleTapToLike) } }
+    var doubleTapToBookmark: Bool { didSet { defaults.set(doubleTapToBookmark, forKey: Key.doubleTapToBookmark) } }
     /// Maximum words per post. Auto (the default) fits 95% of each book's paragraphs.
     var wordLimit: WordLimit { didSet { defaults.set(wordLimit.storage, forKey: Key.wordLimit) } }
     /// Shows the book being read on the Lock Screen and in the Dynamic Island.
@@ -135,7 +136,7 @@ final class AppSettings {
         postTypeface = defaults.string(forKey: Key.postTypeface).flatMap(Typeface.init) ?? .sans
         readerTypeface = defaults.string(forKey: Key.readerTypeface).flatMap(Typeface.init) ?? .serif
         focusMode = Self.bool(defaults, Key.focusMode, default: false)
-        doubleTapToLike = Self.bool(defaults, Key.doubleTapToLike, default: true)
+        doubleTapToBookmark = Self.bool(defaults, Key.doubleTapToBookmark, default: true)
         wordLimit = defaults.object(forKey: Key.wordLimit) == nil ? .auto : WordLimit(storage: defaults.integer(forKey: Key.wordLimit))
         liveActivity = Self.bool(defaults, Key.liveActivity, default: true)
     }

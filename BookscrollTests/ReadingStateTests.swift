@@ -105,7 +105,7 @@ final class ReadingStateTests: XCTestCase {
         let id = try BookImporter.importBook(at: try write(versionOne, name: "Short.txt"), into: container)
         let app = AppModel(container: container)
         app.store.setPosition(bookID: id, offset: 23)
-        app.store.addMark(kind: .like, bookID: id, charStart: 23, charEnd: 73)
+        app.store.addMark(kind: .bookmark, bookID: id, charStart: 23, charEnd: 73, color: .blue)
         app.setFinished(true, bookID: id)
         app.setHiddenFromMix(true, bookID: id)
         app.shelves.create(name: "Favourites", bookIDs: [id])
@@ -139,6 +139,7 @@ final class ReadingStateTests: XCTestCase {
         XCTAssertNotNil(book.finishedAt)
         XCTAssertTrue(book.hiddenFromMix)
         XCTAssertEqual(app.store.allMarks().map { [$0.charStart, $0.charEnd] }, [[23, 73]])
+        XCTAssertEqual(app.store.allMarks().map(\.color), [.blue], "The bookmark colour is in the backup")
         XCTAssertEqual(app.shelves.shelves.map(\.name), ["Favourites"])
         XCTAssertEqual(app.shelves.shelves.first?.bookIDs, [id])
 

@@ -71,10 +71,23 @@ struct FeedPost: Identifiable, Equatable {
     var percent: Int { TextUtils.percent(segment.charStart, of: bookTotalCharacters) }
 
     /// "Chapter 3 · 42%", or "42%" when the book has no chapter labels, then "· 1/3" for parts.
+    /// The grey line under the title: the chapter, the percent only on the first post of a
+    /// chapter, and the part number of a split paragraph. Empty when there is nothing to show.
     var progressLine: String {
-        var line = segment.chapter.isEmpty ? "\(percent)%" : "\(segment.chapter) \u{00B7} \(percent)%"
-        if partCount > 1 { line += " \u{00B7} \(part)/\(partCount)" }
-        return line
+        line(showingPercent: startsChapter)
+    }
+
+    /// The chapter, the percent and the part number, always (context peek).
+    var fullProgressLine: String {
+        line(showingPercent: true)
+    }
+
+    private func line(showingPercent: Bool) -> String {
+        var parts: [String] = []
+        if !segment.chapter.isEmpty { parts.append(segment.chapter) }
+        if showingPercent { parts.append("\(percent)%") }
+        if partCount > 1 { parts.append("\(part)/\(partCount)") }
+        return parts.joined(separator: " \u{00B7} ")
     }
 }
 

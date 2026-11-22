@@ -180,14 +180,49 @@ final class LibraryStore: SegmentSource {
         return ((try? context.fetch(descriptor)) ?? []).map(MarkRecord.init)
     }
 
+    /// Adds a mark. A like (removed kind) is stored as a bookmark.
     @discardableResult
-    func addMark(kind: MarkKind, bookID: UUID, charStart: Int, charEnd: Int) -> MarkRecord? {
+    func addMark(kind: MarkKind, bookID: UUID, charStart: Int, charEnd: Int, color: MarkColor = .noHighlight) -> MarkRecord? {
         guard let book = book(id: bookID) else { return nil }
-        let mark = Mark(bookID: bookID, kind: kind, charStart: charStart, charEnd: charEnd)
+        let mark = Mark(bookID: bookID, kind: kind == .like ? .bookmark : kind, charStart: charStart, charEnd: charEnd, color: color)
         context.insert(mark)
         mark.book = book
         try? context.save()
         return MarkRecord(mark)
+    }
+
+    func setMarkColor(ids: [UUID], color: MarkColor) {
+        guard !ids.isEmpty else { return }
+        let descriptor = FetchDescriptor<Mark>(predicate: #Predicate { ids.contains($0.id) })
+        for mark in (try? context.fetch(descriptor)) ?? [] {
+            mark.colorRaw = color.rawValue
+        }
+        try? context.save()
+    }
+
+    /// Likes were removed. Each stored like becomes a bookmark (no highlight), or goes when a bookmark
+    /// already overlaps it. Returns how many likes there were.
+    @discardableResult
+    func convertLikesToBookmarks() -> Int {
+        let likeRaw = MarkKind.like.rawValue
+        let bookmarkRaw = MarkKind.bookmark.rawValue
+        let likes = (try? context.fetch(FetchDescriptor<Mark>(predicate: #Predicate { $0.kindRaw == likeRaw }))) ?? []
+        guard !likes.isEmpty else { return 0 }
+        var bookmarks = (try? context.fetch(FetchDescriptor<Mark>(predicate: #Predicate { $0.kindRaw == bookmarkRaw }))) ?? []
+        for like in likes {
+            let covered = bookmarks.contains {
+                $0.bookID == like.bookID && $0.charStart < like.charEnd && like.charStart < $0.charEnd
+            }
+            if covered {
+                context.delete(like)
+            } else {
+                like.kindRaw = bookmarkRaw
+                like.colorRaw = MarkColor.noHighlight.rawValue
+                bookmarks.append(like)
+            }
+        }
+        try? context.save()
+        return likes.count
     }
 
     func deleteMarks(ids: [UUID]) {
@@ -279,6 +314,16 @@ struct MarkIndex: Equatable {
 
     mutating func insert(_ mark: MarkRecord) {
         byBook[mark.bookID, default: []].append(mark)
+    }
+
+    mutating func setColor(_ color: MarkColor, ids: Set<UUID>) {
+        for key in byBook.keys {
+            guard var marks = byBook[key] else { continue }
+            for position in marks.indices where ids.contains(marks[position].id) {
+                marks[position].color = color
+            }
+            byBook[key] = marks
+        }
     }
 
     mutating func remove(ids: Set<UUID>) {

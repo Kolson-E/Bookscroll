@@ -87,14 +87,17 @@ struct MarkRecord: Equatable, Identifiable, Sendable {
     let charStart: Int
     let charEnd: Int
     let createdAt: Date
+    /// Bookmark colour; other kinds keep `noHighlight`.
+    var color: MarkColor
 
-    init(id: UUID = UUID(), bookID: UUID, kind: MarkKind, charStart: Int, charEnd: Int, createdAt: Date = .now) {
+    init(id: UUID = UUID(), bookID: UUID, kind: MarkKind, charStart: Int, charEnd: Int, createdAt: Date = .now, color: MarkColor = .noHighlight) {
         self.id = id
         self.bookID = bookID
         self.kind = kind
         self.charStart = charStart
         self.charEnd = charEnd
         self.createdAt = createdAt
+        self.color = color
     }
 
     init(_ mark: Mark) {
@@ -104,7 +107,8 @@ struct MarkRecord: Equatable, Identifiable, Sendable {
             kind: mark.kind,
             charStart: mark.charStart,
             charEnd: mark.charEnd,
-            createdAt: mark.createdAt
+            createdAt: mark.createdAt,
+            color: mark.color
         )
     }
 

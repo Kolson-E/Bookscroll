@@ -27,6 +27,7 @@ final class MarkStore {
 
     init(store: LibraryStore) {
         self.store = store
+        store.convertLikesToBookmarks()
         reload()
     }
 
@@ -37,6 +38,50 @@ final class MarkStore {
 
     func isMarked(_ kind: MarkKind, _ post: FeedPost) -> Bool {
         index.isMarked(kind, bookID: post.bookID, start: post.segment.charStart, end: post.segment.charEnd)
+    }
+
+    // MARK: Bookmarks
+
+    /// The colour of the bookmark on the post (the newest when several overlap), or nil when
+    /// the post has no bookmark.
+    func bookmarkColor(_ post: FeedPost) -> MarkColor? {
+        index.overlapping(.bookmark, bookID: post.bookID, start: post.segment.charStart, end: post.segment.charEnd)
+            .max { $0.createdAt < $1.createdAt }?
+            .color
+    }
+
+    /// Bookmarks the post without a highlight. Does nothing when it has a bookmark.
+    func addBookmark(_ post: FeedPost) {
+        guard !isMarked(.bookmark, post) else { return }
+        toggle(.bookmark, post)
+    }
+
+    /// Gives the post's bookmarks `color`, bookmarking the post first when needed.
+    func setBookmarkColor(_ color: MarkColor, _ post: FeedPost) {
+        addBookmark(post)
+        let ids = index.overlapping(.bookmark, bookID: post.bookID, start: post.segment.charStart, end: post.segment.charEnd).map(\.id)
+        guard !ids.isEmpty else { return }
+        store.setMarkColor(ids: ids, color: color)
+        index.setColor(color, ids: Set(ids))
+        version += 1
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    /// Coloured bookmarks inside `start..<end`, as UTF-16 ranges relative to `start`, clipped
+    /// to it. Bookmarks without a highlight are left out.
+    func bookmarkHighlights(bookID: UUID, start: Int, end: Int) -> [MarkerRange] {
+        index.overlapping(.bookmark, bookID: bookID, start: start, end: end)
+            .filter { $0.color.highlightsText }
+            .sorted { $0.createdAt < $1.createdAt }
+            .map { mark in
+                let lower = max(mark.charStart, start)
+                let upper = min(mark.charEnd, end)
+                return MarkerRange(range: NSRange(location: lower - start, length: upper - lower), color: mark.color)
+            }
+    }
+
+    func bookmarkHighlights(for post: FeedPost) -> [MarkerRange] {
+        bookmarkHighlights(bookID: post.bookID, start: post.segment.charStart, end: post.segment.textEnd)
     }
 
     /// Adds a mark for the post's range, or removes every mark of that kind that overlaps it.
@@ -116,7 +161,6 @@ final class MarkStore {
 /// The Saved tab's lists. Bookmarks come first: they are the reader's own feed of saved places.
 enum SavedFilter: String, CaseIterable, Identifiable {
     case bookmarked
-    case liked
     case highlights
 
     var id: String { rawValue }
@@ -124,7 +168,6 @@ enum SavedFilter: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .bookmarked: return "Bookmarks"
-        case .liked: return "Likes"
         case .highlights: return "Highlights"
         }
     }
@@ -132,7 +175,6 @@ enum SavedFilter: String, CaseIterable, Identifiable {
     var kind: MarkKind {
         switch self {
         case .bookmarked: return .bookmark
-        case .liked: return .like
         case .highlights: return .highlight
         }
     }
@@ -766,7 +808,7 @@ final class AppModel {
         guard let first = covered.first, let last = covered.last else { return nil }
         return PeekContent(
             bookTitle: post.bookTitle,
-            progressLine: post.progressLine,
+            progressLine: post.fullProgressLine,
             before: store.segments(book: book, style: .paragraph, before: first.index, limit: 2),
             post: covered,
             after: store.segments(book: book, style: .paragraph, from: last.index + 1, limit: 2),
@@ -785,8 +827,9 @@ final class AppModel {
         let bookID = post.bookID
         return PostActions(
             bookFeedWeight: store.feedBook(id: bookID)?.feedWeight ?? 1,
-            like: { [weak self] in self?.marks.toggle(.like, post) },
             bookmark: { [weak self] in self?.marks.toggle(.bookmark, post) },
+            addBookmark: { [weak self] in self?.marks.addBookmark(post) },
+            setBookmarkColor: { [weak self] color in self?.marks.setBookmarkColor(color, post) },
             open: { [weak self] in self?.openReader(for: post) },
             shareText: { [weak self] in self?.shareText(post) },
             shareImage: { [weak self] in self?.shareImage(post) },
@@ -825,12 +868,13 @@ final class AppModel {
         ))
     }
 
-    /// Posts for the Saved tab, newest mark first, in the current post style.
-    func savedPosts(filter: SavedFilter, style: PostStyle) -> [FeedPost] {
+    /// Posts for the Saved tab, newest mark first, in the current post style. With `color`,
+    /// only bookmarks of that colour.
+    func savedPosts(filter: SavedFilter, style: PostStyle, color: MarkColor? = nil) -> [FeedPost] {
         let books = Dictionary(uniqueKeysWithValues: store.feedBooks().map { ($0.id, $0) })
         var seen = Set<String>()
         var result: [FeedPost] = []
-        for mark in marks.index.all where mark.kind == filter.kind {
+        for mark in marks.index.all where mark.kind == filter.kind && (color == nil || mark.color == color) {
             guard let book = books[mark.bookID] else { continue }
             let segments = store.segmentsOverlapping(
                 start: mark.charStart,
@@ -846,6 +890,16 @@ final class AppModel {
             }
         }
         return result
+    }
+
+    /// Number of bookmarks of each colour (books being deleted are left out).
+    func bookmarkCounts() -> [MarkColor: Int] {
+        let bookIDs = Set(store.feedBooks().map(\.id))
+        var counts: [MarkColor: Int] = [:]
+        for mark in marks.index.all where mark.kind == .bookmark && bookIDs.contains(mark.bookID) {
+            counts[mark.color, default: 0] += 1
+        }
+        return counts
     }
 
     /// Highlights for the Saved tab, newest first, with the exact highlighted text.

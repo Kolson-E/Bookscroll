@@ -122,9 +122,9 @@ struct FeedView: View {
                 ForEach(feed.posts) { post in
                     PostRow(
                         post: post,
-                        isLiked: app.marks.isMarked(.like, post),
-                        isBookmarked: app.marks.isMarked(.bookmark, post),
+                        bookmarkColor: app.marks.bookmarkColor(post),
                         highlights: app.marks.highlightRanges(for: post),
+                        bookmarkHighlights: app.marks.bookmarkHighlights(for: post),
                         actions: app.actions(for: post)
                     )
                     .onAppear { feed.postAppeared(post.id) }

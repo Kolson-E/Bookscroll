@@ -62,12 +62,15 @@ enum TextAnchoring {
     }
 }
 
-/// A mark (like, bookmark, highlight) as text, so it can be put back on another version.
+/// A mark (bookmark, highlight; old backups also hold likes) as text, so it can be put back on
+/// another version.
 struct MarkState: Codable, Equatable, Sendable {
     var kind: String
     var start: TextAnchor
     var length: Int
     var createdAt: Date
+    /// Bookmark colour (`MarkColor`). Nil in backups made before bookmark colours (no highlight).
+    var color: String? = nil
 }
 
 /// What the reader has done with one book: place, finish, Mix settings, details, photo and
@@ -118,7 +121,8 @@ enum ReadingStateIO {
                 kind: mark.kindRaw,
                 start: TextAnchoring.anchor(at: mark.charStart, in: text),
                 length: max(0, mark.charEnd - mark.charStart),
-                createdAt: mark.createdAt
+                createdAt: mark.createdAt,
+                color: mark.colorRaw
             )
         }
         let photoURL = CoverStore.url(bookID: bookID, photo: true, in: photoFolder)
@@ -153,6 +157,7 @@ enum ReadingStateIO {
             var start: Int
             var end: Int
             var createdAt: Date
+            var color: MarkColor = .noHighlight
         }
 
         var position: Int
@@ -164,10 +169,13 @@ enum ReadingStateIO {
         let total = text.length
         let position = min(TextAnchoring.locate(state.position, in: text), max(0, total - 1))
         let marks: [Resolved.ResolvedMark] = total == 0 ? [] : state.marks.compactMap { saved in
-            guard let kind = MarkKind(rawValue: saved.kind) else { return nil }
+            guard var kind = MarkKind(rawValue: saved.kind) else { return nil }
+            // Likes were removed; a saved like comes back as a bookmark.
+            if kind == .like { kind = .bookmark }
             let start = min(TextAnchoring.locate(saved.start, in: text), total - 1)
             let end = min(start + max(1, saved.length), total)
-            return Resolved.ResolvedMark(kind: kind, start: start, end: end, createdAt: saved.createdAt)
+            let color = saved.color.flatMap(MarkColor.init) ?? .noHighlight
+            return Resolved.ResolvedMark(kind: kind, start: start, end: end, createdAt: saved.createdAt, color: color)
         }
         return Resolved(position: position, marks: marks)
     }
@@ -199,7 +207,7 @@ enum ReadingStateIO {
         var existing = Set(try context.fetch(markDescriptor).map { "\($0.kindRaw)|\($0.charStart)|\($0.charEnd)" })
         for saved in resolved.marks {
             guard existing.insert("\(saved.kind.rawValue)|\(saved.start)|\(saved.end)").inserted else { continue }
-            let mark = Mark(bookID: bookID, kind: saved.kind, charStart: saved.start, charEnd: saved.end, createdAt: saved.createdAt)
+            let mark = Mark(bookID: bookID, kind: saved.kind, charStart: saved.start, charEnd: saved.end, createdAt: saved.createdAt, color: saved.color)
             context.insert(mark)
             mark.book = book
         }

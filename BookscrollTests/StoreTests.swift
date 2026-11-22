@@ -66,7 +66,7 @@ final class StoreTests: XCTestCase {
         let keep = try Fixtures.writeBook(title: "Keep", paragraphs: 40, seed: 2, into: context)
         let drop = try Fixtures.writeBook(title: "Drop", paragraphs: 120, seed: 4, into: context)
         let store = LibraryStore(context: context)
-        store.addMark(kind: .like, bookID: keep, charStart: 0, charEnd: 5)
+        store.addMark(kind: .highlight, bookID: keep, charStart: 0, charEnd: 5)
         store.addMark(kind: .bookmark, bookID: drop, charStart: 0, charEnd: 5)
         let keepCount = try Fixtures.segmentCount(bookID: keep, in: container)
         XCTAssertGreaterThan(try Fixtures.segmentCount(bookID: drop, in: container), 7)

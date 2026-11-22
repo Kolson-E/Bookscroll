@@ -46,7 +46,7 @@ struct SettingsView: View {
                         .accessibilityIdentifier("settings.wordLimit")
                     Toggle("Focus mode", isOn: $settings.focusMode)
                         .accessibilityIdentifier("settings.focusMode")
-                    Toggle("Double-tap to like", isOn: $settings.doubleTapToLike)
+                    Toggle("Double-tap to bookmark", isOn: $settings.doubleTapToBookmark)
                 } header: {
                     SectionHeader("Posts")
                 } footer: {

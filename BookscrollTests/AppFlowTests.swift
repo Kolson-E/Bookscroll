@@ -80,38 +80,72 @@ final class AppFlowTests: XCTestCase {
 
     // MARK: Marks and Saved
 
-    func testLikeAndBookmarkToggleAndShowInSaved() throws {
+    func testBookmarksToggleTakeColoursAndShowInSaved() throws {
         let (app, _) = try makeApp(books: [("Alpha", 40)])
         let posts = Array(app.feed.posts.prefix(3))
         XCTAssertEqual(posts.count, 3)
 
-        app.marks.toggle(.like, posts[0])
+        app.marks.toggle(.bookmark, posts[0])
         app.marks.toggle(.bookmark, posts[1])
-        app.marks.toggle(.like, posts[2])
-        XCTAssertTrue(app.marks.isMarked(.like, posts[0]))
-        XCTAssertFalse(app.marks.isMarked(.bookmark, posts[0]))
-        XCTAssertTrue(app.marks.isMarked(.bookmark, posts[1]))
+        app.marks.toggle(.bookmark, posts[2])
+        XCTAssertEqual(app.marks.bookmarkColor(posts[0]), .noHighlight, "A new bookmark has no highlight")
+        XCTAssertTrue(app.marks.bookmarkHighlights(for: posts[0]).isEmpty, "No highlight, no colour on the text")
         XCTAssertEqual(app.store.allMarks().count, 3, "Marks are saved")
 
-        XCTAssertEqual(app.savedPosts(filter: .liked, style: .paragraph).map(\.id), [posts[2].id, posts[0].id], "Newest first")
-        XCTAssertEqual(app.savedPosts(filter: .bookmarked, style: .paragraph).map(\.id), [posts[1].id])
+        app.marks.setBookmarkColor(.red, posts[1])
+        app.marks.setBookmarkColor(.yellow, posts[2])
+        XCTAssertEqual(app.marks.bookmarkColor(posts[1]), .red)
+        let highlight = try XCTUnwrap(app.marks.bookmarkHighlights(for: posts[1]).first)
+        XCTAssertEqual(highlight.color, .red)
+        XCTAssertEqual(highlight.range, NSRange(location: 0, length: (posts[1].segment.text as NSString).length), "The whole post is coloured")
+        XCTAssertEqual(app.store.allMarks().count, 3, "A colour does not add a bookmark")
+
+        // A colour on a post without a bookmark bookmarks it; a second add does nothing.
+        let fourth = try XCTUnwrap(app.feed.posts.dropFirst(3).first)
+        app.marks.setBookmarkColor(.blue, fourth)
+        XCTAssertEqual(app.marks.bookmarkColor(fourth), .blue)
+        app.marks.addBookmark(fourth)
+        XCTAssertEqual(app.store.allMarks().count, 4)
+
+        XCTAssertEqual(app.savedPosts(filter: .bookmarked, style: .paragraph).map(\.id), [fourth.id, posts[2].id, posts[1].id, posts[0].id], "Newest first")
+        XCTAssertEqual(app.savedPosts(filter: .bookmarked, style: .paragraph, color: .red).map(\.id), [posts[1].id])
+        XCTAssertEqual(app.savedPosts(filter: .bookmarked, style: .paragraph, color: .noHighlight).map(\.id), [posts[0].id])
         XCTAssertTrue(app.savedPosts(filter: .highlights, style: .paragraph).isEmpty)
-        XCTAssertTrue(app.savedPosts(filter: .liked, style: .paragraph).allSatisfy(\.showsThreadButton))
+        XCTAssertEqual(app.bookmarkCounts(), [.noHighlight: 1, .red: 1, .yellow: 1, .blue: 1])
 
         // In Passages style the same marks show as the passages that overlap them.
-        let passages = app.savedPosts(filter: .liked, style: .passage)
+        let passages = app.savedPosts(filter: .bookmarked, style: .passage, color: .red)
         XCTAssertFalse(passages.isEmpty)
-        XCTAssertTrue(passages.allSatisfy { $0.segment.style == .passage && app.marks.isMarked(.like, $0) })
+        XCTAssertTrue(passages.allSatisfy { $0.segment.style == .passage && app.marks.bookmarkColor($0) == .red })
 
-        app.marks.toggle(.like, posts[0])
-        XCTAssertFalse(app.marks.isMarked(.like, posts[0]))
-        XCTAssertEqual(app.store.allMarks().count, 2)
+        app.marks.toggle(.bookmark, posts[0])
+        XCTAssertNil(app.marks.bookmarkColor(posts[0]))
+        XCTAssertEqual(app.store.allMarks().count, 3)
 
-        // A fresh app (relaunch) reads the same marks.
+        // A fresh app (relaunch) reads the same marks and colours.
         let relaunched = AppModel(container: app.container)
-        XCTAssertTrue(relaunched.marks.isMarked(.like, posts[2]))
-        XCTAssertTrue(relaunched.marks.isMarked(.bookmark, posts[1]))
-        XCTAssertFalse(relaunched.marks.isMarked(.like, posts[0]))
+        XCTAssertEqual(relaunched.marks.bookmarkColor(posts[1]), .red)
+        XCTAssertEqual(relaunched.marks.bookmarkColor(posts[2]), .yellow)
+        XCTAssertNil(relaunched.marks.bookmarkColor(posts[0]))
+    }
+
+    func testLikesBecomeBookmarks() throws {
+        let (app, ids) = try makeApp(books: [("Alpha", 40)])
+        let posts = Array(app.feed.posts.prefix(2))
+        // A like where a bookmark already is goes; the other like becomes a bookmark.
+        app.store.addMark(kind: .bookmark, bookID: ids[0], charStart: posts[0].segment.charStart, charEnd: posts[0].segment.charEnd)
+        let context = ModelContext(app.container)
+        for post in posts {
+            let like = Mark(bookID: ids[0], kind: .like, charStart: post.segment.charStart, charEnd: post.segment.charEnd)
+            context.insert(like)
+        }
+        try context.save()
+        XCTAssertEqual(LibraryStore(context: ModelContext(app.container)).convertLikesToBookmarks(), 2)
+        let marks = LibraryStore(context: ModelContext(app.container)).allMarks()
+        XCTAssertEqual(marks.count, 2)
+        XCTAssertTrue(marks.allSatisfy { $0.kind == .bookmark && $0.color == .noHighlight })
+        // addMark never stores a like.
+        XCTAssertEqual(app.store.addMark(kind: .like, bookID: ids[0], charStart: 0, charEnd: 5)?.kind, .bookmark)
     }
 
     // MARK: Delete
@@ -119,15 +153,15 @@ final class AppFlowTests: XCTestCase {
     func testDeleteHidesTheBookAtOnceAndRemovesItsRows() async throws {
         let (app, ids) = try makeApp(books: [("Keep", 30), ("Drop", 50)])
         let dropPost = try XCTUnwrap(app.feed.posts.first { $0.bookID == ids[1] })
-        app.marks.toggle(.like, dropPost)
-        XCTAssertEqual(app.savedPosts(filter: .liked, style: .paragraph).count, 1)
+        app.marks.toggle(.bookmark, dropPost)
+        XCTAssertEqual(app.savedPosts(filter: .bookmarked, style: .paragraph).count, 1)
 
         let task = app.deleteBook(id: ids[1])
         XCTAssertNotNil(task)
         XCTAssertEqual(app.feed.books.map(\.id), [ids[0]], "Gone from the feed before the rows are deleted")
         XCTAssertFalse(app.feed.posts.contains { $0.bookID == ids[1] })
         XCTAssertTrue(app.store.feedBooks().allSatisfy { $0.id != ids[1] }, "Gone from the Library")
-        XCTAssertTrue(app.savedPosts(filter: .liked, style: .paragraph).isEmpty, "Gone from Saved")
+        XCTAssertTrue(app.savedPosts(filter: .bookmarked, style: .paragraph).isEmpty, "Gone from Saved")
         XCTAssertNil(app.deleteBook(id: ids[1]), "A second swipe does nothing")
 
         _ = await task?.value

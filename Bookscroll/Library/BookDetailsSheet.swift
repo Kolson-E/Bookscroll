@@ -163,7 +163,7 @@ struct BookDetailsSheet: View {
             } header: {
                 SectionHeader("About the file")
             } footer: {
-                Text("Replace File imports a new version of the book, such as a corrected EPUB. Your place, likes, bookmarks, highlights, shelves and the details above move to the new version; where its text changed, they go to the nearest matching words.")
+                Text("Replace File imports a new version of the book, such as a corrected EPUB. Your place, bookmarks, highlights, shelves and the details above move to the new version; where its text changed, they go to the nearest matching words.")
                     .foregroundStyle(Theme.secondaryText)
             }
             .listRowBackground(Theme.secondaryBackground)

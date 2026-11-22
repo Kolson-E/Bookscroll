@@ -66,6 +66,8 @@ struct SelectableText: UIViewRepresentable {
     /// UTF-16 range to give a background colour (part of a paragraph highlighted).
     var highlight: NSRange?
     var highlightColor: UIColor = .clear
+    /// Bookmark colours (UTF-16 ranges of `text`), drawn over `highlight` and under `marks`.
+    var tints: [(range: NSRange, color: UIColor)] = []
     /// The reader's own highlights (UTF-16 ranges of `text`), drawn over `highlight`.
     var marks: [NSRange] = []
     var markColor: UIColor = .clear
@@ -129,6 +131,9 @@ struct SelectableText: UIViewRepresentable {
         ])
         if let highlight, highlight.location >= 0, NSMaxRange(highlight) <= attributed.length {
             attributed.addAttribute(.backgroundColor, value: highlightColor, range: highlight)
+        }
+        for tint in tints where tint.range.location >= 0 && NSMaxRange(tint.range) <= attributed.length {
+            attributed.addAttribute(.backgroundColor, value: tint.color, range: tint.range)
         }
         for mark in marks where mark.location >= 0 && NSMaxRange(mark) <= attributed.length {
             attributed.addAttribute(.backgroundColor, value: markColor, range: mark)
