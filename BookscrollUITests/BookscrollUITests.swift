@@ -414,8 +414,9 @@ final class BookscrollUITests: XCTestCase {
         screenshot("15-settings-sepia")
 
         let focus = app.switches["settings.focusMode"].firstMatch
+        // The theme list and brightness slider push the Posts section below the fold.
+        reveal(focus, in: app)
         XCTAssertTrue(focus.waitForExistence(timeout: 5))
-        scrollAboveTabBar(focus, in: app)
         // A Form toggle only reacts on the switch itself, at the trailing edge of the row.
         focus.coordinate(withNormalizedOffset: CGVector(dx: 0.93, dy: 0.5)).tap()
         XCTAssertEqual(focus.value as? String, "1")
@@ -580,9 +581,10 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
         screenshot("13-library-largest-text")
         try audit(app, types: [.dynamicType], screen: "largest text library")
-        // Settings rows stack title and value at this size (checked on the picture).
+        // Settings rows stack title and value at this size (checked on the picture). At this
+        // size the accent swatches are below the fold, under the theme list.
         tab(app, "Settings")
-        XCTAssertTrue(app.buttons["accent.blue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Night"].firstMatch.waitForExistence(timeout: 5))
         app.swipeUp(velocity: .slow)
         screenshot("29-settings-largest-text")
     }
@@ -733,6 +735,9 @@ final class BookscrollUITests: XCTestCase {
     ///   screenshot is saved ("audit-<screen>") for review, but they do not fail the test.
     ///   testLargestAccessibilityTextSize saves pictures of the feed, Library and Settings at
     ///   the largest text size, where clipped or fixed-size text shows.
+    /// Text in a Dynamic Type text style that the audit still reports (see isKnownFalsePositive).
+    static let textStyleDetails: Set<String> = ["Book text, marks and reading places", "Rebuilt from the library when needed"]
+
     static func isKnownFalsePositive(_ issue: XCUIAccessibilityAuditIssue, bars: [CGRect], posts: [CGRect]) -> Bool {
         let description = issue.compactDescription
         if description.contains("partially unsupported") { return true }
@@ -746,6 +751,10 @@ final class BookscrollUITests: XCTestCase {
         // reports any font with a size in points.
         if issue.auditType == .dynamicType, element.elementType == .staticText,
            posts.contains(where: { $0.contains(element.frame) }) { return true }
+        // The Storage row details use the footnote text style. The audit reports them as
+        // "partially unsupported" in one run and "unsupported" in the next, with no code change.
+        if issue.auditType == .dynamicType, element.elementType == .staticText,
+           Self.textStyleDetails.contains(element.label) { return true }
         // The search field's placeholder and clear button are drawn by UIKit in system colours
         // and sizes; the app cannot style them.
         if issue.auditType == .contrast || issue.auditType == .textClipped, element.elementType == .searchField { return true }
