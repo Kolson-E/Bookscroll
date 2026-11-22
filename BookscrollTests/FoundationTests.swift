@@ -222,6 +222,7 @@ final class FoundationTests: XCTestCase {
         return book.id
     }
 
+    @MainActor
     func testVersionThreeStoreMigratesToVersionFourAndLikesBecomeBookmarks() throws {
         let url = folder.appendingPathComponent("V3.store")
         let bookID = try writeVersionThreeLibrary(at: url)
