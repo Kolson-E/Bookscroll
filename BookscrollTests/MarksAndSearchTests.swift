@@ -108,7 +108,7 @@ final class MarksAndSearchTests: XCTestCase {
         XCTAssertEqual(SavedFilter.allCases.map(\.kind), [.bookmark, .highlight])
         XCTAssertEqual(MarkColor.allCases, [.noHighlight, .yellow, .red, .blue], "No highlight comes first: it is the default")
         XCTAssertEqual(MarkColor.noHighlight.rawValue, "none")
-        XCTAssertEqual(SavedFilter.allCases.map(\.title), ["Bookmarks", "Likes", "Highlights"])
+        XCTAssertEqual(SavedFilter.allCases.map(\.title), ["Bookmarks", "Highlights"])
     }
 
     func testMarkerColoursKeepTextReadable() {

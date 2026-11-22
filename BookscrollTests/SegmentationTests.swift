@@ -258,23 +258,23 @@ final class StyleSwitchTests: XCTestCase {
 }
 
 final class MarkTests: XCTestCase {
-    func testLikeInOneStyleShowsOnOverlappingPostsInOtherStyle() {
+    func testBookmarkInOneStyleShowsOnOverlappingPostsInOtherStyle() {
         let segmented = Segmenter.segment(Fixtures.paragraphs(count: 40))
         let id = UUID()
-        let liked = segmented.paragraphs[12]
-        let index = MarkIndex([MarkRecord(bookID: id, kind: .bookmark, charStart: liked.charStart, charEnd: liked.charEnd)])
+        let bookmarked = segmented.paragraphs[12]
+        let index = MarkIndex([MarkRecord(bookID: id, kind: .bookmark, charStart: bookmarked.charStart, charEnd: bookmarked.charEnd)])
 
-        var likedPassages = 0
+        var bookmarkedPassages = 0
         for passage in segmented.passages {
-            let overlaps = passage.charStart < liked.charEnd && liked.charStart < passage.charEnd
+            let overlaps = passage.charStart < bookmarked.charEnd && bookmarked.charStart < passage.charEnd
             XCTAssertEqual(index.isMarked(.bookmark, bookID: id, start: passage.charStart, end: passage.charEnd), overlaps)
-            XCTAssertFalse(index.isMarked(.bookmark, bookID: id, start: passage.charStart, end: passage.charEnd))
-            if overlaps { likedPassages += 1 }
+            XCTAssertFalse(index.isMarked(.highlight, bookID: id, start: passage.charStart, end: passage.charEnd), "A bookmark is not a highlight")
+            if overlaps { bookmarkedPassages += 1 }
         }
-        XCTAssertGreaterThan(likedPassages, 0)
-        XCTAssertFalse(index.isMarked(.bookmark, bookID: UUID(), start: liked.charStart, end: liked.charEnd))
+        XCTAssertGreaterThan(bookmarkedPassages, 0)
+        XCTAssertFalse(index.isMarked(.bookmark, bookID: UUID(), start: bookmarked.charStart, end: bookmarked.charEnd))
 
-        // And the other way: a passage like marks every paragraph it touches.
+        // And the other way: a passage bookmark marks every paragraph it touches.
         let passage = segmented.passages[5]
         let passageIndex = MarkIndex([MarkRecord(bookID: id, kind: .bookmark, charStart: passage.charStart, charEnd: passage.charEnd)])
         let marked = segmented.paragraphs.filter {
