@@ -66,6 +66,51 @@ runner against the newest available iPhone simulator. It runs only when you star
 (Actions › CI › Run workflow), so it does not use the private repository's macOS minutes on
 every push.
 
+## Install with AltStore (Windows PC, free)
+
+No Mac and no paid account. A free Apple ID and a Windows PC on the same Wi-Fi as the iPhone.
+`.github/workflows/altstore.yml` builds `Bookscroll.ipa` on a GitHub macOS runner and puts it on
+the release **altstore** of this repository. AltStore signs it with your Apple ID.
+
+**Build the app file (GitHub app or github.com):** Actions › AltStore build › Run workflow
+(branch `main`). It takes about 10 to 15 minutes. Then Releases › **Bookscroll for AltStore**
+holds `Bookscroll.ipa`.
+
+**On the Windows PC (one time):**
+
+1. Install **iTunes** and **iCloud** from apple.com (the download links on Apple's pages, not
+   the Microsoft Store versions).
+2. Install **AltServer** from altstore.io and start it. Its icon is in the system tray (click
+   the ^ arrow near the clock).
+3. Connect the iPhone with a cable. Unlock it and tap **Trust**. In iTunes, select the phone
+   and turn on **Sync with this iPhone over Wi-Fi**, then **Apply**.
+4. AltServer tray icon › **Install AltStore** › your iPhone. Sign in with your Apple ID.
+
+**On the iPhone (one time):**
+
+5. Settings › General › VPN & Device Management › your Apple ID › **Trust**.
+6. Settings › Privacy & Security › **Developer Mode** › On. The phone restarts; confirm
+   **Turn On**.
+
+**Install Bookscroll:**
+
+7. In Safari, sign in to github.com, open this repository › Releases › Bookscroll for AltStore,
+   and tap **Bookscroll.ipa**. Tap **Download**.
+8. Open **AltStore** › My Apps › **+** (top left) › Downloads › `Bookscroll.ipa`. Wait until
+   it shows in My Apps, then open Bookscroll from the home screen.
+
+| Fact | Detail |
+|---|---|
+| 7-day renewal | A free Apple ID signs apps for 7 days. AltStore renews them in the background when the PC is on, AltServer runs, and the phone is on the same Wi-Fi. In AltStore › My Apps you see the days left; tap **Refresh All** to renew by hand. |
+| If it expires | Bookscroll does not open until you refresh it. Your library stays. |
+| App limit | A free Apple ID allows 3 sideloaded apps at a time. AltStore is one; Bookscroll and its widget extension may count as two. |
+| Widgets | The app finds the app group that AltStore makes (`group.<bundle id>.<team id>`). If the widgets still show "No book in progress", the rest of the app works the same. |
+| Update the app | Run the workflow again, download the new `Bookscroll.ipa`, and open it in AltStore. Your library stays. |
+| Not checked | AltStore and the iPhone install cannot be tested in CI. The build and the `.ipa` are. |
+
+**SideStore** (sidestore.io) installs the same `.ipa` and renews it from the phone itself, so the
+PC is needed only once for setup. Its setup has more steps.
+
 ## Install with TestFlight (no Mac)
 
 `.github/workflows/testflight.yml` builds, signs and uploads the app on a GitHub macOS runner
@@ -440,7 +485,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 220 tests):
+`BookscrollTests` (XCTest, 221 tests):
 
 | Area | File |
 |---|---|

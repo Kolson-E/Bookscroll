@@ -74,7 +74,30 @@ enum SharedContainer {
 
     static var folder: URL? {
         guard let groupID, !groupID.isEmpty, !groupID.contains("$(") else { return nil }
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID)
+        for candidate in groupCandidates(groupID: groupID, bundleID: Bundle.main.bundleIdentifier) {
+            if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: candidate) {
+                return url
+            }
+        }
+        return nil
+    }
+
+    /// The group from Info.plist first. Sideloading tools (AltStore, SideStore) re-sign the app
+    /// with a free Apple ID: they add the team id to the bundle ids and to the app group
+    /// (`group.<base>.<TEAMID>`), but not to the Info.plist key. The team id is taken from the
+    /// bundle id: a 10-character upper-case part after the base bundle id.
+    static func groupCandidates(groupID: String, bundleID: String?) -> [String] {
+        var candidates = [groupID]
+        let prefix = "group."
+        guard groupID.hasPrefix(prefix), let bundleID else { return candidates }
+        let base = String(groupID.dropFirst(prefix.count))
+        guard bundleID.hasPrefix(base + ".") else { return candidates }
+        let parts = bundleID.dropFirst(base.count + 1).split(separator: ".")
+        for part in parts where part.count == 10 && part.allSatisfy({ $0.isASCII && ($0.isUppercase || $0.isNumber) }) {
+            let candidate = "\(groupID).\(part)"
+            if !candidates.contains(candidate) { candidates.append(candidate) }
+        }
+        return candidates
     }
 
     static var snapshotURL: URL? {

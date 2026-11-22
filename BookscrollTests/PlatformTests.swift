@@ -224,6 +224,21 @@ final class PlatformTests: XCTestCase {
         XCTAssertEqual(String(localized: "\(2) of \(12) books"), "2 of 12 books")
     }
 
+    func testAppGroupCandidatesForResignedBuilds() {
+        let group = "group.app.bookscroll.Bookscroll"
+        XCTAssertEqual(SharedContainer.groupCandidates(groupID: group, bundleID: "app.bookscroll.Bookscroll"), [group])
+        XCTAssertEqual(
+            SharedContainer.groupCandidates(groupID: group, bundleID: "app.bookscroll.Bookscroll.AB12CD34EF"),
+            [group, group + ".AB12CD34EF"])
+        XCTAssertEqual(
+            SharedContainer.groupCandidates(groupID: group, bundleID: "app.bookscroll.Bookscroll.AB12CD34EF.Widgets"),
+            [group, group + ".AB12CD34EF"])
+        XCTAssertEqual(
+            SharedContainer.groupCandidates(groupID: group, bundleID: "app.bookscroll.Bookscroll.Widgets"), [group])
+        XCTAssertEqual(SharedContainer.groupCandidates(groupID: group, bundleID: "com.other.App.AB12CD34EF"), [group])
+        XCTAssertEqual(SharedContainer.groupCandidates(groupID: group, bundleID: nil), [group])
+    }
+
     func testNewShelfNameFallsBack() {
         XCTAssertEqual(ShelfStore.newShelfName("  Calm  "), "Calm")
         XCTAssertEqual(ShelfStore.newShelfName(""), "New Shelf")
