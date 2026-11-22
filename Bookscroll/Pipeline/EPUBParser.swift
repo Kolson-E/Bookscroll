@@ -115,7 +115,7 @@ enum EPUBBookParser {
 
         let title = package.title.map(TextUtils.singleLine).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackTitle
         let author = package.authors.isEmpty ? "Unknown author" : package.authors.joined(separator: ", ")
-        let cover = try? package.coverPath.flatMap { try archive.data(at: $0) }
+        let cover = (try? package.coverPath.flatMap { try archive.data(at: $0) }) ?? coverFromPages(package, archive: archive)
         return ParsedBook(
             title: title,
             author: author,
@@ -125,6 +125,18 @@ enum EPUBBookParser {
             note: nil,
             cover: cover
         )
+    }
+
+    /// The image on the book's cover page, for books that do not declare a cover image.
+    static func coverFromPages(_ package: EPUBPackage, archive: EPUBArchive) -> Data? {
+        for page in package.coverPagePaths {
+            guard let html = try? archive.text(at: page),
+                  let path = OPFParser.coverImagePath(page: html, pagePath: page),
+                  let data = try? archive.data(at: path),
+                  CoverStore.thumbnailJPEG(from: data) != nil else { continue }
+            return data
+        }
+        return nil
     }
 
     /// Turns the blocks of one spine document into paragraphs with chapter labels.

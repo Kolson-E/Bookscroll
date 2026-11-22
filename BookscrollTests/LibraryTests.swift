@@ -259,6 +259,54 @@ final class CoverImportTests: XCTestCase {
         XCTAssertNil(OPFParser.parse(opf: opf(manifest: #"<item id="i1" href="map.png" media-type="image/png"/>"#), opfPath: "content.opf").coverPath)
     }
 
+    func testCoverPageFallback() {
+        // The guide's cover page comes first, then the first spine item, even when it is not linear.
+        let package = OPFParser.parse(opf: """
+            <?xml version="1.0"?>
+            <package xmlns="http://www.idpf.org/2007/opf" version="2.0">
+              <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>T</dc:title></metadata>
+              <manifest>
+                <item id="wrap" href="Text/wrap.xhtml" media-type="application/xhtml+xml"/>
+                <item id="c1" href="Text/c1.xhtml" media-type="application/xhtml+xml"/>
+              </manifest>
+              <spine><itemref idref="wrap" linear="no"/><itemref idref="c1"/></spine>
+              <guide><reference type="cover" href="Text/titlepage.xhtml#top" title="Cover"/></guide>
+            </package>
+            """, opfPath: "OEBPS/content.opf")
+        XCTAssertNil(package.coverPath)
+        XCTAssertEqual(package.coverPagePaths, ["OEBPS/Text/titlepage.xhtml", "OEBPS/Text/wrap.xhtml"])
+        XCTAssertEqual(package.spinePaths, ["OEBPS/Text/c1.xhtml"], "The non-linear cover page is not read as text")
+
+        // An <img>, or an SVG <image> as calibre and Project Gutenberg write it.
+        XCTAssertEqual(OPFParser.coverImagePath(page: #"<body><div><img src="../Images/front%20page.jpg"/></div></body>"#, pagePath: "OEBPS/Text/wrap.xhtml"), "OEBPS/Images/front page.jpg")
+        XCTAssertEqual(OPFParser.coverImagePath(page: #"<svg xmlns:xlink="http://www.w3.org/1999/xlink"><image width="600" height="900" xlink:href="cover.png"/></svg>"#, pagePath: "wrap.xhtml"), "cover.png")
+        // A page with no image, an inline image, or a chapter that starts with a picture.
+        XCTAssertNil(OPFParser.coverImagePath(page: "<body><h1>Title</h1></body>", pagePath: "a.xhtml"))
+        XCTAssertNil(OPFParser.coverImagePath(page: #"<img src="data:image/png;base64,AAAA"/>"#, pagePath: "a.xhtml"))
+        let chapter = #"<img src="map.png"/><p>"# + String(repeating: "word ", count: OPFParser.coverPageWordLimit + 1) + "</p>"
+        XCTAssertNil(OPFParser.coverImagePath(page: chapter, pagePath: "a.xhtml"))
+    }
+
+    func testEPUBWithoutADeclaredCoverUsesItsCoverPage() throws {
+        let folder = try Fixtures.temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("Harbour Tales.epub")
+        // The fixture's OPF lists no image; its first spine page shows ../Images/cover.jpg.
+        let entries: [(path: String, data: Data)] = [
+            ("mimetype", Data("application/epub+zip".utf8)),
+            ("META-INF/container.xml", Data(EPUBFixture.container.utf8)),
+            ("OEBPS/content.opf", Data(EPUBFixture.opf.utf8)),
+            ("OEBPS/nav.xhtml", Data(EPUBFixture.nav.utf8)),
+            ("OEBPS/Text/cover.xhtml", Data(EPUBFixture.cover.utf8)),
+            ("OEBPS/Text/chapter 1.xhtml", Data(EPUBFixture.chapterOne.utf8)),
+            ("OEBPS/Text/ch2.xhtml", Data(EPUBFixture.chapterTwo.utf8)),
+            ("OEBPS/Images/cover.jpg", CoverStoreTests.imageData(width: 600, height: 900)),
+        ]
+        try ZipWriter.write(entries: entries, to: url)
+        let parsed = try BookImporter.parse(url: url) { _ in }
+        XCTAssertNotNil(parsed.cover.flatMap(UIImage.init(data:)))
+    }
+
     func testEPUBImportStoresTheCoverAndFileFacts() throws {
         let folder = try Fixtures.temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }

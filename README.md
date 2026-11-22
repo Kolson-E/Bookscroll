@@ -267,8 +267,11 @@ the Library, and count as complete in the progress sort. **Mark as Not Finished*
 back. Finishing is a Library action only.
 
 **Covers and avatars.** The avatar of a book is its cover: the EPUB cover image (the
-`cover-image` item, else `<meta name="cover">`, else an image named "cover") or the first page
-of a PDF. **Edit Details** can set a photo instead, remove it, or show the first letter on the
+`cover-image` item, else `<meta name="cover">`, else an image named "cover", else the picture on
+the cover page: the guide's cover page or the first spine page, even when it is not linear, if it
+holds an `<img>` or SVG `<image>` and at most 60 words) or the first page of a PDF. Text,
+Markdown, HTML and RTF files have no cover and show the first letter. A book imported before a
+cover could be found gets it with **Replace File…** (same file). **Edit Details** can set a photo instead, remove it, or show the first letter on the
 book's colour. Images are stored as JPEG files of at most 360 pixels in
 `Application Support/Covers`, outside the database. Edit Details also changes the title and
 author the app shows (the file is not changed) and shows the file name, file size, detected
@@ -491,7 +494,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 223 tests):
+`BookscrollTests` (XCTest, 225 tests):
 
 | Area | File |
 |---|---|
@@ -515,7 +518,7 @@ property is named `passagesOnly` because that is what it means.
 | Settings defaults and storage, palette and accent contrast (WCAG), citation | `AppearanceTests.swift` |
 | Word-limit splitting, Auto limit, resume inside a split paragraph, chapter starts, Mix filters and weights, Jump to, peek | `SplitAndFilterTests.swift` |
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
-| Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
+| Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
 `BookscrollUITests` (XCUITest, 18 tests) drive the app on a simulator with a seeded in-memory
 library:

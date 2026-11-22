@@ -64,6 +64,9 @@ struct EPUBPackage: Equatable {
     /// The cover image: the EPUB 3 "cover-image" item, else the EPUB 2 `<meta name="cover">`
     /// item, else an image item named "cover".
     var coverPath: String? = nil
+    /// Pages that may show the cover when no image is declared as the cover: the guide's
+    /// cover page, then the first spine item (cover pages are often `linear="no"`).
+    var coverPagePaths: [String] = []
 }
 
 enum OPFParser {
@@ -88,6 +91,8 @@ enum OPFParser {
         var spineIDs: [String] = []
         var tocID: String?
         var coverMetaID: String?
+        var firstSpineID: String?
+        var guideCoverPath: String?
 
         var inMetadata = false
         var collecting: String?
@@ -120,8 +125,13 @@ enum OPFParser {
                     }
                 case "spine":
                     tocID = attributes["toc"]
+                case "reference":
+                    if guideCoverPath == nil, attributes["type"]?.lowercased() == "cover", let href = attributes["href"], !href.isEmpty {
+                        guideCoverPath = EPUBPath.resolve(href, relativeTo: baseDirectory)
+                    }
                 case "itemref":
                     guard let idref = attributes["idref"] else { break }
+                    if firstSpineID == nil { firstSpineID = idref }
                     if attributes["linear"]?.lowercased() != "no" {
                         spineIDs.append(idref)
                     }
@@ -159,6 +169,11 @@ enum OPFParser {
         let coverPath = images.first { $0.properties.contains("cover-image") }?.path
             ?? coverMetaID.flatMap { id in images.first { $0.id == id } }?.path
             ?? images.first { $0.id.lowercased().contains("cover") || ($0.path as NSString).lastPathComponent.lowercased().contains("cover") }?.path
+        var coverPagePaths: [String] = []
+        if let guideCoverPath { coverPagePaths.append(guideCoverPath) }
+        if let firstSpineID, let path = manifest[firstSpineID]?.path, !coverPagePaths.contains(path) {
+            coverPagePaths.append(path)
+        }
         return EPUBPackage(
             title: title,
             authors: authors,
@@ -166,8 +181,42 @@ enum OPFParser {
             spinePaths: spinePaths,
             navPath: navPath,
             ncxPath: ncxPath,
-            coverPath: coverPath
+            coverPath: coverPath,
+            coverPagePaths: coverPagePaths
         )
+    }
+
+    /// Most words a page may hold to count as a cover page (a cover shows a title, an author
+    /// and perhaps a publisher; a chapter that starts with a picture has more).
+    static let coverPageWordLimit = 60
+
+    /// The image a cover page shows: its first `<img>` or SVG `<image>`, resolved to an archive
+    /// path. Nil when the page has no image or too much text to be a cover.
+    static func coverImagePath(page html: String, pagePath: String) -> String? {
+        let directory = EPUBPath.directory(of: pagePath)
+        var imagePath: String?
+        var words = 0
+        for token in HTMLTokenizer.tokenize(html) {
+            switch token {
+            case let .start(rawName, attributes, _):
+                guard imagePath == nil else { continue }
+                let href: String?
+                switch localName(rawName) {
+                case "img": href = attributes["src"]
+                case "image": href = attributes["xlink:href"] ?? attributes["href"]
+                default: href = nil
+                }
+                if let href, !href.isEmpty, !href.lowercased().hasPrefix("data:") {
+                    imagePath = EPUBPath.resolve(href, relativeTo: directory)
+                }
+            case let .text(text):
+                words += text.split(whereSeparator: { $0.isWhitespace }).count
+                if words > coverPageWordLimit { return nil }
+            case .end:
+                break
+            }
+        }
+        return imagePath
     }
 
     static func localName(_ name: String) -> String {
