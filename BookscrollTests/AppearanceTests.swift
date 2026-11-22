@@ -147,7 +147,7 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(AppTheme.night.palette(brightness: AppTheme.night.defaultBrightness), ThemePalette.night.readable())
         XCTAssertEqual(AppTheme.light.palette(brightness: AppTheme.light.defaultBrightness), ThemePalette.light.readable())
         XCTAssertEqual(AppTheme.sepia.palette(brightness: AppTheme.sepia.defaultBrightness), ThemePalette.sepia.readable())
-        for (palette, name) in [(ThemePalette.night, "night"), (.light, "light"), (.sepia, "sepia")] {
+        for (palette, name) in [(ThemePalette.night, "night"), (ThemePalette.light, "light"), (ThemePalette.sepia, "sepia")] {
             let readable = palette.readable()
             var withoutAccents = readable
             withoutAccents.accents = []
