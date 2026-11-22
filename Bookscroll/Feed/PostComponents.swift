@@ -347,7 +347,7 @@ struct PostRow: View {
     /// The chapter and progress line, at X's 13:15 ratio to the text.
     private var smallFont: Font { .system(size: textSize * 13 / 15) }
 
-    /// Extra space between lines so lines are a third taller than the text, as on x.com.
+    /// Extra space between lines so lines are 1.25 times the text size, as in the X app.
     private var textLineSpacing: CGFloat {
         let natural = UIFont.systemFont(ofSize: textSize).lineHeight
         return max(0, PostTextSize.lineHeight(for: textSize) - natural)

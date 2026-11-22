@@ -113,8 +113,9 @@ enum Typeface: String, CaseIterable, Identifiable {
 
 /// The size of post text, in points, in steps of half a point.
 enum PostTextSize {
-    /// Larger than x.com's 15 px web text, which looks small on an iPhone in SF Pro.
-    static let standard: Double = 17
+    /// Matches the X iPhone app: measured on an iPhone screenshot, X's post glyphs are as tall
+    /// as SF Pro at 16.5 pt (x.com on the web uses 15 px, which is smaller).
+    static let standard: Double = 16.5
     static let range: ClosedRange<Double> = 10...40
     static let step: Double = 0.5
 
@@ -136,8 +137,9 @@ enum PostTextSize {
         value.formatted(.number.precision(.fractionLength(0...1)))
     }
 
-    /// x.com's lines are a third taller than the text (15 px text, 20 px lines).
-    static func lineHeight(for size: CGFloat) -> CGFloat { size * 4 / 3 }
+    /// Line height as in the X iPhone app: 1.25 times the text size (20.6 pt lines at 16.5 pt).
+    static let lineHeightRatio: CGFloat = 1.25
+    static func lineHeight(for size: CGFloat) -> CGFloat { size * lineHeightRatio }
 }
 
 /// App-wide settings, stored in UserDefaults. Views read them through `AppSettings.shared`;

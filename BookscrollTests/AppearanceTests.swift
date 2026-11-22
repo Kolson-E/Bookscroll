@@ -27,7 +27,7 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(settings.density, .comfortable)
         XCTAssertEqual(settings.postTypeface, .sans)
         XCTAssertEqual(settings.readerTypeface, .serif)
-        XCTAssertEqual(settings.postTextSize, 17)
+        XCTAssertEqual(settings.postTextSize, 16.5)
         XCTAssertFalse(settings.focusMode)
         XCTAssertTrue(settings.doubleTapToBookmark)
     }
@@ -70,7 +70,7 @@ final class AppearanceTests: XCTestCase {
         XCTAssertNil(PostTextSize.parse("big"))
         XCTAssertEqual(PostTextSize.format(17), 17.formatted())
         XCTAssertEqual(PostTextSize.format(17.5), 17.5.formatted(.number.precision(.fractionLength(1))))
-        XCTAssertEqual(PostTextSize.lineHeight(for: 15), 20, "x.com: 15 px text on 20 px lines")
+        XCTAssertEqual(PostTextSize.lineHeight(for: 16.5), 20.625, accuracy: 0.001, "The X app: 20.6 pt lines")
         XCTAssertEqual(Typeface.allCases.map(\.design), [.default, .serif, .rounded, .monospaced])
     }
 

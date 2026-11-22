@@ -314,11 +314,12 @@ and the text. The percent shows only on the first post of a chapter ("Book 1 · 
 show the chapter name only. To save space there is no action bar under the text: the bookmark sits beside
 "⋯" at the top right, and read in context and share sit under the avatar. X's typeface
 (Chirp) belongs to X and cannot be bundled, so posts use the system font (SF Pro) with x.com's
-proportions: the title (bold), author (grey) and text share one size, lines are a third taller
-than the text (x.com: 15 px text, 20 px lines), and the chapter line is 13/15 of the text size.
-**Post text size** sets that size in points: type a number or use − and +, in steps of 0.5
-(10 to 40, default 17). SF Pro at x.com's 15 px looks smaller than Chirp, so the default is
-larger. The iOS accessibility text sizes still enlarge posts.
+proportions: the title (bold), author (grey) and text share one size, lines are 1.25 times the
+text size, and the chapter line is 13/15 of the text size. **Post text size** sets that size in
+points: type a number or use − and +, in steps of 0.5 (10 to 40). The default, 16.5 pt, comes
+from an iPhone screenshot of the X app: its post glyphs are 45 px tall at 3x where SF Pro at
+15 pt is 41 px, and its lines are 62 px (20.6 pt) apart. (x.com on the web uses 15 px text on
+20 px lines, which is smaller.) The iOS accessibility text sizes still enlarge posts.
 
 | Setting | Choices (default first) |
 |---|---|
@@ -326,7 +327,7 @@ larger. The iOS accessibility text sizes still enlarge posts.
 | Accent colour | X's six: blue, yellow, pink, purple, orange, green. Each has a bright shade for dark themes and a deep shade for light and sepia themes, so accent text reaches 4.5:1. |
 | Density | Comfortable, Compact |
 | Post font | Sans (X style), Serif, Rounded, Monospaced |
-| Post text size | 17 pt (10–40, steps of 0.5) |
+| Post text size | 16.5 pt (10–40, steps of 0.5) |
 | Reader font | Serif, Sans, Rounded, Monospaced |
 | Maximum words per post | Auto, Off, 60, 80, 120, 200 |
 | Focus mode | Off. On: posts show only their text. |
