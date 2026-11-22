@@ -240,7 +240,9 @@ private struct PostTapGestures: ViewModifier {
 }
 
 /// One timeline post in X's layout: avatar, bold title with the author in grey, chapter and
-/// progress, the text, and a grey action bar. Focus mode shows the text only.
+/// progress, and the text. The bookmark sits beside "⋯" at the top right; read in context,
+/// share and like sit under the avatar, so there is no action bar under the text. Focus mode
+/// shows the text only.
 @MainActor
 struct PostRow: View {
     let post: FeedPost
@@ -266,17 +268,27 @@ struct PostRow: View {
     private var horizontalPadding: CGFloat { isCompact ? 12 : 16 }
     private var topPadding: CGFloat { isCompact ? 8 : 12 }
     private static let collapsedLineLimit = 10
+    /// Room kept free at the right of the title line for the bookmark and "⋯" buttons.
+    private static let topTrailingInset: CGFloat = 80
+    /// Height of one button under the avatar (the minimum touch target).
+    private static let columnButtonHeight: CGFloat = 44
+    private static let columnButtonCount: CGFloat = 3
+    /// Gap between the avatar and the first button under it.
+    private static let columnGap: CGFloat = 4
 
     private var isTruncated: Bool { !expanded && fullHeight > limitedHeight + 1 }
 
+    /// x.com post text: 15 pt, 20 pt lines, regular weight. `.subheadline` is 15 pt at the
+    /// default text size and follows Dynamic Type.
     private var textFont: Font {
         switch settings.postTypeface {
-        case .sans: return .callout
+        case .sans: return .subheadline
         case .serif: return .system(.body, design: .serif)
         }
     }
 
-    private var textLineSpacing: CGFloat { settings.postTypeface == .sans ? 3 : 2 }
+    /// SF Pro at 15 pt has 18 pt lines; 2 pt more gives x.com's 20 pt.
+    private var textLineSpacing: CGFloat { 2 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -298,46 +310,38 @@ struct PostRow: View {
     private var content: some View {
         HStack(alignment: .top, spacing: isCompact ? 8 : 12) {
             if !focusMode {
-                Button(action: actions.open) {
-                    AvatarView(title: post.bookTitle, author: post.bookAuthor, size: avatarSize, textStyle: .title3, bookID: post.bookID)
+                VStack(spacing: 0) {
+                    Button(action: actions.open) {
+                        AvatarView(title: post.bookTitle, author: post.bookAuthor, size: avatarSize, textStyle: .title3, bookID: post.bookID)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Read \(post.bookTitle) in context")
+                    .padding(.bottom, Self.columnGap)
+                    avatarColumnButtons
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Read \(post.bookTitle) in context")
+                .frame(width: avatarSize)
             }
 
             VStack(alignment: .leading, spacing: 2) {
                 textGroup
                     .overlay(alignment: .topTrailing) {
-                        if !focusMode { moreMenu }
+                        if !focusMode { topTrailingButtons }
                     }
-                if isTruncated || (post.showsThreadButton && !focusMode) {
-                    HStack(spacing: 20) {
-                        if isTruncated {
-                            Button("Show more") { expanded = true }
-                                .frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                                .accessibilityHint("Shows the whole post")
-                                .accessibilityIdentifier("post.showMore")
-                        }
-                        if post.showsThreadButton && !focusMode {
-                            Button("Show thread", action: actions.open)
-                                .frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                                .accessibilityHint("Opens the book around this post")
-                        }
-                    }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .buttonStyle(.borderless)
-                }
-                if !focusMode {
-                    actionRow
+                if isTruncated {
+                    Button("Show more") { expanded = true }
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .accessibilityHint("Shows the whole post")
+                        .accessibilityIdentifier("post.showMore")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .buttonStyle(.borderless)
                 }
             }
         }
         .padding(.horizontal, horizontalPadding)
         .padding(.top, focusMode ? topPadding + 6 : topPadding)
-        .padding(.bottom, focusMode ? topPadding + 6 : (isCompact ? 0 : 2))
+        .padding(.bottom, focusMode ? topPadding + 6 : topPadding)
     }
 
     private var textGroup: some View {
@@ -346,7 +350,7 @@ struct PostRow: View {
                 Label("New chapter \u{00B7} \(post.segment.chapter)", systemImage: "book.pages")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Theme.accent)
-                    .padding(.trailing, focusMode ? 0 : 36)
+                    .padding(.trailing, focusMode ? 0 : Self.topTrailingInset)
                     .padding(.bottom, 2)
             }
             if !focusMode {
@@ -361,7 +365,7 @@ struct PostRow: View {
                         authorText
                     }
                 }
-                .padding(.trailing, showsChapterStartLine ? 0 : 36)
+                .padding(.trailing, showsChapterStartLine ? 0 : Self.topTrailingInset)
                 Text(post.progressLine)
                     .font(.footnote)
                     .foregroundStyle(Theme.secondaryText)
@@ -470,9 +474,26 @@ struct PostRow: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .offset(x: 12, y: -12)
         .accessibilityLabel("More options for \(post.bookTitle)")
         .accessibilityIdentifier("post.more")
+    }
+
+    /// Bookmark beside X's "⋯" menu at the top right of the post.
+    private var topTrailingButtons: some View {
+        HStack(spacing: 0) {
+            Button(action: actions.bookmark) {
+                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                    .font(.subheadline)
+                    .foregroundStyle(isBookmarked ? Theme.accent : Theme.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark")
+            .accessibilityValue(isBookmarked ? "Bookmarked" : "Not bookmarked")
+            moreMenu
+        }
+        .offset(x: 12, y: -12)
     }
 
     /// Double tap only likes (never unlikes), like X and Instagram, and shows a heart.
@@ -486,14 +507,14 @@ struct PostRow: View {
 
     private var titleText: some View {
         Text(post.bookTitle)
-            .font(.callout.weight(.bold))
+            .font(.subheadline.weight(.bold))
             .foregroundStyle(Theme.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var authorText: some View {
         Text(post.bookAuthor)
-            .font(.callout)
+            .font(.subheadline)
             .foregroundStyle(Theme.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -543,34 +564,18 @@ struct PostRow: View {
             }
     }
 
-    private var actionRow: some View {
-        HStack {
-            Button(action: actions.like) {
-                Image(systemName: isLiked ? "heart.fill" : "heart")
-                    .foregroundStyle(isLiked ? Theme.like : Theme.secondaryText)
-                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel(isLiked ? "Unlike" : "Like")
-            .accessibilityValue(isLiked ? "Liked" : "Not liked")
-            Spacer(minLength: 0)
-            Button(action: actions.bookmark) {
-                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
-                    .foregroundStyle(isBookmarked ? Theme.accent : Theme.secondaryText)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark")
-            .accessibilityValue(isBookmarked ? "Bookmarked" : "Not bookmarked")
-            Spacer(minLength: 0)
+    /// Read in context, share and like, one above the other under the avatar. Each is a full
+    /// 44 pt touch target; the column is as wide as the avatar and the targets reach a little
+    /// past it.
+    private var avatarColumnButtons: some View {
+        VStack(spacing: 0) {
             Button(action: actions.open) {
                 Image(systemName: "book")
                     .foregroundStyle(Theme.secondaryText)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(width: 44, height: Self.columnButtonHeight)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Read in context")
-            Spacer(minLength: 0)
             Menu {
                 Button { actions.copy(false) } label: {
                     Label("Copy text", systemImage: "doc.on.doc")
@@ -588,13 +593,22 @@ struct PostRow: View {
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .foregroundStyle(Theme.secondaryText)
-                    .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                    .frame(width: 44, height: Self.columnButtonHeight)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("Share")
+            Button(action: actions.like) {
+                Image(systemName: isLiked ? "heart.fill" : "heart")
+                    .foregroundStyle(isLiked ? Theme.like : Theme.secondaryText)
+                    .frame(width: 44, height: Self.columnButtonHeight)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(isLiked ? "Unlike" : "Like")
+            .accessibilityValue(isLiked ? "Liked" : "Not liked")
         }
         .font(.subheadline)
         .buttonStyle(.borderless)
+        .frame(width: avatarSize)
     }
 
     /// Thin vertical line through the avatar column that joins the posts of a thread.
@@ -604,8 +618,9 @@ struct PostRow: View {
                 .fill(Theme.threadLine)
                 .frame(width: 2, height: max(0, topPadding - 2))
                 .opacity(post.continuesThread ? 1 : 0)
+            // The avatar and the buttons under it.
             Color.clear
-                .frame(width: 2, height: avatarSize + 4)
+                .frame(width: 2, height: avatarSize + Self.columnGap + Self.columnButtonHeight * Self.columnButtonCount + 4)
             Rectangle()
                 .fill(Theme.threadLine)
                 .frame(width: 2)

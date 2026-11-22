@@ -37,7 +37,8 @@ struct FeedPost: Identifiable, Equatable {
     var continuesThread: Bool
     /// The next post joins this one in a thread (One book mode).
     var threadContinuesBelow: Bool
-    /// "Show thread" link (Mix mode and Saved).
+    /// The post comes from Mix mode or Saved, where posts of different books or places sit
+    /// together (tapping the post opens it in context).
     var showsThreadButton: Bool
     /// Part number (1-based) when a long segment was split by the word limit.
     let part: Int

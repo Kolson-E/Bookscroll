@@ -306,9 +306,11 @@ keeps at least 7:1 contrast). VoiceOver users highlight a whole paragraph with t
 ## Appearance
 
 The post layout follows X: avatar, bold title with the author in grey, chapter and percent,
-the text, and a grey action bar. X's typeface (Chirp) belongs to X and cannot be bundled, so
-posts use the system font (SF Pro) in X's sizes and colours. Text follows the system Dynamic
-Type size.
+and the text. To save space there is no action bar under the text: the bookmark sits beside
+"⋯" at the top right, and read in context, share and like sit under the avatar. X's typeface
+(Chirp) belongs to X and cannot be bundled, so posts use the system font (SF Pro) at x.com's
+metrics: 15 pt text with 20 pt lines, bold 15 pt title, grey 15 pt author. Text follows the
+system Dynamic Type size.
 
 | Setting | Choices (default first) |
 |---|---|
@@ -362,8 +364,9 @@ opens on the book of the last post you had at the top, so a mode switch or a rel
 returns to the same place.
 
 In One book mode, consecutive posts from the same chapter form a thread joined by a line
-through the avatars; a chapter change breaks the thread and shows a chapter row. In Mix mode
-each post has "Show thread", which opens read in context.
+through the avatars; a chapter change breaks the thread and shows a chapter row. One book mode
+always gives the book in order: every post follows the one before it, with nothing skipped.
+In Mix mode and Saved, tapping a post (or its book button) opens it in context.
 
 ### Positions are offsets, not post indices
 
