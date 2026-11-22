@@ -572,3 +572,7 @@ the screen (`audit-<screen>`) but do not fail. On iOS 26 they come from the glas
 scrolled content (contrast); on iOS 17 from rows that VoiceOver reads as one element (Dynamic
 Type, clipping). The largest-text-size test saves pictures of the feed, Library and Settings
 for a visual check.
+
+## License
+
+MIT. See [LICENSE](LICENSE). ZIPFoundation is also MIT-licensed.
