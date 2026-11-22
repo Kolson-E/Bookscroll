@@ -520,6 +520,14 @@ final class BookscrollUITests: XCTestCase {
         post.doubleTap()
         XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5), "Double tap bookmarked the post")
         XCTAssertFalse(app.buttons["Continue in feed from here"].exists, "A double tap does not open the reader")
+
+        // A tap outside the colour bubble only closes it: it does not open the reader.
+        let noHighlight = app.buttons["bookmark.color.none"].firstMatch
+        XCTAssertTrue(noHighlight.waitForExistence(timeout: 5), "The colour bubble opens")
+        post.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.9)).tap()
+        XCTAssertTrue(noHighlight.waitForNonExistence(timeout: 5), "A tap outside closes the bubble")
+        XCTAssertFalse(app.buttons["Continue in feed from here"].waitForExistence(timeout: 2), "The tap outside does not open the reader")
+
         post.doubleTap()
         XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.exists, "A second double tap does not remove the bookmark")
     }
@@ -554,6 +562,11 @@ final class BookscrollUITests: XCTestCase {
         screenshot("12-feed-largest-text")
         bookmark.tap()
         XCTAssertTrue(app.buttons["Change bookmark"].firstMatch.waitForExistence(timeout: 5))
+        // Close the colour bubble: while it is open, the next tap only closes it.
+        let noHighlight = app.buttons["bookmark.color.none"].firstMatch
+        XCTAssertTrue(noHighlight.waitForExistence(timeout: 5))
+        noHighlight.tap()
+        XCTAssertTrue(noHighlight.waitForNonExistence(timeout: 5))
         tab(app, "Library")
         XCTAssertTrue(element(app, labelBeginsWith: "\(firstTitle), by").waitForExistence(timeout: 5))
         screenshot("13-library-largest-text")

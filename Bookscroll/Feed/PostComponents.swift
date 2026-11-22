@@ -571,14 +571,11 @@ struct PostRow: View {
         .accessibilityIdentifier("post.more")
     }
 
-    /// Bookmark beside X's "⋯" menu at the top right of the post. The colour bubble opens to
-    /// the left of the bookmark.
+    /// Bookmark beside X's "⋯" menu at the top right of the post. The colour bubble is a
+    /// popover from the bookmark: a tap outside it only closes it (the system keeps that tap
+    /// from reaching the post or the tab bar behind it).
     private var topTrailingButtons: some View {
         HStack(spacing: 0) {
-            if showsColorBubble {
-                colorBubble
-                    .transition(reduceMotion ? .opacity : .scale(scale: 0.2, anchor: .trailing).combined(with: .opacity))
-            }
             Button(action: bookmarkTapped) {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
                     .font(.subheadline)
@@ -590,6 +587,11 @@ struct PostRow: View {
             .accessibilityLabel(isBookmarked ? "Change bookmark" : "Bookmark")
             .accessibilityValue(bookmarkValue)
             .accessibilityIdentifier("post.bookmark")
+            .popover(isPresented: $showsColorBubble, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+                colorBubble
+                    .presentationCompactAdaptation(.popover)
+                    .presentationBackground(Theme.secondaryBackground)
+            }
             moreMenu
         }
         .offset(x: 12, y: -12)
@@ -657,10 +659,8 @@ struct PostRow: View {
             .accessibilityLabel("Remove bookmark")
         }
         .buttonStyle(.borderless)
-        .padding(.horizontal, 4)
-        .background(Theme.secondaryBackground, in: Capsule())
-        .overlay(Capsule().stroke(Theme.separator, lineWidth: 1))
-        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Bookmark colours")
     }
