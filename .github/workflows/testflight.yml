@@ -1,0 +1,141 @@
+name: TestFlight
+
+# Builds Bookscroll, signs it with your Apple Developer account and uploads it to TestFlight.
+# Run it from the Actions tab (also in the GitHub app): TestFlight › Run workflow.
+# Setup: README › "Install with TestFlight (no Mac)".
+
+on:
+  workflow_dispatch:
+  # A new build on the 1st of every odd month (10:49 UTC). Builds stop opening after 90 days,
+  # so a new one always arrives before the old one expires. Schedules run only from the
+  # default branch.
+  schedule:
+    - cron: "49 10 1 */2 *"
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Build and upload
+    # The same runner as the CI job "Release build".
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+      TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      BUNDLE_ID: ${{ vars.BUNDLE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the setup
+        run: |
+          missing=""
+          [ -n "$ASC_KEY_ID" ] || missing="$missing secret APP_STORE_CONNECT_KEY_ID,"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing secret APP_STORE_CONNECT_ISSUER_ID,"
+          [ -n "$ASC_KEY" ] || missing="$missing secret APP_STORE_CONNECT_KEY,"
+          [ -n "$TEAM_ID" ] || missing="$missing secret APPLE_TEAM_ID,"
+          [ -n "$BUNDLE_ID" ] || missing="$missing variable BUNDLE_ID,"
+          if [ -n "$missing" ]; then
+            echo "::error::Not set in Settings › Secrets and variables › Actions:${missing%,}. See README › Install with TestFlight."
+            exit 1
+          fi
+          case "$BUNDLE_ID" in
+            *[!A-Za-z0-9.-]*|.*|*.) echo "::error::BUNDLE_ID '$BUNDLE_ID' may only have letters, digits, dots and hyphens, like com.yourname.bookscroll."; exit 1 ;;
+          esac
+          case "$ASC_KEY" in
+            *"BEGIN PRIVATE KEY"*) ;;
+            *) echo "::error::APP_STORE_CONNECT_KEY must be the whole text of the .p8 file, from -----BEGIN PRIVATE KEY----- to -----END PRIVATE KEY-----."; exit 1 ;;
+          esac
+          echo "Bundle id: $BUNDLE_ID (widgets: $BUNDLE_ID.Widgets, app group: group.$BUNDLE_ID)"
+
+      - name: Select Xcode
+        run: .github/scripts/select_newest_xcode.sh 26
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Write the API key
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s\n' "$ASC_KEY" > "$RUNNER_TEMP/asc/AuthKey.p8"
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/asc/AuthKey.p8" >> "$GITHUB_ENV"
+          # A build number that only goes up: the date and time of this run (UTC).
+          echo "BUILD_NUMBER=$(date -u +%Y%m%d%H%M)" >> "$GITHUB_ENV"
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Bookscroll.xcodeproj \
+            -scheme Bookscroll \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Bookscroll.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            BASE_BUNDLE_ID="$BUNDLE_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            > archive.log 2>&1 || { grep -E "error:|warning: .*(sign|provision|certificate)" archive.log | sort -u | head -40; tail -40 archive.log; exit 1; }
+          grep -E "ARCHIVE SUCCEEDED" archive.log
+          echo "Build $BUILD_NUMBER archived."
+
+      - name: Upload to TestFlight
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          if ! xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Bookscroll.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" > upload.log 2>&1; then
+            grep -iE "error|fail" upload.log | sort -u | head -40
+            tail -30 upload.log
+            if grep -qiE "no suitable application records|app record|cannot find app" upload.log; then
+              echo "::error::App Store Connect has no app with the bundle id $BUNDLE_ID yet. This run registered the id. Make the app (README › Install with TestFlight, step 6), then run this workflow again."
+            fi
+            exit 1
+          fi
+          tail -5 upload.log
+          echo "::notice::Build $BUILD_NUMBER uploaded. It shows in TestFlight after Apple processes it (usually 5 to 30 minutes)."
+
+      - name: Revoke this run's development certificate
+        if: always()
+        continue-on-error: true
+        run: |
+          [ -f "$ASC_KEY_PATH" ] || exit 0
+          serials=$(security find-certificate -a -c "Apple Development" -p 2>/dev/null \
+            | awk '/BEGIN CERT/{c=""} {c=c $0 "\n"} /END CERT/{print c > ("cert" ++n ".pem")}' ; \
+            for f in cert*.pem; do [ -f "$f" ] && openssl x509 -in "$f" -noout -serial | cut -d= -f2; done)
+          rm -f cert*.pem
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography 2>/dev/null \
+            || python3 -m pip install --quiet pyjwt cryptography
+          python3 .github/scripts/revoke_certificates.py $serials
+
+      - name: Remove the API key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"

@@ -1,0 +1,12 @@
+// Build settings for every target. To run on your own iPhone, iPad, Mac or Vision Pro,
+// make Support/Local.xcconfig (it is not in git) with your team and a bundle id of your own:
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+//   BASE_BUNDLE_ID = com.yourname.Bookscroll
+//
+// The widget extension and the app group follow BASE_BUNDLE_ID.
+
+BASE_BUNDLE_ID = app.bookscroll.Bookscroll
+APP_GROUP_ID = group.$(BASE_BUNDLE_ID)
+
+#include? "Local.xcconfig"

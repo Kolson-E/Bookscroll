@@ -1,0 +1,96 @@
+name: AltStore build
+
+# Builds Bookscroll.ipa for AltStore or SideStore (free Apple ID, no Mac) and puts it on the
+# release "altstore" of this repository. AltStore signs it with your Apple ID on install.
+# Run it from the Actions tab (also in the GitHub app): AltStore build › Run workflow.
+# Setup: README › "Install with AltStore (Windows PC, free)".
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: altstore
+  cancel-in-progress: false
+
+jobs:
+  ipa:
+    name: Build Bookscroll.ipa
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      TAG: altstore
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build for iPhone (Release, not signed)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Bookscroll.xcodeproj \
+            -scheme Bookscroll \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CURRENT_PROJECT_VERSION="$(date -u +%Y%m%d%H%M)" \
+            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -40; tail -40 build.log; exit 1; }
+          grep "BUILD SUCCEEDED" build.log
+
+      - name: Add the entitlements and make the .ipa
+        run: |
+          set -euo pipefail
+          APP=build/Build/Products/Release-iphoneos/Bookscroll.app
+          WIDGETS="$APP/PlugIns/BookscrollWidgets.appex"
+          test -d "$APP" && test -d "$WIDGETS"
+          GROUP=$(/usr/libexec/PlistBuddy -c "Print :BookscrollAppGroup" "$APP/Info.plist")
+          echo "App group: $GROUP"
+          # AltStore reads the entitlements from the binaries to register the app group, so
+          # they are embedded with an ad-hoc signature (AltStore replaces the signature).
+          for target in Bookscroll BookscrollWidgets; do
+            sed "s/\$(APP_GROUP_ID)/$GROUP/" "Support/$target.entitlements" > "$RUNNER_TEMP/$target.entitlements"
+            plutil -lint "$RUNNER_TEMP/$target.entitlements"
+          done
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) -exec codesign --force --sign - {} \;
+          fi
+          codesign --force --sign - --entitlements "$RUNNER_TEMP/BookscrollWidgets.entitlements" "$WIDGETS"
+          codesign --force --sign - --entitlements "$RUNNER_TEMP/Bookscroll.entitlements" "$APP"
+          codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "$GROUP"
+          mkdir -p ipa/Payload
+          cp -R "$APP" ipa/Payload/
+          (cd ipa && zip -qry ../Bookscroll.ipa Payload)
+          ls -lh Bookscroll.ipa
+
+      - name: Put the .ipa on the "altstore" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          NOTES="Bookscroll for AltStore or SideStore. Built $(date -u '+%Y-%m-%d %H:%M UTC') from ${GITHUB_SHA::7}.
+          On the iPhone: tap Bookscroll.ipa, then AltStore › My Apps › + and pick the file from Downloads.
+          Setup: README › Install with AltStore (Windows PC, free)."
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" Bookscroll.ipa --clobber
+            gh release edit "$TAG" --notes "$NOTES"
+          else
+            gh release create "$TAG" Bookscroll.ipa --target "$GITHUB_SHA" \
+              --title "Bookscroll for AltStore" --notes "$NOTES"
+          fi
+          echo "::notice::Bookscroll.ipa is on $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG"
+
+      - name: Keep a copy with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bookscroll-ipa
+          path: Bookscroll.ipa
+          retention-days: 30

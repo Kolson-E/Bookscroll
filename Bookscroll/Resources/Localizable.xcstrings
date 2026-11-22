@@ -1,0 +1,403 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@" : {},
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld%%"
+          }
+        }
+      }
+    },
+    "%@ · now at %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · now at %2$lld%%"
+          }
+        }
+      }
+    },
+    "%@, %lld percent%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$lld percent%3$@"
+          }
+        }
+      }
+    },
+    "%@, by %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, by %2$@"
+          }
+        }
+      }
+    },
+    "%@, by %@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, by %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "%@, by %@. %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, by %2$@. %3$@."
+          }
+        }
+      }
+    },
+    "%@. %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@. %2$@."
+          }
+        }
+      }
+    },
+    "%lld books" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld book"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld books"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of %lld books" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %#@books@"
+          },
+          "substitutions" : {
+            "books" : {
+              "argNum" : 2,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg book"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg books"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld percent" : {},
+    "%lld%%" : {},
+    "%lld%% read · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld%% read · %2$@"
+          }
+        }
+      }
+    },
+    "A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Text size follows the system setting (Settings › Display & Brightness › Text Size)." : {},
+    "About" : {},
+    "About the file" : {},
+    "Accent colour" : {},
+    "Add" : {},
+    "Add Books" : {},
+    "Add books from your library." : {},
+    "Add or Remove Books…" : {},
+    "Add to Shelf" : {},
+    "Appearance" : {},
+    "Author" : {},
+    "Author (optional)" : {},
+    "Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post." : {},
+    "Avatar" : {},
+    "Back Up and Restore" : {},
+    "Book" : {},
+    "Book not found" : {},
+    "Bookmark" : {},
+    "Bookmarked" : {},
+    "Books" : {},
+    "Books already imported stay in your library." : {},
+    "Bookscroll imports each new EPUB, PDF, text, Markdown, HTML or RTF file in the folder and its subfolders when you open the app. A file is imported once. Removing a file from the folder does not delete the book, and a book you delete is not imported again. Books already in your library are skipped." : {},
+    "Bookscroll is not ready yet. Try again." : {},
+    "Bookscroll keeps the text of each book, not the original file. The search index is not in device backups." : {},
+    "Bookscroll works fully offline. It has no account, no analytics and makes no network calls." : {},
+    "Cancel" : {},
+    "Card preview: %@" : {},
+    "Change Folder…" : {},
+    "Chapter: %@" : {},
+    "Chapter: %@. New chapter begins." : {},
+    "Chapters" : {},
+    "Chapters and percent" : {},
+    "Choose Another Photo…" : {},
+    "Choose Folder…" : {},
+    "Choose Photo…" : {},
+    "Choose a shelf" : {},
+    "Clear" : {},
+    "Clear filter" : {},
+    "Colours" : {},
+    "Continue Reading" : {},
+    "Continue from here" : {},
+    "Continue in feed from here" : {},
+    "Copy text" : {},
+    "Copy with citation" : {},
+    "Create" : {},
+    "Day" : {},
+    "Delete Shelf" : {},
+    "Delete “%@”?" : {},
+    "Density" : {},
+    "Dismiss" : {},
+    "Dismiss error for %@" : {},
+    "Done" : {},
+    "Double-tap to like" : {},
+    "Double-tap to read in context" : {},
+    "Drop to import" : {},
+    "EPUB, PDF, text, Markdown, HTML or RTF" : {},
+    "Edit Details" : {},
+    "Edit Details…" : {},
+    "End snooze" : {},
+    "Export Backup…" : {},
+    "Feed" : {},
+    "Feed mode" : {},
+    "Feed: %@" : {},
+    "Feed: your own choice" : {},
+    "Filter" : {},
+    "Finished %@" : {},
+    "Finished this year" : {},
+    "Focus mode" : {},
+    "Focus shows “%@”. A choice below ends it." : {},
+    "Format" : {},
+    "Go to %lld%%" : {},
+    "Group books, like “Holiday reading” or “Philosophy”. A book can be on more than one shelf, and a shelf can be read as its own feed." : {},
+    "Hide book from Mix" : {},
+    "Hide from Mix" : {},
+    "Highlight" : {},
+    "Highlight paragraph" : {},
+    "Highlight. %@. %@%@, %lld percent." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Highlight. %1$@. %2$@%3$@, %4$lld percent."
+          }
+        }
+      }
+    },
+    "How often" : {},
+    "Import" : {},
+    "Import Books" : {},
+    "Import DRM-free EPUB, PDF, text, Markdown, HTML or RTF files from Files, iCloud Drive or any file provider, or paste text. You can also share a file to Bookscroll from another app. Apple Books purchases are DRM-protected and cannot be imported." : {},
+    "Import DRM-free books or paste text to fill your feed." : {},
+    "Import books" : {},
+    "Import your books first. A restore finds each book by its title, author and length, and puts back its place and details; marks it does not have yet are added." : {},
+    "Importing" : {},
+    "Importing %lld%%" : {},
+    "Imports a new version of this book and keeps your place, marks and shelves" : {},
+    "In Mix" : {},
+    "In the text" : {},
+    "Jump to" : {},
+    "Jump to…" : {},
+    "Last 14 days" : {},
+    "Library" : {},
+    "Like" : {},
+    "Liked" : {},
+    "Loading more posts" : {},
+    "Lock Screen" : {},
+    "Look up a word" : {},
+    "Makes a book from text you paste" : {},
+    "Mark as Finished" : {},
+    "Mark as Not Finished" : {},
+    "Maximum words per post" : {},
+    "Measuring" : {},
+    "Minutes" : {},
+    "More options for %@" : {},
+    "Name" : {},
+    "New Shelf" : {},
+    "New Shelf…" : {},
+    "New chapter · %@" : {},
+    "No book in your library matches the filter." : {},
+    "No books in progress." : {},
+    "No books match" : {},
+    "No books on this shelf" : {},
+    "No books yet" : {},
+    "No books." : {},
+    "No shelves" : {},
+    "Normal amount" : {},
+    "Not bookmarked" : {},
+    "Not liked" : {},
+    "OK" : {},
+    "Off shows the first letter of the title." : {},
+    "On This iPhone" : {},
+    "One book" : {},
+    "Open ${book}" : {},
+    "Open Book" : {},
+    "Opens Files to pick books" : {},
+    "Opens Jump to" : {},
+    "Opens Jump to for this book" : {},
+    "Opens a book in One book mode at your place." : {},
+    "Opens the book around this post" : {},
+    "Opens the book here" : {},
+    "Opens the book you read last at your place." : {},
+    "Paste Text" : {},
+    "Percent" : {},
+    "Post font" : {},
+    "Post style" : {},
+    "Posts" : {},
+    "Read %@ in context" : {},
+    "Read as Feed" : {},
+    "Read in context" : {},
+    "Reader" : {},
+    "Reader font" : {},
+    "Reading" : {},
+    "Reading Stats" : {},
+    "Reading Today" : {},
+    "Reading on the Lock Screen" : {},
+    "Remove Photo" : {},
+    "Remove bookmark" : {},
+    "Remove from Shelf" : {},
+    "Remove highlight" : {},
+    "Rename" : {},
+    "Rename Shelf" : {},
+    "Rename…" : {},
+    "Replace File imports a new version of the book, such as a corrected EPUB. Your place, likes, bookmarks, highlights, shelves and the details above move to the new version; where its text changed, they go to the nearest matching words." : {},
+    "Replace File…" : {},
+    "Restore" : {},
+    "Restore from Backup…" : {},
+    "Restore from this backup?" : {},
+    "Save" : {},
+    "Saved" : {},
+    "Search" : {},
+    "Set Feed" : {},
+    "Sets your place in this book to the top paragraph on screen" : {},
+    "Settings" : {},
+    "Share" : {},
+    "Share as image" : {},
+    "Share as text" : {},
+    "Shelf" : {},
+    "Shelf actions" : {},
+    "Shelves" : {},
+    "Show" : {},
+    "Show All Books" : {},
+    "Show Cover or Photo" : {},
+    "Show in Mix" : {},
+    "Show less from this book" : {},
+    "Show more" : {},
+    "Show more from this book" : {},
+    "Show saved posts" : {},
+    "Show thread" : {},
+    "Shown as" : {},
+    "Shows the books of this shelf, mixed, in the feed" : {},
+    "Shows the whole post" : {},
+    "Shows your reading time, speed and time left" : {},
+    "Sizes are estimates: each book gets a share of the library and the search index in proportion to its length. Swipe left on a book to delete it. The space it frees is used again for the next import." : {},
+    "Snooze book for a day" : {},
+    "Snooze book for a week" : {},
+    "Snooze for a day" : {},
+    "Snooze for a week" : {},
+    "Something went wrong" : {},
+    "Sort and filter" : {},
+    "Sort by" : {},
+    "Speed" : {},
+    "Start of book" : {},
+    "Stop Syncing" : {},
+    "Stop syncing “%@”?" : {},
+    "Storage" : {},
+    "Streak" : {},
+    "Style" : {},
+    "Sync Now" : {},
+    "Synced Folder" : {},
+    "Synced folder" : {},
+    "Tells you how long you read today and your streak." : {},
+    "Text" : {},
+    "That book is not in your library." : {},
+    "The backup holds each book’s place, finish date, Mix settings, title, author, avatar photo, likes, bookmarks and highlights, and your shelves. It does not hold the books themselves or your settings." : {},
+    "The book goes on the new shelf." : {},
+    "The books stay in your library." : {},
+    "The place, finish date, Mix settings and details of each book in the backup replace the ones in your library." : {},
+    "Theme" : {},
+    "This book has no chapter labels." : {},
+    "This week" : {},
+    "Time counts while the feed moves on, with gaps of up to 2 minutes. Words are counted as 6 characters each." : {},
+    "Time left" : {},
+    "Times left use your measured speed." : {},
+    "Title" : {},
+    "Today" : {},
+    "Total reading time" : {},
+    "Touch and hold a word, then choose Look Up." : {},
+    "Unlike" : {},
+    "Version" : {},
+    "Waiting" : {},
+    "While this Focus is on, the feed shows only the books on a shelf." : {},
+    "While you read, the book, how far you are and today’s reading time show on the Lock Screen and in the Dynamic Island. When you leave the app they stay for an hour; tap to continue. Add the Current Book widget to the Lock Screen or Home Screen for the same at any time." : {},
+    "Words today" : {},
+    "Working" : {},
+    "You are here · %lld%%" : {},
+    "You have reached the end of your books." : {},
+    "You read %@ today. Streak: %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "You read %1$@ today. Streak: %2$@."
+          }
+        }
+      }
+    },
+    "Your library is empty" : {},
+    "Your speed is measured after 10 minutes of reading. Until then, times left use 200 words a minute." : {},
+    "— %@" : {},
+    "“" : {}
+  },
+  "version" : "1.0"
+}

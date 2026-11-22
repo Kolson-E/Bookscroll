@@ -1,0 +1,108 @@
+name: Bookscroll
+options:
+  bundleIdPrefix: app.bookscroll
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  # Readable by Xcode 15.x (objectVersion 60); newer Xcode versions open it too.
+  projectFormat: xcode15_0
+  developmentLanguage: en
+
+configFiles:
+  Debug: Support/Base.xcconfig
+  Release: Support/Base.xcconfig
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    # String Catalogs: Xcode collects the text of Text, Button, Label and similar views.
+    SWIFT_EMIT_LOC_STRINGS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: "0.9.19"
+
+targets:
+  Bookscroll:
+    type: application
+    platform: iOS
+    sources:
+      - path: Bookscroll
+      - path: Shared
+    dependencies:
+      - package: ZIPFoundation
+      - target: BookscrollWidgets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BASE_BUNDLE_ID)
+        PRODUCT_NAME: Bookscroll
+        CODE_SIGN_ENTITLEMENTS: Support/Bookscroll.entitlements
+        INFOPLIST_KEY_NSSupportsLiveActivities: YES
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        # Document types (EPUB, PDF) for "Open in Bookscroll"; Xcode merges the generated keys into it.
+        INFOPLIST_FILE: Support/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Bookscroll
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        # "Save Image" in the share sheet of a share card writes to Photos; iOS stops an app
+        # that does this without a reason string.
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Bookscroll saves the share cards you choose to save to your photo library."
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: YES
+    scheme:
+      testTargets:
+        - BookscrollTests
+        - BookscrollUITests
+      gatherCoverageData: false
+
+  BookscrollWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: BookscrollWidgets
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BASE_BUNDLE_ID).Widgets
+        PRODUCT_NAME: BookscrollWidgets
+        INFOPLIST_FILE: Support/Widgets-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Support/BookscrollWidgets.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SKIP_INSTALL: YES
+
+  BookscrollTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: BookscrollTests
+    dependencies:
+      - target: Bookscroll
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.bookscroll.BookscrollTests
+        GENERATE_INFOPLIST_FILE: YES
+
+  BookscrollUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: BookscrollUITests
+    dependencies:
+      - target: Bookscroll
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.bookscroll.BookscrollUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Bookscroll

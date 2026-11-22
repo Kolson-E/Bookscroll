@@ -1,0 +1,187 @@
+name: CI
+
+# Runs only when started by hand (Actions › CI › Run workflow). The repository is private, and
+# macOS minutes come out of a small monthly allowance; the TestFlight upload needs them more.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: newest iOS
+            runner: macos-15
+            xcode: ""
+            ios_major: ""
+          - name: iOS 17, Xcode 15.4
+            runner: macos-14
+            xcode: /Applications/Xcode_15.4.app
+            ios_major: "17"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        if: matrix.xcode != ''
+        run: sudo xcode-select -s "${{ matrix.xcode }}"
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Pick an iPhone simulator
+        id: simulator
+        env:
+          IOS_MAJOR: ${{ matrix.ios_major }}
+        run: |
+          UDID=$(xcrun simctl list devices available --json | python3 -c '
+          import json, os, re, sys
+          data = json.load(sys.stdin)["devices"]
+          wanted = os.environ.get("IOS_MAJOR", "")
+          best = None
+          for runtime, devices in data.items():
+              match = re.search(r"iOS-(\d+)-(\d+)", runtime)
+              if not match:
+                  continue
+              version = (int(match.group(1)), int(match.group(2)))
+              if version < (17, 0):
+                  continue
+              if wanted and version[0] != int(wanted):
+                  continue
+              for device in devices:
+                  if device.get("isAvailable") and device["name"].startswith("iPhone"):
+                      if best is None or version > best[0]:
+                          best = (version, device["udid"], device["name"])
+          if best is None:
+              sys.exit("No matching iPhone simulator")
+          print(best[1])
+          print(f"Using {best[2]} (iOS {best[0][0]}.{best[0][1]})", file=sys.stderr)
+          ')
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Build and run tests
+        env:
+          # xcodebuild passes TEST_RUNNER_* to the UI test runner without the prefix.
+          TEST_RUNNER_SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Bookscroll.xcodeproj \
+            -scheme Bookscroll \
+            -destination "id=${{ steps.simulator.outputs.udid }}" \
+            -parallel-testing-enabled NO \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            > xcodebuild.log 2>&1 &
+          BUILD_PID=$!
+          tail -f xcodebuild.log | grep --line-buffered -E "error:|warning: .*\.swift|Test Case .*(passed|failed)|Executed [0-9]+ test|TEST (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)|AUDIT:|SCALE:|DEBUG:" &
+          TAIL_PID=$!
+          STATUS=0
+          wait $BUILD_PID || STATUS=$?
+          sleep 2
+          kill $TAIL_PID 2>/dev/null || true
+          exit $STATUS
+
+      - name: Summarize failures
+        if: failure()
+        run: |
+          echo "::group::Compiler errors"
+          grep -E "error:" xcodebuild.log | sort -u | head -100 || true
+          echo "::endgroup::"
+          echo "::group::Failed tests"
+          grep -E "error: -\[|Test Case .* failed" xcodebuild.log | head -150 || true
+          echo "::endgroup::"
+
+      - name: Code coverage
+        if: always()
+        run: |
+          if [ -d TestResults.xcresult ]; then
+            xcrun xccov view --report --only-targets TestResults.xcresult || true
+            xcrun xccov view --report --files-for-target Bookscroll.app TestResults.xcresult || true
+          fi
+
+      # Xcode fills the String Catalogs with every string it finds in the code. The result is
+      # printed so the catalogs in the repository can be kept equal to it.
+      - name: Export strings
+        if: always() && matrix.ios_major == ''
+        continue-on-error: true
+        run: |
+          xcodebuild -exportLocalizations \
+            -project Bookscroll.xcodeproj \
+            -localizationPath localizations \
+            -exportLanguage en \
+            CODE_SIGNING_ALLOWED=NO > export.log 2>&1 || { tail -40 export.log; exit 1; }
+          for file in Bookscroll/Resources/Localizable.xcstrings BookscrollWidgets/Localizable.xcstrings; do
+            echo "XCSTRINGS-BEGIN $file"
+            gzip -9 -c "$file" | base64 -b 120
+            echo "XCSTRINGS-END $file"
+          done
+          git status --short -- '*.xcstrings'
+
+      - name: Print screenshots
+        if: always()
+        run: |
+          if [ -d screenshots ]; then
+            mkdir -p small
+            for file in screenshots/*.png; do
+              name=$(basename "$file" .png)
+              sips -Z 900 -s format jpeg -s formatOptions 45 "$file" --out "small/$name.jpg" > /dev/null
+              echo "SCREENSHOT-BEGIN $name"
+              base64 -b 120 -i "small/$name.jpg"
+              echo "SCREENSHOT-END $name"
+            done
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.runner }}
+          path: |
+            screenshots
+            xcodebuild.log
+          if-no-files-found: ignore
+
+  release-build:
+    # The same toolchain and configuration as the TestFlight upload, without signing.
+    name: Release build (Xcode 26+, device)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: .github/scripts/select_newest_xcode.sh 26
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build for iPhone (Release)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Bookscroll.xcodeproj \
+            -scheme Bookscroll \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -40; tail -40 build.log; exit 1; }
+          grep -E "warning:" build.log | sort -u | head -40 || true
+          grep "BUILD SUCCEEDED" build.log
