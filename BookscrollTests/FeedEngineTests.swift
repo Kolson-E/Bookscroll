@@ -207,4 +207,89 @@ final class FeedEngineTests: XCTestCase {
         XCTAssertEqual(middle.fullProgressLine, "Chapter 2 \u{00B7} \(TextUtils.percent(middle.segment.charStart, of: total))%")
         XCTAssertEqual(ShareFormatter.quote(start), "\u{201C}\(start.segment.text)\u{201D}\n\nBook 0 by Author 1")
     }
+
+    // MARK: Scroll back through the book
+
+    func testOneBookLoadsEarlierPostsInOrderWithoutMovingThePlace() throws {
+        let library = makeLibrary(bookCount: 1, paragraphs: 80)
+        var book = library.books[0]
+        let paragraphs = library.segmented[book.id]!.paragraphs
+        book.positionOffset = paragraphs[45].charStart
+        let engine = FeedEngine(source: library.source, books: [book], style: .paragraph, mode: .single(book.id), seed: 1)
+        engine.loadMore()
+        XCTAssertEqual(engine.posts.first?.segment.index, 45)
+        engine.markShown(through: engine.posts[2].id)
+        XCTAssertEqual(engine.books[book.id]?.positionOffset, paragraphs[47].charStart)
+        XCTAssertTrue(engine.hasEarlierPosts)
+
+        // One page of earlier posts goes above, in book order, joined to the old first post.
+        let oldFirstID = try XCTUnwrap(engine.posts.first?.id)
+        XCTAssertEqual(engine.loadEarlier(), FeedEngine.pageSize)
+        XCTAssertEqual(engine.posts.prefix(31).map(\.segment.index), Array(15...45))
+        XCTAssertEqual(engine.posts[30].id, oldFirstID)
+        XCTAssertEqual(engine.index(ofPost: oldFirstID), 30)
+
+        // Scrolling back over them does not move the place back or count reading again.
+        XCTAssertEqual(engine.markShown(through: engine.posts[0].id), [:])
+        XCTAssertEqual(engine.books[book.id]?.positionOffset, paragraphs[47].charStart)
+        // Scrolling forward again past the place moves it on.
+        let updates = engine.markShown(through: engine.posts[35].id)
+        XCTAssertEqual(updates[book.id], paragraphs[50].charStart)
+
+        // Back to the start of the book; then there is nothing earlier.
+        XCTAssertEqual(engine.loadEarlier(), 15)
+        XCTAssertFalse(engine.hasEarlierPosts)
+        XCTAssertEqual(engine.loadEarlier(), 0)
+        let indices = engine.posts.map(\.segment.index)
+        XCTAssertEqual(Array(indices.prefix(indices.count)), Array(0..<indices.count), "One unbroken run from the first paragraph")
+        XCTAssertEqual(engine.posts.count, Set(engine.posts.map(\.id)).count, "No post twice")
+        engine.loadMore()
+        XCTAssertEqual(engine.posts.map(\.segment.index), Array(0..<engine.posts.count), "Loading on below continues the same run")
+    }
+
+    func testEarlierPostsGetChapterHeadersAndThreads() throws {
+        let library = makeLibrary(bookCount: 1, paragraphs: 12, chapterEvery: 3)
+        var book = library.books[0]
+        book.positionOffset = library.segmented[book.id]!.paragraphs[7].charStart
+        let engine = FeedEngine(source: library.source, books: [book], style: .paragraph, mode: .single(book.id), seed: 1)
+        engine.loadMore()
+        XCTAssertEqual(engine.posts.first?.chapterHeader, "Chapter 3", "The first post shows its chapter")
+        engine.loadEarlier()
+        let posts = engine.posts
+        XCTAssertEqual(posts.map(\.segment.index), Array(0..<12))
+        XCTAssertEqual(posts.map(\.chapterHeader), ["Chapter 1", nil, nil, "Chapter 2", nil, nil, "Chapter 3", nil, nil, "Chapter 4", nil, nil])
+        XCTAssertEqual(posts.map(\.continuesThread), [false, true, true, false, true, true, false, true, true, false, true, true])
+        XCTAssertEqual(posts.map(\.threadContinuesBelow), [true, true, false, true, true, false, true, true, false, true, true, false])
+        XCTAssertEqual(posts.map(\.startsChapter), [true, false, false, true, false, false, true, false, false, true, false, false])
+    }
+
+    func testEarlierPartsOfASplitParagraphComeFirst() throws {
+        let long = (1...12).map { "Sentence number \($0) has exactly seven words here." }.joined(separator: " ")
+        let paragraphs = [ParsedParagraph(text: "Opening words of the book.", chapter: "One"), ParsedParagraph(text: long, chapter: "One")]
+        let segmented = Segmenter.segment(paragraphs)
+        let source = InMemorySegmentSource()
+        let id = UUID()
+        source.add(bookID: id, segmented: segmented)
+        var book = Fixtures.feedBook(id: id, ordinal: 1, title: "Split", segmented: segmented)
+        let all = PostPiece.pieces(of: try XCTUnwrap(source.segments(book: book, style: .paragraph, from: 1, limit: 1).first), limit: 20, splitter: SentenceSplitter())
+        XCTAssertGreaterThan(all.count, 2)
+        book.positionOffset = all[2].segment.charStart
+        let engine = FeedEngine(source: source, books: [book], style: .paragraph, mode: .single(id), seed: 1, wordLimit: .words(20))
+        engine.loadMore()
+        XCTAssertEqual(engine.posts.first?.part, 3)
+        engine.loadEarlier()
+        XCTAssertEqual(engine.posts.map(\.segment.index).prefix(4), [0, 1, 1, 1])
+        XCTAssertEqual(engine.posts.dropFirst().prefix(3).map(\.part), [1, 2, 3])
+        XCTAssertFalse(engine.hasEarlierPosts)
+    }
+
+    func testMixAndShelvesDoNotLoadEarlierPosts() {
+        let library = makeLibrary(bookCount: 2, paragraphs: 30)
+        var books = library.books
+        books[0].positionOffset = library.segmented[books[0].id]!.paragraphs[10].charStart
+        let engine = FeedEngine(source: library.source, books: books, style: .paragraph, mode: .mix, seed: 3)
+        engine.loadMore()
+        XCTAssertFalse(engine.hasEarlierPosts)
+        XCTAssertEqual(engine.loadEarlier(), 0)
+    }
 }

@@ -227,6 +227,91 @@ final class FeedEngine {
         }
     }
 
+    /// One book mode: the list does not start at the beginning of the book, so earlier posts
+    /// can go above it.
+    var hasEarlierPosts: Bool {
+        guard case let .single(bookID) = mode, let first = posts.first, first.bookID == bookID else { return false }
+        return first.segment.charStart > 0
+    }
+
+    /// One book mode ("Scroll back through the book"): puts up to `count` posts from before the
+    /// first post above it, in book order. They count as already shown, because they are behind
+    /// the reader's place, so the place never moves back and reading time is not counted again.
+    /// Returns the number of posts added.
+    @discardableResult
+    func loadEarlier(_ count: Int = FeedEngine.pageSize) -> Int {
+        guard hasEarlierPosts, case let .single(bookID) = mode, let book = books[bookID], let first = posts.first else { return 0 }
+        let bookStyle = first.segment.style
+        let limit = wordLimit.limit(for: book)
+        var earlier: [PostPiece] = []
+        // Parts of the first post's own segment that come before it.
+        if first.part > 1, let own = source.segments(book: book, style: bookStyle, from: first.segment.index, limit: 1).first {
+            earlier = PostPiece.pieces(of: own, limit: limit, splitter: splitter)
+                .filter { $0.segment.charEnd <= first.segment.charStart }
+        }
+        var upper = first.segment.index
+        while earlier.count < count && upper > 0 {
+            let from = max(0, upper - FeedEngine.fetchBatchSize)
+            let batch = source.segments(book: book, style: bookStyle, from: from, limit: upper - from)
+            guard !batch.isEmpty else { break }
+            earlier = batch.flatMap { PostPiece.pieces(of: $0, limit: limit, splitter: splitter) } + earlier
+            upper = from
+        }
+        let pieces = earlier.suffix(count).filter {
+            !emittedIDs.contains(FeedPost.makeID(bookID: bookID, style: $0.segment.style, index: $0.segment.index, part: $0.part, partCount: $0.partCount))
+        }
+        guard let earliest = pieces.first else { return 0 }
+
+        // Chapter of the segment before the earliest new post, for the "New chapter" line.
+        var previous: String? = nil
+        if earliest.part > 1 {
+            previous = earliest.segment.chapter
+        } else if earliest.segment.index > 0 {
+            previous = source.segments(book: book, style: bookStyle, from: earliest.segment.index - 1, limit: 1).first?.chapter
+        }
+        var added: [FeedPost] = []
+        for piece in pieces {
+            var post = FeedPost(segment: piece.segment, book: book, showsThreadButton: false, part: piece.part, partCount: piece.partCount)
+            if piece.part == 1 {
+                post.startsChapter = !piece.segment.chapter.isEmpty && piece.segment.chapter != previous
+                    && (previous != nil || piece.segment.index == 0)
+            }
+            previous = piece.segment.chapter
+            if let last = added.indices.last, Self.continues(added[last], post) {
+                post.continuesThread = true
+                added[last].threadContinuesBelow = true
+            } else if !piece.segment.chapter.isEmpty {
+                post.chapterHeader = piece.segment.chapter
+            }
+            added.append(post)
+        }
+        // The old first post now has a post above it: join the thread or keep its header.
+        var oldFirst = posts[0]
+        oldFirst.continuesThread = false
+        oldFirst.chapterHeader = nil
+        if let last = added.indices.last, Self.continues(added[last], oldFirst) {
+            oldFirst.continuesThread = true
+            added[last].threadContinuesBelow = true
+        } else if !oldFirst.segment.chapter.isEmpty {
+            oldFirst.chapterHeader = oldFirst.segment.chapter
+        }
+        posts[0] = oldFirst
+        for post in added {
+            emittedIDs.insert(post.id)
+            shownIDs.insert(post.id)
+        }
+        posts = added + posts
+        rebuildPostIndex()
+        return added.count
+    }
+
+    /// `post` follows `previous` directly in the same chapter of the same book (a thread).
+    private static func continues(_ previous: FeedPost, _ post: FeedPost) -> Bool {
+        previous.bookID == post.bookID
+            && previous.segment.charEnd == post.segment.charStart
+            && previous.segment.chapter == post.segment.chapter
+    }
+
     /// Marks the post with `id` and every post above it as shown. Returns the new positions
     /// of the books whose position moved forward.
     @discardableResult

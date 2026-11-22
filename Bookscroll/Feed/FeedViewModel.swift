@@ -23,6 +23,8 @@ final class FeedViewModel {
     @ObservationIgnored var onRead: (([UUID: Int]) -> Void)?
     /// Top visible post, bound to the scroll view.
     var scrolledID: String?
+    /// Settings › "Scroll back through the book": One book mode loads earlier posts at the top.
+    @ObservationIgnored var scrollsBack: @MainActor () -> Bool = { AppSettings.shared.scrollBackInOneBook }
 
     init(store: LibraryStore, defaults: UserDefaults = .standard) {
         self.store = store
@@ -58,6 +60,17 @@ final class FeedViewModel {
     func postAppeared(_ id: String) {
         guard let engine, let index = engine.index(ofPost: id) else { return }
         if index >= engine.posts.count - 8 { loadMore() }
+        if index <= 2 { loadEarlier() }
+    }
+
+    /// One book mode with "Scroll back through the book" on: puts earlier posts above the list
+    /// and keeps the post at the top of the screen where it is.
+    func loadEarlier() {
+        guard let engine, case .single = mode, scrollsBack(), engine.hasEarlierPosts else { return }
+        let top = scrolledID
+        guard engine.loadEarlier() > 0 else { return }
+        sync()
+        scrolledID = top
     }
 
     /// Called when the top visible post changes. That post and all posts above it count as shown.

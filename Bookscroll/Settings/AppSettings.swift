@@ -160,8 +160,9 @@ final class AppSettings {
         /// Stored under its old name (double tap used to like).
         static let doubleTapToBookmark = "doubleTapToLike"
         static let wordLimit = "wordLimit"
+        static let scrollBackInOneBook = "scrollBackInOneBook"
         static let liveActivity = "liveActivity"
-        static let all = [theme, accent, density, postTypeface, readerTypeface, postTextSize, focusMode, doubleTapToBookmark, wordLimit, liveActivity]
+        static let all = [theme, accent, density, postTypeface, readerTypeface, postTextSize, focusMode, doubleTapToBookmark, wordLimit, liveActivity, scrollBackInOneBook]
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -180,6 +181,8 @@ final class AppSettings {
     var wordLimit: WordLimit { didSet { defaults.set(wordLimit.storage, forKey: Key.wordLimit) } }
     /// Shows the book being read on the Lock Screen and in the Dynamic Island.
     var liveActivity: Bool { didSet { defaults.set(liveActivity, forKey: Key.liveActivity) } }
+    /// One book mode: scrolling up goes back through the book. Your place still only moves forward.
+    var scrollBackInOneBook: Bool { didSet { defaults.set(scrollBackInOneBook, forKey: Key.scrollBackInOneBook) } }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -195,6 +198,7 @@ final class AppSettings {
         doubleTapToBookmark = Self.bool(defaults, Key.doubleTapToBookmark, default: true)
         wordLimit = defaults.object(forKey: Key.wordLimit) == nil ? .auto : WordLimit(storage: defaults.integer(forKey: Key.wordLimit))
         liveActivity = Self.bool(defaults, Key.liveActivity, default: true)
+        scrollBackInOneBook = Self.bool(defaults, Key.scrollBackInOneBook, default: false)
     }
 }
 

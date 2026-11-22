@@ -48,10 +48,12 @@ struct SettingsView: View {
                     Toggle("Focus mode", isOn: $settings.focusMode)
                         .accessibilityIdentifier("settings.focusMode")
                     Toggle("Double-tap to bookmark", isOn: $settings.doubleTapToBookmark)
+                    Toggle("Scroll back through the book", isOn: $settings.scrollBackInOneBook)
+                        .accessibilityIdentifier("settings.scrollBack")
                 } header: {
                     SectionHeader("Posts")
                 } footer: {
-                    Text("A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Post text size is in points: type a number or use \u{2212} and +, in steps of 0.5. The default, 16.5, and the line spacing match the X iPhone app. The accessibility text sizes in iOS Settings still make posts larger.")
+                    Text("A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Post text size is in points: type a number or use \u{2212} and +, in steps of 0.5. The default, 16.5, and the line spacing match the X iPhone app. The accessibility text sizes in iOS Settings still make posts larger. Scroll back through the book: in One book mode, scroll up past where you started to read earlier posts, back to the start of the book. Your place stays at the furthest post you read.")
                         .foregroundStyle(Theme.secondaryText)
                 }
                 .listRowBackground(Theme.secondaryBackground)

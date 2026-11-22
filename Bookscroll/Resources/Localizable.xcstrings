@@ -151,7 +151,7 @@
         }
       }
     },
-    "A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Post text size is in points: type a number or use − and +, in steps of 0.5. The default, 16.5, and the line spacing match the X iPhone app. The accessibility text sizes in iOS Settings still make posts larger." : {},
+    "A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Post text size is in points: type a number or use − and +, in steps of 0.5. The default, 16.5, and the line spacing match the X iPhone app. The accessibility text sizes in iOS Settings still make posts larger. Scroll back through the book: in One book mode, scroll up past where you started to read earlier posts, back to the start of the book. Your place stays at the furthest post you read." : {},
     "About" : {},
     "About the file" : {},
     "Accent colour" : {},
@@ -337,6 +337,7 @@
     "Rounded" : {},
     "Save" : {},
     "Saved" : {},
+    "Scroll back through the book" : {},
     "Search" : {},
     "Set Feed" : {},
     "Sets your place in this book to the top paragraph on screen" : {},
