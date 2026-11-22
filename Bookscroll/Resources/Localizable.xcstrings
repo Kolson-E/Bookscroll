@@ -3,6 +3,7 @@
   "strings" : {
     "%@" : {},
     "%@ %lld" : {},
+    "%@ points" : {},
     "%@ · %@" : {
       "localizations" : {
         "en" : {
@@ -150,7 +151,7 @@
         }
       }
     },
-    "A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Text size follows the system setting (Settings › Display & Brightness › Text Size)." : {},
+    "A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Post text size is in points: type a number or use − and +, in steps of 0.5. Lines are a third taller than the text, as on x.com. The accessibility text sizes in iOS Settings still make posts larger." : {},
     "About" : {},
     "About the file" : {},
     "Accent colour" : {},
@@ -274,6 +275,7 @@
     "Maximum words per post" : {},
     "Measuring" : {},
     "Minutes" : {},
+    "Monospaced" : {},
     "More options for %@" : {},
     "Name" : {},
     "New chapter · %@" : {},
@@ -307,7 +309,10 @@
     "Percent" : {},
     "Post font" : {},
     "Post style" : {},
+    "Post text size" : {},
+    "Post text size in points" : {},
     "Posts" : {},
+    "pt" : {},
     "Read %@ in context" : {},
     "Read as Feed" : {},
     "Read in context" : {},
@@ -329,6 +334,7 @@
     "Restore" : {},
     "Restore from Backup…" : {},
     "Restore from this backup?" : {},
+    "Rounded" : {},
     "Save" : {},
     "Saved" : {},
     "Search" : {},
@@ -353,6 +359,7 @@
     "Shows the books of this shelf, mixed, in the feed" : {},
     "Shows the whole post" : {},
     "Shows your reading time, speed and time left" : {},
+    "Size" : {},
     "Sizes are estimates: each book gets a share of the library and the search index in proportion to its length. Swipe left on a book to delete it. The space it frees is used again for the next import." : {},
     "Snooze book for a day" : {},
     "Snooze book for a week" : {},

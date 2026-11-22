@@ -77,19 +77,67 @@ enum Typeface: String, CaseIterable, Identifiable {
     /// The system sans-serif (SF Pro), sized and spaced like X posts.
     case sans
     case serif
+    case rounded
+    case mono
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .sans: return "Sans (X style)"
-        case .serif: return "Serif"
+        case .sans: return String(localized: "Sans (X style)")
+        case .serif: return String(localized: "Serif")
+        case .rounded: return String(localized: "Rounded")
+        case .mono: return String(localized: "Monospaced")
         }
     }
 
     var design: Font.Design {
-        self == .serif ? .serif : .default
+        switch self {
+        case .sans: return .default
+        case .serif: return .serif
+        case .rounded: return .rounded
+        case .mono: return .monospaced
+        }
     }
+
+    /// The same design for UIKit text; nil for the default system font.
+    var systemDesign: UIFontDescriptor.SystemDesign? {
+        switch self {
+        case .sans: return nil
+        case .serif: return .serif
+        case .rounded: return .rounded
+        case .mono: return .monospaced
+        }
+    }
+}
+
+/// The size of post text, in points, in steps of half a point.
+enum PostTextSize {
+    /// Larger than x.com's 15 px web text, which looks small on an iPhone in SF Pro.
+    static let standard: Double = 17
+    static let range: ClosedRange<Double> = 10...40
+    static let step: Double = 0.5
+
+    /// Rounds to the nearest half point and keeps the size in `range`.
+    static func clamped(_ value: Double) -> Double {
+        guard value.isFinite else { return standard }
+        return min(max((value / step).rounded() * step, range.lowerBound), range.upperBound)
+    }
+
+    /// Reads a typed size: "17", "17.5" or "17,5". Nil when it is not a number.
+    static func parse(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard !trimmed.isEmpty, let value = Double(trimmed), value.isFinite else { return nil }
+        return clamped(value)
+    }
+
+    /// "17" or "17.5", with the device's decimal separator.
+    static func format(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...1)))
+    }
+
+    /// x.com's lines are a third taller than the text (15 px text, 20 px lines).
+    static func lineHeight(for size: CGFloat) -> CGFloat { size * 4 / 3 }
 }
 
 /// App-wide settings, stored in UserDefaults. Views read them through `AppSettings.shared`;
@@ -105,12 +153,13 @@ final class AppSettings {
         static let density = "density"
         static let postTypeface = "postTypeface"
         static let readerTypeface = "readerTypeface"
+        static let postTextSize = "postTextSize"
         static let focusMode = "focusMode"
         /// Stored under its old name (double tap used to like).
         static let doubleTapToBookmark = "doubleTapToLike"
         static let wordLimit = "wordLimit"
         static let liveActivity = "liveActivity"
-        static let all = [theme, accent, density, postTypeface, readerTypeface, focusMode, doubleTapToBookmark, wordLimit, liveActivity]
+        static let all = [theme, accent, density, postTypeface, readerTypeface, postTextSize, focusMode, doubleTapToBookmark, wordLimit, liveActivity]
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -120,6 +169,8 @@ final class AppSettings {
     var density: Density { didSet { defaults.set(density.rawValue, forKey: Key.density) } }
     var postTypeface: Typeface { didSet { defaults.set(postTypeface.rawValue, forKey: Key.postTypeface) } }
     var readerTypeface: Typeface { didSet { defaults.set(readerTypeface.rawValue, forKey: Key.readerTypeface) } }
+    /// Post text size in points (half-point steps). Set it through `PostTextSize.clamped`.
+    var postTextSize: Double { didSet { defaults.set(postTextSize, forKey: Key.postTextSize) } }
     /// Posts show only their text: no title line, progress line or actions.
     var focusMode: Bool { didSet { defaults.set(focusMode, forKey: Key.focusMode) } }
     var doubleTapToBookmark: Bool { didSet { defaults.set(doubleTapToBookmark, forKey: Key.doubleTapToBookmark) } }
@@ -135,6 +186,9 @@ final class AppSettings {
         density = defaults.string(forKey: Key.density).flatMap(Density.init) ?? .comfortable
         postTypeface = defaults.string(forKey: Key.postTypeface).flatMap(Typeface.init) ?? .sans
         readerTypeface = defaults.string(forKey: Key.readerTypeface).flatMap(Typeface.init) ?? .serif
+        postTextSize = defaults.object(forKey: Key.postTextSize) == nil
+            ? PostTextSize.standard
+            : PostTextSize.clamped(defaults.double(forKey: Key.postTextSize))
         focusMode = Self.bool(defaults, Key.focusMode, default: false)
         doubleTapToBookmark = Self.bool(defaults, Key.doubleTapToBookmark, default: true)
         wordLimit = defaults.object(forKey: Key.wordLimit) == nil ? .auto : WordLimit(storage: defaults.integer(forKey: Key.wordLimit))

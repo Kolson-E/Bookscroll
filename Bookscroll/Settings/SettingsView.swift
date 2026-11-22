@@ -41,6 +41,7 @@ struct SettingsView: View {
 
                 Section {
                     ChoiceRow(title: "Post font", value: settings.postTypeface.title) { openChoice = .postFont }
+                    PostTextSizeRow(size: $settings.postTextSize)
                     ChoiceRow(title: "Post style", value: PostStyle(rawValue: styleRaw)?.title ?? styleRaw) { openChoice = .postStyle }
                     ChoiceRow(title: "Maximum words per post", value: settings.wordLimit.title) { openChoice = .wordLimit }
                         .accessibilityIdentifier("settings.wordLimit")
@@ -50,7 +51,7 @@ struct SettingsView: View {
                 } header: {
                     SectionHeader("Posts")
                 } footer: {
-                    Text("A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Text size follows the system setting (Settings \u{203A} Display & Brightness \u{203A} Text Size).")
+                    Text("A longer paragraph continues in the next post (1/2, 2/2), cut between sentences. Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post (at least 40 words). Focus mode shows only the text of each post. Post text size is in points: type a number or use \u{2212} and +, in steps of 0.5. Lines are a third taller than the text, as on x.com. The accessibility text sizes in iOS Settings still make posts larger.")
                         .foregroundStyle(Theme.secondaryText)
                 }
                 .listRowBackground(Theme.secondaryBackground)
@@ -314,5 +315,59 @@ struct ChoiceList<Value: Hashable>: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .themedNavigationBar()
+    }
+}
+
+/// Post text size: type a number (rounded to the nearest 0.5 when you finish) or step by 0.5.
+@MainActor
+struct PostTextSizeRow: View {
+    @Binding var size: Double
+    @State private var text = ""
+    @FocusState private var editing: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text("Post text size")
+                .foregroundStyle(Theme.primaryText)
+            Spacer(minLength: 8)
+            TextField("Size", text: $text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .monospacedDigit()
+                .frame(minWidth: 44, maxWidth: 64)
+                .focused($editing)
+                .accessibilityLabel("Post text size in points")
+                .accessibilityIdentifier("settings.postTextSize")
+                .onChange(of: text) { _, typed in
+                    if editing, let value = PostTextSize.parse(typed) { size = value }
+                }
+                .onChange(of: editing) { _, isEditing in
+                    if !isEditing { text = PostTextSize.format(size) }
+                }
+                .onSubmit { editing = false }
+            Text("pt")
+                .foregroundStyle(Theme.secondaryText)
+                .accessibilityHidden(true)
+            Stepper(
+                "Post text size",
+                value: Binding(get: { size }, set: { size = PostTextSize.clamped($0) }),
+                in: PostTextSize.range,
+                step: PostTextSize.step
+            )
+            .labelsHidden()
+            .accessibilityValue("\(PostTextSize.format(size)) points")
+            .accessibilityIdentifier("settings.postTextSize.stepper")
+        }
+        .onAppear { text = PostTextSize.format(size) }
+        .onChange(of: size) { _, newSize in
+            // The stepper changed the size: show it. Typing that already reads as this size stays.
+            if PostTextSize.parse(text) != newSize { text = PostTextSize.format(newSize) }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { editing = false }
+            }
+        }
     }
 }

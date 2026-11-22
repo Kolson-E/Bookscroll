@@ -27,6 +27,7 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(settings.density, .comfortable)
         XCTAssertEqual(settings.postTypeface, .sans)
         XCTAssertEqual(settings.readerTypeface, .serif)
+        XCTAssertEqual(settings.postTextSize, 17)
         XCTAssertFalse(settings.focusMode)
         XCTAssertTrue(settings.doubleTapToBookmark)
     }
@@ -38,7 +39,8 @@ final class AppearanceTests: XCTestCase {
         settings.accent = .purple
         settings.density = .compact
         settings.postTypeface = .serif
-        settings.readerTypeface = .sans
+        settings.readerTypeface = .rounded
+        settings.postTextSize = 18.5
         settings.focusMode = true
         settings.doubleTapToBookmark = false
 
@@ -48,9 +50,36 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(reloaded.accent, .purple)
         XCTAssertEqual(reloaded.density, .compact)
         XCTAssertEqual(reloaded.postTypeface, .serif)
-        XCTAssertEqual(reloaded.readerTypeface, .sans)
+        XCTAssertEqual(reloaded.readerTypeface, .rounded)
+        XCTAssertEqual(reloaded.postTextSize, 18.5)
         XCTAssertTrue(reloaded.focusMode)
         XCTAssertFalse(reloaded.doubleTapToBookmark)
+    }
+
+    func testPostTextSizeStepsByHalfPoints() {
+        XCTAssertEqual(PostTextSize.clamped(17.2), 17)
+        XCTAssertEqual(PostTextSize.clamped(17.3), 17.5)
+        XCTAssertEqual(PostTextSize.clamped(17.75), 18)
+        XCTAssertEqual(PostTextSize.clamped(2), PostTextSize.range.lowerBound)
+        XCTAssertEqual(PostTextSize.clamped(99), PostTextSize.range.upperBound)
+        XCTAssertEqual(PostTextSize.clamped(.nan), PostTextSize.standard)
+        XCTAssertEqual(PostTextSize.parse("17.5"), 17.5)
+        XCTAssertEqual(PostTextSize.parse(" 17,5 "), 17.5, "A comma works as the decimal separator")
+        XCTAssertEqual(PostTextSize.parse("18"), 18)
+        XCTAssertNil(PostTextSize.parse(""))
+        XCTAssertNil(PostTextSize.parse("big"))
+        XCTAssertEqual(PostTextSize.format(17), 17.formatted())
+        XCTAssertEqual(PostTextSize.format(17.5), 17.5.formatted(.number.precision(.fractionLength(1))))
+        XCTAssertEqual(PostTextSize.lineHeight(for: 15), 20, "x.com: 15 px text on 20 px lines")
+        XCTAssertEqual(Typeface.allCases.map(\.design), [.default, .serif, .rounded, .monospaced])
+    }
+
+    @MainActor
+    func testStoredPostTextSizeIsRoundedAndClamped() {
+        defaults.set(17.3, forKey: AppSettings.Key.postTextSize)
+        XCTAssertEqual(AppSettings(defaults: defaults).postTextSize, 17.5)
+        defaults.set("500", forKey: AppSettings.Key.postTextSize)
+        XCTAssertEqual(AppSettings(defaults: defaults).postTextSize, PostTextSize.range.upperBound)
     }
 
     @MainActor

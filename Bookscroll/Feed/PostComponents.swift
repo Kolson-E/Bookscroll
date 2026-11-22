@@ -311,6 +311,7 @@ struct PostRow: View {
     /// The bubble of bookmark colours beside the bookmark button.
     @State private var showsColorBubble = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var comfortableAvatar: CGFloat = 40
     @ScaledMetric(relativeTo: .body) private var compactAvatar: CGFloat = 32
 
@@ -334,17 +335,23 @@ struct PostRow: View {
 
     private var isTruncated: Bool { !expanded && fullHeight > limitedHeight + 1 }
 
-    /// x.com post text: 15 pt, 20 pt lines, regular weight. `.subheadline` is 15 pt at the
-    /// default text size and follows Dynamic Type.
-    private var textFont: Font {
-        switch settings.postTypeface {
-        case .sans: return .subheadline
-        case .serif: return .system(.body, design: .serif)
-        }
+    /// Post text size from Settings, in points. The title and author use it too, as on X.
+    /// The accessibility text sizes (Larger Accessibility Sizes) still enlarge it.
+    private var textSize: CGFloat {
+        let size = CGFloat(settings.postTextSize)
+        return dynamicTypeSize.isAccessibilitySize ? UIFontMetrics(forTextStyle: .body).scaledValue(for: size) : size
     }
 
-    /// SF Pro at 15 pt has 18 pt lines; 2 pt more gives x.com's 20 pt.
-    private var textLineSpacing: CGFloat { 2 }
+    private var textFont: Font { .system(size: textSize, design: settings.postTypeface.design) }
+
+    /// The chapter and progress line, at X's 13:15 ratio to the text.
+    private var smallFont: Font { .system(size: textSize * 13 / 15) }
+
+    /// Extra space between lines so lines are a third taller than the text, as on x.com.
+    private var textLineSpacing: CGFloat {
+        let natural = UIFont.systemFont(ofSize: textSize).lineHeight
+        return max(0, PostTextSize.lineHeight(for: textSize) - natural)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -389,7 +396,7 @@ struct PostRow: View {
                         .contentShape(Rectangle())
                         .accessibilityHint("Shows the whole post")
                         .accessibilityIdentifier("post.showMore")
-                        .font(.subheadline.weight(.semibold))
+                        .font(.system(size: textSize, weight: .semibold))
                         .foregroundStyle(Theme.accent)
                         .buttonStyle(.borderless)
                 }
@@ -409,7 +416,7 @@ struct PostRow: View {
         VStack(alignment: .leading, spacing: isCompact ? 1 : 2) {
             if showsChapterStartLine {
                 Label("New chapter \u{00B7} \(post.segment.chapter)", systemImage: "book.pages")
-                    .font(.footnote.weight(.semibold))
+                    .font(.system(size: textSize * 13 / 15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .padding(.trailing, focusMode ? 0 : Self.topTrailingInset)
                     .padding(.bottom, 2)
@@ -429,7 +436,7 @@ struct PostRow: View {
                 .padding(.trailing, showsChapterStartLine ? 0 : Self.topTrailingInset)
                 if !post.progressLine.isEmpty {
                     Text(post.progressLine)
-                        .font(.footnote)
+                        .font(smallFont)
                         .foregroundStyle(Theme.secondaryText)
                 }
             }
@@ -672,14 +679,14 @@ struct PostRow: View {
 
     private var titleText: some View {
         Text(post.bookTitle)
-            .font(.subheadline.weight(.bold))
+            .font(.system(size: textSize, weight: .bold, design: settings.postTypeface.design))
             .foregroundStyle(Theme.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var authorText: some View {
         Text(post.bookAuthor)
-            .font(.subheadline)
+            .font(.system(size: textSize, design: settings.postTypeface.design))
             .foregroundStyle(Theme.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
     }

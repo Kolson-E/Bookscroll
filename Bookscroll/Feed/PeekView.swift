@@ -152,8 +152,8 @@ struct SelectableText: UIViewRepresentable {
     /// The body font in the reader's typeface, following Dynamic Type.
     static func readerFont(_ typeface: Typeface, textStyle: UIFont.TextStyle = .body) -> UIFont {
         let base = UIFont.preferredFont(forTextStyle: textStyle)
-        guard typeface == .serif, let serif = base.fontDescriptor.withDesign(.serif) else { return base }
-        return UIFont(descriptor: serif, size: 0)
+        guard let design = typeface.systemDesign, let descriptor = base.fontDescriptor.withDesign(design) else { return base }
+        return UIFont(descriptor: descriptor, size: 0)
     }
 }
 
