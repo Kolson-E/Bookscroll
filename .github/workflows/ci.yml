@@ -22,10 +22,6 @@ jobs:
             runner: macos-15
             xcode: ""
             ios_major: ""
-          - name: iOS 17, Xcode 15.4
-            runner: macos-14
-            xcode: /Applications/Xcode_15.4.app
-            ios_major: "17"
     steps:
       - uses: actions/checkout@v4
 

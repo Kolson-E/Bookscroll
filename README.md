@@ -541,12 +541,14 @@ library:
 
 ## Verification status
 
-CI on GitHub Actions runs every test on two configurations:
+CI on GitHub Actions runs every test on this configuration:
 
 | Runner | Xcode | Simulator |
 |---|---|---|
 | `macos-15` | newest installed | iPhone, newest iOS (26.2) |
-| `macos-14` | 15.4 | iPhone, iOS 17.5 (the deployment target family) |
+
+The iOS 17.5 job (`macos-14`, Xcode 15.4) was removed in November 2026: GitHub no longer
+supports that runner. The deployment target stays iOS 17, but CI no longer tests on iOS 17.
 
 Measured in CI (50 books, about 100,000 segments per style, newest iOS simulator): a feed page
 takes about 12.5 ms on average; deleting one book takes about 0.6 s; a key lookup takes about
