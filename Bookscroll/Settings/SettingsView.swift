@@ -28,14 +28,20 @@ struct SettingsView: View {
                 Section {
                     Text("Theme").foregroundStyle(Theme.primaryText)
                     ForEach(AppTheme.allCases) { theme in
-                        CheckRow(title: theme.title, isSelected: settings.theme == theme) {
+                        CheckRow(title: theme.title, isSelected: settings.theme == theme, swatch: Theme.swatch(theme)) {
                             settings.theme = theme
                         }
+                    }
+                    if settings.theme.hasBrightness {
+                        ThemeBrightnessRow(theme: settings.theme)
                     }
                     AccentPicker(selection: $settings.accent)
                     ChoiceRow(title: "Density", value: settings.density.title) { openChoice = .density }
                 } header: {
                     SectionHeader("Appearance")
+                } footer: {
+                    Text("Brightness moves the theme from its darkest to its lightest shade. Each theme keeps its own brightness. Text, accent and highlight colours change with it so that they stay readable.")
+                        .foregroundStyle(Theme.secondaryText)
                 }
                 .listRowBackground(Theme.secondaryBackground)
 
@@ -124,7 +130,7 @@ struct SettingsView: View {
         case .density:
             ChoiceList(title: "Density", selection: $settings.density, choices: Density.allCases) { $0.title }
         case .postFont:
-            ChoiceList(title: "Post font", selection: $settings.postTypeface, choices: Typeface.allCases) { $0.title }
+            ChoiceList(title: "Post font", selection: $settings.postTypeface, choices: Typeface.allCases, font: { $0.font(.body) }) { $0.title }
         case .postStyle:
             ChoiceList(title: "Post style", selection: $styleRaw, choices: PostStyle.allCases.map(\.rawValue)) {
                 PostStyle(rawValue: $0)?.title ?? $0
@@ -137,7 +143,7 @@ struct SettingsView: View {
                 footer: "Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post."
             ) { $0.title }
         case .readerFont:
-            ChoiceList(title: "Reader font", selection: $settings.readerTypeface, choices: Typeface.allCases) {
+            ChoiceList(title: "Reader font", selection: $settings.readerTypeface, choices: Typeface.allCases, font: { $0.font(.body) }) {
                 Self.readerFontTitle($0)
             }
         case .storage:
@@ -176,7 +182,7 @@ private struct AccentPicker: View {
                         selection = choice
                     } label: {
                         Circle()
-                            .fill(choice.color)
+                            .fill(Theme.accent(choice))
                             .frame(width: min(swatch, 44), height: min(swatch, 44))
                             .overlay {
                                 if choice == selection {
@@ -218,17 +224,30 @@ struct SectionHeader: View {
     }
 }
 
-/// A row that is one choice of a list, with a checkmark when selected.
+/// A row that is one choice of a list, with a checkmark when selected. A font choice shows
+/// its name in that font; a theme choice shows a swatch of the theme.
 @MainActor
 private struct CheckRow: View {
     let title: String
     let isSelected: Bool
+    var font: Font? = nil
+    var swatch: (background: Color, text: Color)? = nil
     let action: () -> Void
+    @ScaledMetric(relativeTo: .body) private var swatchSize: CGFloat = 28
 
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(title).foregroundStyle(Theme.primaryText)
+                if let swatch {
+                    Text(verbatim: "Aa")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(swatch.text)
+                        .frame(width: swatchSize, height: swatchSize)
+                        .background(swatch.background, in: Circle())
+                        .overlay(Circle().stroke(Theme.separator, lineWidth: 1))
+                        .accessibilityHidden(true)
+                }
+                Text(title).font(font).foregroundStyle(Theme.primaryText)
                 Spacer(minLength: 8)
                 if isSelected {
                     Image(systemName: "checkmark")
@@ -294,13 +313,15 @@ struct ChoiceList<Value: Hashable>: View {
     @Binding var selection: Value
     let choices: [Value]
     var footer: LocalizedStringKey?
+    /// Shows each choice in its own font (font choices).
+    var font: ((Value) -> Font)? = nil
     let label: (Value) -> String
 
     var body: some View {
         List {
             Section {
                 ForEach(choices, id: \.self) { choice in
-                    CheckRow(title: label(choice), isSelected: choice == selection) {
+                    CheckRow(title: label(choice), isSelected: choice == selection, font: font?(choice)) {
                         selection = choice
                     }
                     .frame(minHeight: 44)
@@ -317,6 +338,51 @@ struct ChoiceList<Value: Hashable>: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .themedNavigationBar()
+    }
+}
+
+/// The brightness of the current theme, from its darkest shade (0%) to its lightest (100%).
+/// Each theme keeps its own value; Reset goes back to the theme's default.
+@MainActor
+struct ThemeBrightnessRow: View {
+    let theme: AppTheme
+
+    var body: some View {
+        let settings = AppSettings.shared
+        let brightness = Binding(
+            get: { settings.brightness(for: theme) },
+            set: { settings.setBrightness($0, for: theme) }
+        )
+        let isDefault = abs(brightness.wrappedValue - theme.defaultBrightness) < 0.005
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("Brightness").foregroundStyle(Theme.primaryText)
+                Spacer(minLength: 8)
+                Text(brightness.wrappedValue, format: .percent.precision(.fractionLength(0)))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.secondaryText)
+                if !isDefault {
+                    Button("Reset") { settings.resetBrightness(for: theme) }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(Theme.accent)
+                        .accessibilityHint("Goes back to the theme's usual brightness")
+                        .accessibilityIdentifier("settings.themeBrightness.reset")
+                }
+            }
+            HStack(spacing: 10) {
+                Image(systemName: "sun.min")
+                    .foregroundStyle(Theme.secondaryText)
+                    .accessibilityHidden(true)
+                Slider(value: brightness, in: 0...1)
+                    .accessibilityLabel("\(theme.title) brightness")
+                    .accessibilityValue(Text(brightness.wrappedValue, format: .percent.precision(.fractionLength(0))))
+                    .accessibilityIdentifier("settings.themeBrightness")
+                Image(systemName: "sun.max")
+                    .foregroundStyle(Theme.secondaryText)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

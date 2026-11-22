@@ -7,6 +7,12 @@ enum AppTheme: String, CaseIterable, Identifiable {
     case night
     case light
     case sepia
+    /// Light text on dark brown paper.
+    case darkSepia
+    /// Dark text on pale green-grey.
+    case sage
+    /// Light text on dark blue-slate.
+    case dusk
     /// Follows the system light or dark setting.
     case system
 
@@ -14,25 +20,25 @@ enum AppTheme: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .night: return "Night"
-        case .light: return "Light"
-        case .sepia: return "Sepia"
-        case .system: return "System"
+        case .night: return String(localized: "Night")
+        case .light: return String(localized: "Light")
+        case .sepia: return String(localized: "Sepia")
+        case .darkSepia: return String(localized: "Dark sepia")
+        case .sage: return String(localized: "Sage")
+        case .dusk: return String(localized: "Dusk")
+        case .system: return String(localized: "System")
         }
     }
 
     var colorScheme: ColorScheme? {
-        switch self {
-        case .night: return .dark
-        case .light, .sepia: return .light
-        case .system: return nil
-        }
+        isDark.map { $0 ? .dark : .light }
     }
 }
 
 /// X's six accent colours. Each has a bright shade for dark backgrounds and a deep shade for
-/// light and sepia backgrounds; both reach 4.5:1 against their background, so the accent can
-/// colour text.
+/// light backgrounds. A theme made lighter or darker with its brightness slider moves the
+/// shade further only as needed to keep 4.5:1 (`ThemePalette.accent(_:)`), so the accent can
+/// always colour text.
 enum AccentChoice: String, CaseIterable, Identifiable {
     case blue
     case yellow
@@ -73,40 +79,110 @@ enum Density: String, CaseIterable, Identifiable {
     var title: String { rawValue.capitalized }
 }
 
+/// Reading fonts. Apple Books offers most of these; all ship with iOS. A stored font that
+/// is no longer offered (Rounded, Monospaced) falls back to the default.
 enum Typeface: String, CaseIterable, Identifiable {
     /// The system sans-serif (SF Pro), sized and spaced like X posts.
     case sans
+    /// The system serif, New York.
     case serif
-    case rounded
-    case mono
+    case georgia
+    case charter
+    case iowan
+    case palatino
+    case athelas
+    case baskerville
+    case hoefler
+    /// A humanist sans-serif made for reading.
+    case seravek
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .sans: return String(localized: "Sans (X style)")
-        case .serif: return String(localized: "Serif")
-        case .rounded: return String(localized: "Rounded")
-        case .mono: return String(localized: "Monospaced")
+        case .serif: return "New York"
+        case .georgia: return "Georgia"
+        case .charter: return "Charter"
+        case .iowan: return "Iowan Old Style"
+        case .palatino: return "Palatino"
+        case .athelas: return "Athelas"
+        case .baskerville: return "Baskerville"
+        case .hoefler: return "Hoefler Text"
+        case .seravek: return "Seravek"
         }
     }
 
-    var design: Font.Design {
+    /// PostScript names of the regular and bold faces; nil for the two system fonts.
+    var faceNames: (regular: String, bold: String)? {
         switch self {
-        case .sans: return .default
-        case .serif: return .serif
-        case .rounded: return .rounded
-        case .mono: return .monospaced
+        case .sans, .serif: return nil
+        case .georgia: return ("Georgia", "Georgia-Bold")
+        case .charter: return ("Charter-Roman", "Charter-Bold")
+        case .iowan: return ("IowanOldStyle-Roman", "IowanOldStyle-Bold")
+        case .palatino: return ("Palatino-Roman", "Palatino-Bold")
+        case .athelas: return ("Athelas-Regular", "Athelas-Bold")
+        case .baskerville: return ("Baskerville", "Baskerville-Bold")
+        case .hoefler: return ("HoeflerText-Regular", "HoeflerText-Black")
+        case .seravek: return ("Seravek", "Seravek-Bold")
         }
     }
+
+    /// The system design (for the system fonts).
+    var design: Font.Design { self == .serif ? .serif : .default }
 
     /// The same design for UIKit text; nil for the default system font.
-    var systemDesign: UIFontDescriptor.SystemDesign? {
-        switch self {
-        case .sans: return nil
-        case .serif: return .serif
-        case .rounded: return .rounded
-        case .mono: return .monospaced
+    var systemDesign: UIFontDescriptor.SystemDesign? { self == .serif ? .serif : nil }
+
+    /// The font at a fixed size (post text sets its own size and scaling).
+    func font(size: CGFloat, bold: Bool = false) -> Font {
+        if let faceNames { return .custom(bold ? faceNames.bold : faceNames.regular, fixedSize: size) }
+        return .system(size: size, weight: bold ? .bold : .regular, design: design)
+    }
+
+    /// The font at a text style's size, following Dynamic Type.
+    func font(_ style: Font.TextStyle, bold: Bool = false) -> Font {
+        if let faceNames {
+            return .custom(bold ? faceNames.bold : faceNames.regular, size: Self.pointSize(style), relativeTo: style)
+        }
+        let font = Font.system(style, design: design)
+        return bold ? font.weight(.semibold) : font
+    }
+
+    /// The UIKit font at a fixed size. The system font when the face is missing.
+    func uiFont(size: CGFloat, bold: Bool = false) -> UIFont {
+        if let faceNames, let font = UIFont(name: bold ? faceNames.bold : faceNames.regular, size: size) { return font }
+        let system = UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+        guard let systemDesign, let descriptor = system.fontDescriptor.withDesign(systemDesign) else { return system }
+        return UIFont(descriptor: descriptor, size: size)
+    }
+
+    /// The UIKit font at a text style's size, following Dynamic Type.
+    func uiFont(textStyle: UIFont.TextStyle) -> UIFont {
+        let base = UIFont.preferredFont(forTextStyle: textStyle)
+        if let faceNames {
+            let size = UIFont.preferredFont(forTextStyle: textStyle, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)).pointSize
+            guard let font = UIFont(name: faceNames.regular, size: size) else { return base }
+            return UIFontMetrics(forTextStyle: textStyle).scaledFont(for: font)
+        }
+        guard let systemDesign, let descriptor = base.fontDescriptor.withDesign(systemDesign) else { return base }
+        return UIFont(descriptor: descriptor, size: 0)
+    }
+
+    /// Point size of a text style at the default text size (Large).
+    static func pointSize(_ style: Font.TextStyle) -> CGFloat {
+        switch style {
+        case .largeTitle: return 34
+        case .title: return 28
+        case .title2: return 22
+        case .title3: return 20
+        case .headline, .body: return 17
+        case .callout: return 16
+        case .subheadline: return 15
+        case .footnote: return 13
+        case .caption: return 12
+        case .caption2: return 11
+        default: return 17
         }
     }
 }
@@ -151,6 +227,8 @@ final class AppSettings {
 
     enum Key {
         static let theme = "appTheme"
+        /// Brightness of each theme (0 darkest, 1 lightest), keyed by theme.
+        static let themeBrightness = "themeBrightness"
         static let accent = "accentChoice"
         static let density = "density"
         static let postTypeface = "postTypeface"
@@ -162,12 +240,14 @@ final class AppSettings {
         static let wordLimit = "wordLimit"
         static let scrollBackInOneBook = "scrollBackInOneBook"
         static let liveActivity = "liveActivity"
-        static let all = [theme, accent, density, postTypeface, readerTypeface, postTextSize, focusMode, doubleTapToBookmark, wordLimit, liveActivity, scrollBackInOneBook]
+        static let all = [theme, themeBrightness, accent, density, postTypeface, readerTypeface, postTextSize, focusMode, doubleTapToBookmark, wordLimit, liveActivity, scrollBackInOneBook]
     }
 
     @ObservationIgnored private let defaults: UserDefaults
 
     var theme: AppTheme { didSet { defaults.set(theme.rawValue, forKey: Key.theme) } }
+    /// Brightness per theme (raw value to 0...1). Read it through `brightness(for:)`.
+    private(set) var themeBrightness: [String: Double] { didSet { defaults.set(themeBrightness, forKey: Key.themeBrightness) } }
     var accent: AccentChoice { didSet { defaults.set(accent.rawValue, forKey: Key.accent) } }
     var density: Density { didSet { defaults.set(density.rawValue, forKey: Key.density) } }
     var postTypeface: Typeface { didSet { defaults.set(postTypeface.rawValue, forKey: Key.postTypeface) } }
@@ -187,6 +267,7 @@ final class AppSettings {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         theme = defaults.string(forKey: Key.theme).flatMap(AppTheme.init) ?? .night
+        themeBrightness = (defaults.dictionary(forKey: Key.themeBrightness) ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
         accent = defaults.string(forKey: Key.accent).flatMap(AccentChoice.init) ?? .blue
         density = defaults.string(forKey: Key.density).flatMap(Density.init) ?? .comfortable
         postTypeface = defaults.string(forKey: Key.postTypeface).flatMap(Typeface.init) ?? .sans
@@ -203,6 +284,22 @@ final class AppSettings {
 }
 
 extension AppSettings {
+    /// The theme's brightness (0 darkest, 1 lightest); its default when never set.
+    func brightness(for theme: AppTheme) -> Double {
+        guard let value = themeBrightness[theme.rawValue], value.isFinite else { return theme.defaultBrightness }
+        return min(max(value, 0), 1)
+    }
+
+    func setBrightness(_ value: Double, for theme: AppTheme) {
+        guard theme.hasBrightness, value.isFinite else { return }
+        themeBrightness[theme.rawValue] = min(max(value, 0), 1)
+    }
+
+    /// Back to the theme's default brightness.
+    func resetBrightness(for theme: AppTheme) {
+        themeBrightness[theme.rawValue] = nil
+    }
+
     /// `bool(forKey:)` also reads "YES"/"NO" given as launch arguments.
     private static func bool(_ defaults: UserDefaults, _ key: String, default value: Bool) -> Bool {
         defaults.object(forKey: key) == nil ? value : defaults.bool(forKey: key)

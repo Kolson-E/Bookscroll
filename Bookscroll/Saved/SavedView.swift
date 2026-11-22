@@ -185,7 +185,7 @@ private struct HighlightRow: View {
                         .foregroundStyle(Theme.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(item.text)
-                        .font(.system(.callout, design: AppSettings.shared.readerTypeface.design))
+                        .font(AppSettings.shared.readerTypeface.font(.callout))
                         .foregroundStyle(Theme.primaryText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)

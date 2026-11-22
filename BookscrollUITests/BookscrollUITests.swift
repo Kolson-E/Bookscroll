@@ -400,6 +400,15 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(sepia.waitForExistence(timeout: 5))
         sepia.tap()
         XCTAssertTrue(sepia.isSelected, "Sepia is the selected theme")
+        // Sepia has its own brightness: a darker brown, then back to the default.
+        let brightness = app.sliders["settings.themeBrightness"].firstMatch
+        XCTAssertTrue(brightness.waitForExistence(timeout: 5))
+        brightness.adjust(toNormalizedSliderPosition: 0.2)
+        let reset = app.buttons["settings.themeBrightness.reset"].firstMatch
+        XCTAssertTrue(reset.waitForExistence(timeout: 5), "A changed brightness can be reset")
+        screenshot("15a-settings-sepia-darker")
+        reset.tap()
+        XCTAssertFalse(reset.waitForExistence(timeout: 2))
         app.buttons["accent.orange"].tap()
         XCTAssertTrue(app.buttons["accent.orange"].isSelected)
         screenshot("15-settings-sepia")
@@ -678,10 +687,10 @@ final class BookscrollUITests: XCTestCase {
     }
 
     /// Runs the audit and collects its findings. An audit that runs out of time (seen on iOS 17
-    /// at the largest text size) runs once more.
+    /// at the largest text size, and on a busy CI runner) runs up to three times.
     private func auditIssues(_ app: XCUIApplication, types: XCUIAccessibilityAuditType, screen: String) throws -> [XCUIAccessibilityAuditIssue] {
         var issues: [XCUIAccessibilityAuditIssue] = []
-        for attempt in 1...2 {
+        for attempt in 1...3 {
             issues = []
             do {
                 // The handler only collects; the issues are judged afterwards on the main actor.
@@ -690,7 +699,7 @@ final class BookscrollUITests: XCTestCase {
                     return true
                 }
                 break
-            } catch let error as NSError where error.code == -56 && attempt == 1 {
+            } catch let error as NSError where error.code == -56 && attempt < 3 {
                 print("AUDIT: timed out [\(screen)], trying again")
             }
         }
@@ -731,6 +740,11 @@ final class BookscrollUITests: XCTestCase {
         if issue.auditType == .contrast, bars.contains(where: { $0.intersects(element.frame) }) { return true }
         if issue.auditType == .textClipped, element.label.count >= 60 { return true }
         if issue.auditType == .textClipped, element.elementType == .staticText,
+           posts.contains(where: { $0.contains(element.frame) }) { return true }
+        // Post text has the size set in Settings (Post text size, in points), and the
+        // accessibility text sizes enlarge it (testLargestAccessibilityTextSize). The audit
+        // reports any font with a size in points.
+        if issue.auditType == .dynamicType, element.elementType == .staticText,
            posts.contains(where: { $0.contains(element.frame) }) { return true }
         // The search field's placeholder and clear button are drawn by UIKit in system colours
         // and sizes; the app cannot style them.

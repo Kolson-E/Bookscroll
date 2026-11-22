@@ -89,7 +89,7 @@ struct ContextReaderView: View {
                             VStack(alignment: .leading, spacing: 8) {
                                 if let heading = model.chapterHeading(before: position) {
                                     Text(heading)
-                                        .font(.system(.title3, design: AppSettings.shared.readerTypeface.design).weight(.semibold))
+                                        .font(AppSettings.shared.readerTypeface.font(.title3, bold: true))
                                         .foregroundStyle(Theme.primaryText)
                                         .padding(.top, 12)
                                         .accessibilityAddTraits(.isHeader)

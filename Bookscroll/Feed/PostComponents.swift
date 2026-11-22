@@ -44,6 +44,27 @@ enum PaletteHex {
     static let sepiaRedIcon: UInt32 = 0xB3261E
     static let sepiaBlueIcon: UInt32 = 0x1E64A8
 
+    /// The colour `t` of the way from `a` to `b`, channel by channel (0 is `a`, 1 is `b`).
+    static func mix(_ a: UInt32, _ b: UInt32, _ t: Double) -> UInt32 {
+        let t = t.isFinite ? min(max(t, 0), 1) : 0
+        var result: UInt32 = 0
+        for shift: UInt32 in [16, 8, 0] {
+            let x = Double((a >> shift) & 0xFF), y = Double((b >> shift) & 0xFF)
+            result |= UInt32((x + (y - x) * t).rounded()) << shift
+        }
+        return result
+    }
+
+    /// `color`, moved towards `end` in steps of 2% until it reaches `target` contrast on every
+    /// colour of `backgrounds`. Unchanged when it already does; `end` when nothing earlier does.
+    static func readable(_ color: UInt32, on backgrounds: [UInt32], target: Double, toward end: UInt32) -> UInt32 {
+        for step in 0...50 {
+            let candidate = mix(color, end, Double(step) / 50)
+            if backgrounds.allSatisfy({ contrast(candidate, $0) >= target }) { return candidate }
+        }
+        return end
+    }
+
     /// WCAG 2 contrast ratio of two sRGB colours.
     static func contrast(_ a: UInt32, _ b: UInt32) -> Double {
         func luminance(_ hex: UInt32) -> Double {
@@ -58,62 +79,58 @@ enum PaletteHex {
     }
 }
 
-/// Colours of the current theme. Night, Light and System use the system light and dark
-/// colours (the theme forces the colour scheme); Sepia has its own palette. Every text colour
-/// reaches 4.5:1 on its background. Reading `AppSettings.shared` inside a view body makes the
-/// view update when the theme changes.
+/// Colours of the current theme at its brightness (Settings > Theme). System follows the
+/// device: Light by day, Night by night. Every text colour reaches its contrast target (see
+/// `ThemePalette.readable()`). Reading `AppSettings.shared` inside a view body makes the view
+/// update when the theme or brightness changes.
 @MainActor
 enum Theme {
-    private static var isSepia: Bool { AppSettings.shared.theme == .sepia }
+    private static var cache: (theme: AppTheme, brightness: Double, palette: ThemePalette)?
+    private static let systemLight = AppTheme.light.palette(brightness: AppTheme.light.defaultBrightness)
+    private static let systemDark = AppTheme.night.palette(brightness: AppTheme.night.defaultBrightness)
 
-    private static func adaptive(light: UInt32, dark: UInt32) -> Color {
-        Color(uiColor: UIColor { traits in
+    /// The current palette; nil for System, whose colours change with the device.
+    static var palette: ThemePalette? {
+        let settings = AppSettings.shared
+        let theme = settings.theme
+        guard theme.hasBrightness else { return nil }
+        let brightness = settings.brightness(for: theme)
+        if let cache, cache.theme == theme, cache.brightness == brightness { return cache.palette }
+        let palette = theme.palette(brightness: brightness)
+        cache = (theme, brightness, palette)
+        return palette
+    }
+
+    private static func color(_ value: (ThemePalette) -> UInt32) -> Color {
+        if let palette { return Color(uiColor: UIColor(hex: value(palette))) }
+        let (light, dark) = (value(systemLight), value(systemDark))
+        return Color(uiColor: UIColor { traits in
             UIColor(hex: traits.userInterfaceStyle == .dark ? dark : light)
         })
     }
 
-    private static let systemBackground = adaptive(light: PaletteHex.lightBackground, dark: PaletteHex.darkBackground)
-    private static let systemSecondaryBackground = adaptive(light: PaletteHex.lightSecondaryBackground, dark: PaletteHex.darkSecondaryBackground)
-    private static let systemPrimary = adaptive(light: PaletteHex.lightPrimary, dark: PaletteHex.darkPrimary)
-    private static let systemSecondary = adaptive(light: PaletteHex.lightSecondary, dark: PaletteHex.darkSecondary)
-    private static let systemSeparator = adaptive(light: 0xEFF3F4, dark: 0x2F3336)
-    private static let systemThreadLine = adaptive(light: 0xCFD9DE, dark: 0x333639)
-    private static let systemHighlight = adaptive(light: PaletteHex.lightHighlight, dark: PaletteHex.darkHighlight)
-    private static let systemMarker = adaptive(light: PaletteHex.lightMarker, dark: PaletteHex.darkMarker)
-
-    private static let sepiaBackground = Color(uiColor: UIColor(hex: PaletteHex.sepiaBackground))
-    private static let sepiaSecondaryBackground = Color(uiColor: UIColor(hex: PaletteHex.sepiaSecondaryBackground))
-    private static let sepiaPrimary = Color(uiColor: UIColor(hex: PaletteHex.sepiaPrimary))
-    private static let sepiaSecondary = Color(uiColor: UIColor(hex: PaletteHex.sepiaSecondary))
-    private static let sepiaSeparator = Color(uiColor: UIColor(hex: 0xE3D5BC))
-    private static let sepiaThreadLine = Color(uiColor: UIColor(hex: 0xD9C9AC))
-    private static let sepiaHighlight = Color(uiColor: UIColor(hex: PaletteHex.sepiaHighlight))
-    private static let sepiaMarker = Color(uiColor: UIColor(hex: PaletteHex.sepiaMarker))
-
-    /// White, pure black, or sepia paper.
-    static var background: Color { isSepia ? sepiaBackground : systemBackground }
+    static var background: Color { color(\.background) }
     /// Grouped rows (Settings) and cards.
-    static var secondaryBackground: Color { isSepia ? sepiaSecondaryBackground : systemSecondaryBackground }
-    static var primaryText: Color { isSepia ? sepiaPrimary : systemPrimary }
-    static var secondaryText: Color { isSepia ? sepiaSecondary : systemSecondary }
-    static var separator: Color { isSepia ? sepiaSeparator : systemSeparator }
-    static var threadLine: Color { isSepia ? sepiaThreadLine : systemThreadLine }
+    static var secondaryBackground: Color { color(\.secondaryBackground) }
+    static var primaryText: Color { color(\.primary) }
+    static var secondaryText: Color { color(\.secondary) }
+    static var separator: Color { color(\.separator) }
+    static var threadLine: Color { color(\.threadLine) }
     /// Background of the tapped post in the reader. Opaque, so text on it keeps full contrast.
-    static var highlight: Color { isSepia ? sepiaHighlight : systemHighlight }
-    /// Background of the reader's own highlights. Opaque; primary text keeps 8.8:1 or more.
-    static var marker: Color { isSepia ? sepiaMarker : systemMarker }
-    static var accent: Color { AppSettings.shared.accent.color }
+    static var highlight: Color { color(\.highlight) }
+    /// Background of the reader's own highlights. Opaque; primary text keeps 7:1 or more.
+    static var marker: Color { color(\.marker) }
+    static var accent: Color { accent(AppSettings.shared.accent) }
+    /// The shade of `choice` that reads as text on the current background.
+    static func accent(_ choice: AccentChoice) -> Color { color { $0.accent(choice) } }
+
     /// Text background of a bookmark in `color`; nil for a bookmark without a highlight.
     static func bookmarkHighlight(_ color: MarkColor) -> Color? {
         switch color {
         case .noHighlight: return nil
         case .yellow: return marker
-        case .red:
-            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaRedMarker))
-                : adaptive(light: PaletteHex.lightRedMarker, dark: PaletteHex.darkRedMarker)
-        case .blue:
-            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaBlueMarker))
-                : adaptive(light: PaletteHex.lightBlueMarker, dark: PaletteHex.darkBlueMarker)
+        case .red: return self.color(\.redMarker)
+        case .blue: return self.color(\.blueMarker)
         }
     }
 
@@ -121,16 +138,22 @@ enum Theme {
     static func bookmarkIcon(_ color: MarkColor) -> Color {
         switch color {
         case .noHighlight: return accent
-        case .yellow:
-            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaYellowIcon))
-                : adaptive(light: PaletteHex.lightYellowIcon, dark: PaletteHex.darkYellowIcon)
-        case .red:
-            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaRedIcon))
-                : adaptive(light: PaletteHex.lightRedIcon, dark: PaletteHex.darkRedIcon)
-        case .blue:
-            return isSepia ? Color(uiColor: UIColor(hex: PaletteHex.sepiaBlueIcon))
-                : adaptive(light: PaletteHex.lightBlueIcon, dark: PaletteHex.darkBlueIcon)
+        case .yellow: return self.color(\.yellowIcon)
+        case .red: return self.color(\.redIcon)
+        case .blue: return self.color(\.blueIcon)
         }
+    }
+
+    /// A small preview of `theme` at its stored brightness: background and text colours.
+    static func swatch(_ theme: AppTheme) -> (background: Color, text: Color) {
+        guard theme.hasBrightness else {
+            func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+                Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
+            }
+            return (dynamic(systemLight.background, systemDark.background), dynamic(systemLight.primary, systemDark.primary))
+        }
+        let palette = theme.palette(brightness: AppSettings.shared.brightness(for: theme))
+        return (Color(uiColor: UIColor(hex: palette.background)), Color(uiColor: UIColor(hex: palette.primary)))
     }
 }
 
@@ -342,14 +365,14 @@ struct PostRow: View {
         return dynamicTypeSize.isAccessibilitySize ? UIFontMetrics(forTextStyle: .body).scaledValue(for: size) : size
     }
 
-    private var textFont: Font { .system(size: textSize, design: settings.postTypeface.design) }
+    private var textFont: Font { settings.postTypeface.font(size: textSize) }
 
     /// The chapter and progress line, at X's 13:15 ratio to the text.
     private var smallFont: Font { .system(size: textSize * 13 / 15) }
 
     /// Extra space between lines so lines are 1.25 times the text size, as in the X app.
     private var textLineSpacing: CGFloat {
-        let natural = UIFont.systemFont(ofSize: textSize).lineHeight
+        let natural = settings.postTypeface.uiFont(size: textSize).lineHeight
         return max(0, PostTextSize.lineHeight(for: textSize) - natural)
     }
 
@@ -679,14 +702,14 @@ struct PostRow: View {
 
     private var titleText: some View {
         Text(post.bookTitle)
-            .font(.system(size: textSize, weight: .bold, design: settings.postTypeface.design))
+            .font(settings.postTypeface.font(size: textSize, bold: true))
             .foregroundStyle(Theme.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     private var authorText: some View {
         Text(post.bookAuthor)
-            .font(.system(size: textSize, design: settings.postTypeface.design))
+            .font(settings.postTypeface.font(size: textSize))
             .foregroundStyle(Theme.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
     }

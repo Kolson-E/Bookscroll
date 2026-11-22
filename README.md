@@ -321,14 +321,29 @@ from an iPhone screenshot of the X app: its post glyphs are 45 px tall at 3x whe
 15 pt is 41 px, and its lines are 62 px (20.6 pt) apart. (x.com on the web uses 15 px text on
 20 px lines, which is smaller.) The iOS accessibility text sizes still enlarge posts.
 
+**Fonts.** Ten reading fonts, all built into iOS, so nothing is downloaded: the X-style sans
+(SF Pro), New York, and the book faces Apple Books offers (Georgia, Charter, Iowan Old Style,
+Palatino, Athelas, Seravek) plus Baskerville and Hoefler Text. Studies find no single best font
+for reading (individual reading speed differs by up to 35% between fonts), so the list gives
+several well-tested serifs and two sans-serifs. Each font name in the list shows in its own
+font. Rounded and Monospaced were removed; a stored choice of either falls back to the default.
+
+**Themes and brightness.** Each theme has a brightness slider under the theme list (Settings >
+Appearance), from its darkest shade to its lightest: for example Sepia goes from mid brown to
+very light cream, and Night from pure black to dark grey. Each theme keeps its own value; Reset
+returns to the default. Between the end points every colour is mixed, then any text, accent,
+icon or highlight colour that would miss its contrast target (primary text 7:1, secondary text
+and accents 4.5:1, icons 3:1, primary text on highlights 7:1) is moved just far enough to reach it.
+
 | Setting | Choices (default first) |
 |---|---|
-| Theme | Night (pure black), Light, Sepia, System |
-| Accent colour | X's six: blue, yellow, pink, purple, orange, green. Each has a bright shade for dark themes and a deep shade for light and sepia themes, so accent text reaches 4.5:1. |
+| Theme | Night (pure black), Light, Sepia, Dark sepia, Sage, Dusk, System |
+| Brightness | Per theme, 0–100% (not for System). Defaults: Night 0% (pure black), Light 100% (white), Sepia 80% (the earlier sepia), Dark sepia 40%, Sage 75%, Dusk 40%. |
+| Accent colour | X's six: blue, yellow, pink, purple, orange, green. Each has a bright shade for dark themes and a deep shade for light themes; at other brightness levels the shade moves only as far as needed, so accent text always reaches 4.5:1. |
 | Density | Comfortable, Compact |
-| Post font | Sans (X style), Serif, Rounded, Monospaced |
+| Post font | Sans (X style), New York, Georgia, Charter, Iowan Old Style, Palatino, Athelas, Baskerville, Hoefler Text, Seravek |
 | Post text size | 16.5 pt (10–40, steps of 0.5) |
-| Reader font | Serif, Sans, Rounded, Monospaced |
+| Reader font | New York, then the same list (Sans first in the list) |
 | Maximum words per post | Auto, Off, 60, 80, 120, 200 |
 | Focus mode | Off. On: posts show only their text. |
 | Double-tap to bookmark | On |
@@ -500,7 +515,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 231 tests):
+`BookscrollTests` (XCTest, 240 tests):
 
 | Area | File |
 |---|---|
@@ -521,7 +536,7 @@ property is named `passagesOnly` because that is what it means.
 | 50 books: key queries use an index, page and delete timings | `ScaleTests.swift` |
 | Schema V1–V3, unversioned V1 store, V1 and V2 migrations with backfill, privacy manifest, save throttle | `FoundationTests.swift` |
 | FTS5 search index: query escaping, add/search/remove, backup exclusion, backfill | `SearchIndexTests.swift` |
-| Settings defaults and storage, palette and accent contrast (WCAG), citation | `AppearanceTests.swift` |
+| Settings defaults and storage, the ten fonts (installed, fallback), themes and per-theme brightness, palette and accent contrast at every brightness (WCAG), citation | `AppearanceTests.swift` |
 | Word-limit splitting, Auto limit, resume inside a split paragraph, chapter starts, Mix filters and weights, Jump to, peek | `SplitAndFilterTests.swift` |
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
@@ -578,8 +593,8 @@ Every control has a VoiceOver label. Each post is its own element; posts inside 
 with "Continues thread"; split posts say "Part n of m"; the first post of a chapter says "New
 chapter". Bookmark, each bookmark colour and Copy with citation are VoiceOver actions on each post. Text uses
 Dynamic Type styles up to accessibility sizes. Bookmarked states use filled icons and
-VoiceOver values ("Bookmarked, red highlight"), not only colour. Bookmarking gives haptic feedback. Every theme and
-accent passes a WCAG contrast test (4.5:1 for text), and the UI tests run Apple's accessibility
+VoiceOver values ("Bookmarked, red highlight"), not only colour. Bookmarking gives haptic feedback. Every theme, at every
+brightness from 0% to 100% in steps of 5%, and every accent pass a WCAG contrast test (4.5:1 for text), and the UI tests run Apple's accessibility
 audit on each theme.
 
 Audit policy: a finding fails the UI test when a second audit one second later reports it again (contrast samples taken while a row redraws vary between runs), except a short list of known false positives

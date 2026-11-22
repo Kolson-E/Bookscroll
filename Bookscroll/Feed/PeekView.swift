@@ -48,7 +48,7 @@ struct PeekView: View {
                     .foregroundStyle(Theme.secondaryText)
             }
         }
-        .font(.system(.callout, design: AppSettings.shared.readerTypeface.design))
+        .font(AppSettings.shared.readerTypeface.font(.callout))
         .padding(16)
         .frame(width: 340, alignment: .leading)
         .background(Theme.background)
@@ -151,9 +151,7 @@ struct SelectableText: UIViewRepresentable {
 
     /// The body font in the reader's typeface, following Dynamic Type.
     static func readerFont(_ typeface: Typeface, textStyle: UIFont.TextStyle = .body) -> UIFont {
-        let base = UIFont.preferredFont(forTextStyle: textStyle)
-        guard let design = typeface.systemDesign, let descriptor = base.fontDescriptor.withDesign(design) else { return base }
-        return UIFont(descriptor: descriptor, size: 0)
+        typeface.uiFont(textStyle: textStyle)
     }
 }
 
