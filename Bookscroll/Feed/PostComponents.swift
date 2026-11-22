@@ -400,7 +400,12 @@ struct PostRow: View {
         .padding(.bottom, focusMode ? topPadding + 6 : topPadding)
     }
 
+    /// Split into steps so the type checker stays fast (Xcode 16 times out on one long chain).
     private var textGroup: some View {
+        postAccessibility(postInteractions(textStack))
+    }
+
+    private var textStack: some View {
         VStack(alignment: .leading, spacing: isCompact ? 1 : 2) {
             if showsChapterStartLine {
                 Label("New chapter \u{00B7} \(post.segment.chapter)", systemImage: "book.pages")
@@ -433,6 +438,11 @@ struct PostRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    /// Taps, the bookmark burst, drag and the long-press peek.
+    private func postInteractions<Content: View>(_ content: Content) -> some View {
+        content
         .modifier(PostTapGestures(doubleTapEnabled: settings.doubleTapToBookmark, onSingle: actions.open, onDouble: doubleTapBookmark))
         .overlay {
             if bookmarkBurst {
@@ -450,12 +460,17 @@ struct PostRow: View {
         .contextMenu {
             contextMenuItems
         } preview: {
-            if let content = actions.peek() {
-                PeekView(content: content)
+            if let peek = actions.peek() {
+                PeekView(content: peek)
             } else {
                 PeekView(content: PeekContent(bookTitle: post.bookTitle, progressLine: post.fullProgressLine, before: [], post: [post.segment], after: [], highlight: post.segment.charStart..<post.segment.charEnd))
             }
         }
+    }
+
+    /// One VoiceOver element per post, with its actions.
+    private func postAccessibility<Content: View>(_ content: Content) -> some View {
+        content
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityHint("Double-tap to read in context")
