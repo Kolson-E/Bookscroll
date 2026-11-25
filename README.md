@@ -530,7 +530,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 245 tests):
+`BookscrollTests` (XCTest, 255 tests):
 
 | Area | File |
 |---|---|
