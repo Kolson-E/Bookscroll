@@ -413,6 +413,20 @@ final class BookscrollUITests: XCTestCase {
         assertSmoothTrace(app, minimumRests: 1)
     }
 
+    /// The tabs work after the Home Screen when the bars never hid, and with bar hiding off.
+    func testTheTabsWorkAfterTheHomeScreen() {
+        for extra in [["-UITestHideBars"], []] {
+            let app = launch(sampleBooks: true, extra: extra, stopOnFailure: false)
+            XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+            XCUIDevice.shared.press(.home)
+            app.activate()
+            XCTAssertTrue(firstPost(app).waitForExistence(timeout: 10))
+            print("DEBUG: launch \(extra): after the Home Screen")
+            openTab(app, "Library")
+            app.terminate()
+        }
+    }
+
     // MARK: Pictures
 
     /// A book's picture shows under the post it follows, keeps its shape, opens full screen with

@@ -120,13 +120,17 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// Diagnostics: touches that reached the tab bar, and the selected tab (-1: unknown).
     var touchesOnTabBar = 0
     var selectedTab = -1
+    /// Diagnostics: what a tap on the tab bar's second button hits: 1 an enabled control,
+    /// 0 a disabled control, -1 no control. And the number of enabled tab items.
+    var tapHitsControl = -1
+    var enabledItems = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
-            touchesOnTabBar, selectedTab
+            touchesOnTabBar, selectedTab, tapHitsControl, enabledItems
         )
     }
 }
@@ -464,7 +468,11 @@ final class ScrollChromeView: UIView {
             trace.isScreensTabBar = bars.contains { $0 === tabBar } ? 1 : 0
             if let tabBar, tabBar.window != nil {
                 let point = tabBar.convert(CGPoint(x: tabBar.bounds.width * 0.3, y: 20), to: window)
-                trace.tapReachesTabBar = window.hitTest(point, with: nil)?.isDescendant(of: tabBar) == true ? 1 : 0
+                let hit = window.hitTest(point, with: nil)
+                trace.tapReachesTabBar = hit?.isDescendant(of: tabBar) == true ? 1 : 0
+                let control = hit.flatMap { view in sequence(first: view, next: { $0.superview }).first { $0 is UIControl } } as? UIControl
+                trace.tapHitsControl = control.map { $0.isEnabled && $0.isUserInteractionEnabled ? 1 : 0 } ?? -1
+                trace.enabledItems = tabBar.items?.filter(\.isEnabled).count ?? 0
             } else {
                 trace.tapReachesTabBar = 0
             }
