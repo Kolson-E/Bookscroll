@@ -266,12 +266,20 @@ final class BookscrollUITests: XCTestCase {
     }
 
     /// The app's own record of how the bars moved (`ScrollChromeTrace`), as numbers.
+    /// The newest bar report. SwiftUI can keep an old feed's report element for a while
+    /// after a new feed takes over, so the one with the highest sequence number wins.
     private func rawTrace(_ app: XCUIApplication) -> String {
-        (app.descendants(matching: .any)["feed.barTrace"].firstMatch.value as? String) ?? "none"
+        let reports = app.descendants(matching: .any).matching(identifier: "feed.barTrace").allElementsBoundByIndex
+            .compactMap { $0.value as? String }
+        if reports.count > 1 { print("DEBUG: \(reports.count) bar reports") }
+        func sequence(_ text: String) -> Int {
+            text.split(separator: " ").first { $0.hasPrefix("seq=") }.flatMap { Int($0.dropFirst(4)) } ?? -1
+        }
+        return reports.max { sequence($0) < sequence($1) } ?? "none"
     }
 
     private func barTrace(_ app: XCUIApplication) -> [String: Double] {
-        let text = (app.descendants(matching: .any)["feed.barTrace"].firstMatch.value as? String) ?? ""
+        let text = rawTrace(app)
         var values: [String: Double] = [:]
         for pair in text.split(separator: " ") {
             let parts = pair.split(separator: "=")

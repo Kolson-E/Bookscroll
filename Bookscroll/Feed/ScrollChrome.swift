@@ -155,14 +155,17 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// Frames of a flick in which the feed laid out posts but the content moved smoothly, so
     /// the bars moved with it (they used to stop for that frame).
     var layoutFramesKept = 0
+    /// Counts reports across all feeds, so the UI tests read the newest one when SwiftUI
+    /// keeps an old feed's report on screen for a moment.
+    var sequence = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f kept=%d path=%@",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f kept=%d seq=%d path=%@",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
             touchesOnTabBar, selectedTab, tapHitsControl, enabledItems,
-            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), layoutFramesKept, hitPath
+            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), layoutFramesKept, sequence, hitPath
         )
     }
 }
@@ -206,6 +209,7 @@ final class ScrollChromeView: UIView {
     private(set) var motion = ScrollChromeMotion()
     private var trace = ScrollChromeTrace()
     private var seenTabBars: Set<ObjectIdentifier> = []
+    private static var reportCount = 0
 
     private weak var scrollView: UIScrollView?
     private weak var navigationBar: UINavigationBar?
@@ -607,6 +611,8 @@ final class ScrollChromeView: UIView {
         if let tabBar { seenTabBars.insert(ObjectIdentifier(tabBar)) }
         trace.tabBarsSeen = seenTabBars.count
         trace.selectedTab = tabBarController?.selectedIndex ?? -1
+        Self.reportCount += 1
+        trace.sequence = Self.reportCount
         let summary = trace.summary
         // Not inside a SwiftUI update.
         DispatchQueue.main.async { [weak self] in
