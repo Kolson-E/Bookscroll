@@ -337,6 +337,7 @@ final class BookscrollUITests: XCTestCase {
     private func assertSmoothTrace(_ app: XCUIApplication, minimumRests: Double, file: StaticString = #filePath, line: UInt = #line) {
         let trace = barTrace(app)
         let text = String(describing: trace)
+        print("DEBUG: smooth trace at line \(line): \(rawTrace(app).components(separatedBy: " path=").first ?? "")")
         XCTAssertGreaterThan(trace["frames"] ?? 0, 20, "The bars followed the scroll: \(text)", file: file, line: line)
         XCTAssertEqual(trace["faster"], 0, "The tab bar never moved faster than the content: \(text)", file: file, line: line)
         XCTAssertEqual(trace["notBack"], 0, "The tab bar always came back to its place: \(text)", file: file, line: line)

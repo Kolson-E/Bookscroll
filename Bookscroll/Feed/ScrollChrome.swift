@@ -5,8 +5,9 @@ import UIKit
 // X-style bars for the feed. While you read down, the navigation bar slides up (and fades) and
 // the tab bar slides down, point for point with the content: they never move faster or slower
 // than your finger. Scrolling up brings them back the same way. When a scroll stops part-way,
-// the bars ease to the nearer end. At the top of the feed they always show. Scrolls the app
-// makes itself (new posts above, Jump to) and layout changes of the feed do not move them.
+// the bars ease to the nearer end on a spring that starts from rest. At the top of the feed
+// they always show. Scrolls the app makes itself (new posts above, Jump to) and sudden layout
+// jumps of the feed do not move them.
 
 /// The motion of the bars, with no UIKit in it, so tests can drive it.
 struct ScrollChromeMotion: Equatable, Sendable {
@@ -17,14 +18,15 @@ struct ScrollChromeMotion: Equatable, Sendable {
     /// How far the bars have moved away, in points: 0 is shown, `fullDistance` is hidden.
     /// Scrolling changes it point for point.
     private(set) var hidden: CGFloat = 0
+    /// The speed of the ease, in points per second (0 when the content moves the bars).
+    private(set) var settleVelocity: CGFloat = 0
 
     /// A larger change of the scroll position in one frame is a jump, not scrolling.
     static let largestStep: CGFloat = 250
-    /// The ease to the nearer end: the remaining distance falls to 1/e in this time, so the
-    /// bars get there in about a quarter of a second.
-    static let settleTimeConstant: Double = 0.05
-    /// The smallest step of the ease, so its end is not a long crawl.
-    static let smallestSettleStep: CGFloat = 0.75
+    /// The ease to the nearer end is a critically damped spring with this rate (per second):
+    /// it starts from rest, so the bars do not pop into motion when the content stops, speeds
+    /// up smoothly, never overshoots, and settles in about 0.3 seconds.
+    static let settleRate: Double = 26
     /// Room under the tab bar for its shadow, so nothing of it shows when it is hidden.
     static let tabShadowRoom: CGFloat = 16
 
@@ -54,6 +56,7 @@ struct ScrollChromeMotion: Equatable, Sendable {
     mutating func scroll(by delta: CGFloat) -> Bool {
         guard delta.isFinite, abs(delta) <= Self.largestStep else { return false }
         hidden = min(fullDistance, max(0, hidden + delta))
+        settleVelocity = 0
         return true
     }
 
@@ -68,19 +71,30 @@ struct ScrollChromeMotion: Equatable, Sendable {
     @discardableResult
     mutating func settle(toward target: CGFloat, dt: Double) -> Bool {
         let goal = min(fullDistance, max(0, target))
-        let remaining = goal - hidden
-        if abs(remaining) <= 0.5 {
+        let distance = Double(hidden - goal)
+        if abs(distance) <= 0.5 {
             hidden = goal
+            settleVelocity = 0
             return true
         }
+        // The spring's exact motion over `dt`, so the frame rate does not change the path.
         let time = dt.isFinite ? min(max(dt, 0), 0.1) : 0
-        var step = remaining * CGFloat(1 - exp(-time / Self.settleTimeConstant))
-        if abs(step) < Self.smallestSettleStep {
-            step = (remaining < 0 ? -1 : 1) * min(Self.smallestSettleStep, abs(remaining))
+        let rate = Self.settleRate
+        let velocity = Double(settleVelocity)
+        let c = velocity + rate * distance
+        let decay = exp(-rate * time)
+        var next = (distance + c * time) * decay
+        var nextVelocity = (c - rate * (distance + c * time)) * decay
+        if next * distance < 0 {
+            // Never past the end.
+            next = 0
+            nextVelocity = 0
         }
-        hidden += step
-        if abs(goal - hidden) <= 0.5 {
+        hidden = goal + CGFloat(next)
+        settleVelocity = CGFloat(nextVelocity)
+        if abs(next) <= 0.5 {
             hidden = goal
+            settleVelocity = 0
             return true
         }
         return false
@@ -89,6 +103,7 @@ struct ScrollChromeMotion: Equatable, Sendable {
     /// Puts the bars at `value` points (tests, and showing them when the feed goes away).
     mutating func place(_ value: CGFloat) {
         hidden = value.isFinite ? min(fullDistance, max(0, value)) : 0
+        settleVelocity = 0
     }
 }
 
@@ -137,14 +152,17 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// Diagnostics: how far the content moved by layout (not the reader), and by flicks.
     var layoutMoved: CGFloat = 0
     var flickMoved: CGFloat = 0
+    /// Frames of a flick in which the feed laid out posts but the content moved smoothly, so
+    /// the bars moved with it (they used to stop for that frame).
+    var layoutFramesKept = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f path=%@",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f kept=%d path=%@",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
             touchesOnTabBar, selectedTab, tapHitsControl, enabledItems,
-            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), hitPath
+            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), layoutFramesKept, hitPath
         )
     }
 }
@@ -202,6 +220,8 @@ final class ScrollChromeView: UIView {
     private var lastContentSize: CGSize = .zero
     /// The finger's position at the last pan update, in window points.
     private var lastFingerY: CGFloat = 0
+    /// The content's last movement in one frame or touch event (finger or flick).
+    private var lastStep: CGFloat = 0
     private var easeLink: CADisplayLink?
     private var easeTarget: CGFloat = 0
     private var restWork: DispatchWorkItem?
@@ -415,6 +435,7 @@ final class ScrollChromeView: UIView {
             let delta = lastFingerY - fingerY
             lastFingerY = fingerY
             trace.lastPan += delta
+            if delta != 0 { lastStep = delta }
             let before = motion.hidden
             if isInsideContent(scrollView.contentOffset.y, scrollView), motion.scroll(by: delta) {
                 apply(input: delta)
@@ -432,7 +453,6 @@ final class ScrollChromeView: UIView {
         let size = scrollView.contentSize
         let laidOut = size != lastContentSize
         lastContentSize = size
-        if laidOut, onTrace != nil { trace.layoutMoved += abs(new - old) }
         if new <= topOffset(scrollView) + 0.5 {
             // At the top (or pulled down to refresh): the bars show.
             restWork?.cancel()
@@ -442,13 +462,29 @@ final class ScrollChromeView: UIView {
         // The finger drives the bars while it is down (see `panChanged`).
         guard !scrollView.isTracking else { return }
         guard scrollView.isDecelerating else { return }
-        // After a flick: the content's own movement, without layout jumps or the bounce.
-        if onTrace != nil { trace.flickMoved += abs(new - old) }
-        if easeLink == nil, !laidOut, isInsideContent(old, scrollView), isInsideContent(new, scrollView),
-           motion.scroll(by: new - old) {
-            apply(input: new - old)
+        // After a flick: the content's own movement, without layout jumps or the bounce. The
+        // feed lays out posts all through a flick; such a frame still counts when the content
+        // went on as it was going (posts measured off screen move nothing on it). A sudden
+        // change in such a frame is the feed correcting its position, and the bars ignore it.
+        let step = new - old
+        if onTrace != nil { trace.flickMoved += abs(step) }
+        let smooth = !laidOut || Self.continues(step, after: lastStep)
+        if !smooth, onTrace != nil { trace.layoutMoved += abs(step) }
+        if easeLink == nil, smooth, isInsideContent(old, scrollView), isInsideContent(new, scrollView),
+           motion.scroll(by: step) {
+            apply(input: step)
+            if laidOut, onTrace != nil { trace.layoutFramesKept += 1 }
         }
+        if smooth { lastStep = step }
         scheduleRest()
+    }
+
+    /// A step in the same direction as the last one and not much larger: a flick slows down
+    /// and never speeds up, so anything else is a jump. (Frames can come at 60 or 120 per
+    /// second, so a step may be up to about twice the last one.)
+    nonisolated static func continues(_ step: CGFloat, after last: CGFloat) -> Bool {
+        guard step.isFinite, last != 0, step != 0 else { return step == 0 }
+        return (step > 0) == (last > 0) && abs(step) <= abs(last) * 2.2 + 2
     }
 
     /// When the scroll has stopped and the finger is up, the bars ease to the nearer end.

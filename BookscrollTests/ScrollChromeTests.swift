@@ -87,9 +87,10 @@ final class ScrollChromeTests: XCTestCase {
     }
 
     /// The ease to an end, from every start, at 30, 60 and 120 frames per second: no
-    /// overshoot, no turning back, no fast jumps, there in about a quarter second, exactly.
+    /// overshoot, no turning back, no fast jumps, a gentle start, there in about 0.3 s, exactly.
     func testTheEaseIsSmoothAndEndsExactly() {
-        let fastest = 99 / CGFloat(ScrollChromeMotion.settleTimeConstant) + ScrollChromeMotion.smallestSettleStep * 120
+        // A critically damped spring from rest is fastest after 1/rate: distance × rate / e.
+        let fastest = 99 * CGFloat(ScrollChromeMotion.settleRate) / CGFloat(M_E) + 1
         for fps in [30.0, 60.0, 120.0] {
             let dt = 1 / fps
             for start in stride(from: CGFloat(0), through: 99, by: 1) {
@@ -111,10 +112,41 @@ final class ScrollChromeTests: XCTestCase {
                     }
                     XCTAssertTrue(done)
                     XCTAssertEqual(motion.hidden, target, "Exactly at the end")
+                    XCTAssertEqual(motion.settleVelocity, 0, "At rest at the end")
                     XCTAssertLessThanOrEqual(time, 0.4, "From \(start) to \(target) at \(fps) fps")
                 }
             }
         }
+    }
+
+    /// The ease starts slowly: the bars do not jump into motion when the content stops.
+    func testTheEaseStartsGently() {
+        for start in [CGFloat(30), 60, 98] {
+            var motion = iPhone()
+            motion.place(start)
+            let target: CGFloat = start < 50 ? 0 : 99
+            let before = motion.hidden
+            motion.settle(toward: target, dt: 1.0 / 120)
+            let firstStep = abs(motion.hidden - before)
+            var later = motion
+            let middle = later.hidden
+            later.settle(toward: target, dt: 1.0 / 120)
+            XCTAssertLessThan(firstStep, abs(later.hidden - middle), "From \(start): it speeds up after the first frame")
+            XCTAssertLessThan(firstStep, abs(target - start) * 0.05, "From \(start): the first frame moves little")
+        }
+    }
+
+    /// Smooth flick frames count even when the feed lays out posts; sudden ones are jumps.
+    func testAFlickFrameWithLayoutCountsWhenItIsSmooth() {
+        typealias View = ScrollChromeView
+        XCTAssertTrue(View.continues(12, after: 14), "Slowing down")
+        XCTAssertTrue(View.continues(20, after: 10), "A 60 fps frame after a 120 fps one")
+        XCTAssertTrue(View.continues(-8, after: -9))
+        XCTAssertFalse(View.continues(80, after: 10), "A sudden jump")
+        XCTAssertFalse(View.continues(-12, after: 10), "The other way")
+        XCTAssertFalse(View.continues(10, after: 0), "Nothing to compare with")
+        XCTAssertFalse(View.continues(.nan, after: 10))
+        XCTAssertTrue(View.continues(0, after: 10), "Standing still")
     }
 
     func testALateFrameNeverOvershoots() {
@@ -156,6 +188,6 @@ final class ScrollChromeTests: XCTestCase {
         trace.frames = 12
         trace.fastestEase = 1500.4
         trace.restsHidden = 2
-        XCTAssertEqual(trace.summary, "frames=12 faster=0 ease=1500 notBack=0 hidden=2 shown=0 state=0.0 offset=0.0 taps=1 bars=0 same=1 hit=1 seen=0 touches=0 tab=-1 control=-1 items=0 att=0 det=0 pan=0 panMoved=0 fromTop=0 layout=0 flick=0 path=-")
+        XCTAssertEqual(trace.summary, "frames=12 faster=0 ease=1500 notBack=0 hidden=2 shown=0 state=0.0 offset=0.0 taps=1 bars=0 same=1 hit=1 seen=0 touches=0 tab=-1 control=-1 items=0 att=0 det=0 pan=0 panMoved=0 fromTop=0 layout=0 flick=0 kept=0 path=-")
     }
 }
