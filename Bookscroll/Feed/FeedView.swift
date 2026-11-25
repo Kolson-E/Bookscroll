@@ -9,6 +9,15 @@ struct FeedView: View {
     @AppStorage("feedShelfID") private var feedShelfID = ""
     @AppStorage(FeedModeChoice.chosenBooksKey) private var chosenBookIDs = ""
     @State private var isChoosingBooks = false
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+
+    /// The bars hide while you read, as on X; not with VoiceOver, and not in UI tests unless
+    /// a test asks for it.
+    private var hidesBarsOnScroll: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-UITestInMemoryStore") && !arguments.contains("-UITestHideBars") { return false }
+        return !voiceOverEnabled
+    }
 
     private var selectedStyle: PostStyle { PostStyle(rawValue: styleRaw) ?? .paragraph }
 
@@ -156,6 +165,11 @@ struct FeedView: View {
                     .onAppear { feed.loadMore() }
             }
             .scrollTargetLayout()
+            .background(alignment: .top) {
+                ScrollChromeObserver(isEnabled: hidesBarsOnScroll)
+                    .frame(width: 0, height: 0)
+                    .accessibilityHidden(true)
+            }
         }
         .scrollPosition(id: $feed.scrolledID)
         .refreshable { feed.refresh() }

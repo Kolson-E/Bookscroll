@@ -395,6 +395,11 @@ between them; a chapter change breaks the thread and shows a chapter row. One bo
 always gives the book in order: every post follows the one before it, with nothing skipped.
 In Mix mode and Saved, tapping a post (or its book button) opens it in context.
 
+As on X, the feed's navigation bar and the tab bar move away while you read down and come
+back when you scroll up. They follow your finger, go to the nearer end when a scroll stops
+part-way, and always show at the top of the feed. With VoiceOver on they stay in place
+(`ScrollChrome.swift`).
+
 ### Positions are offsets, not post indices
 
 Each book has one normalized text: its paragraphs joined by a blank line. All offsets (reading
@@ -543,12 +548,14 @@ property is named `passagesOnly` because that is what it means.
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 19 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 20 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, Find Books (its folder picker, from the + menu and the empty Library), bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
   post style and One book thread, swipe to delete.
 - Settings: theme, accent and focus mode change the feed.
+- The navigation and tab bars hide while you read down the feed and come back when you
+  scroll up.
 - A long paragraph splits into numbered parts; double tap bookmarks a post.
 - Jump to a chapter; long press shows the peek and "Look up a word".
 - Highlight a post, find it in Saved › Highlights and open it in the reader; search the

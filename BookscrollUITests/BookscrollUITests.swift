@@ -234,6 +234,37 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
     }
 
+    /// True when `element` is gone from the screen or cannot be tapped.
+    private func waitUntilHidden(_ element: XCUIElement, _ hidden: Bool, timeout: TimeInterval = 5) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            let isHidden = !element.exists || !element.isHittable
+            if isHidden == hidden { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        } while Date() < deadline
+        return false
+    }
+
+    func testBarsHideWhileReadingDownAndComeBackOnScrollUp() {
+        let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        let libraryTab = app.tabBars.buttons["Library"].firstMatch
+        let navigationBar = app.navigationBars["Feed"].firstMatch
+        XCTAssertTrue(waitUntilHidden(libraryTab, false), "The tab bar shows at the top of the feed")
+
+        app.swipeUp(velocity: .slow)
+        app.swipeUp(velocity: .slow)
+        XCTAssertTrue(waitUntilHidden(libraryTab, true), "The tab bar hides while reading down")
+        XCTAssertTrue(waitUntilHidden(navigationBar, true), "The navigation bar hides while reading down")
+        screenshot("31-feed-bars-hidden")
+
+        app.swipeDown(velocity: .slow)
+        XCTAssertTrue(waitUntilHidden(libraryTab, false), "Scrolling up brings the tab bar back")
+        XCTAssertTrue(waitUntilHidden(navigationBar, false), "Scrolling up brings the navigation bar back")
+        tab(app, "Library")
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
+    }
+
     func testPostStyleAndOneBookThread() {
         // Word limit off, so the long paragraph stays one post and "Show more" appears.
         let app = launch(sampleBooks: true, extra: ["-wordLimit", "0"])
