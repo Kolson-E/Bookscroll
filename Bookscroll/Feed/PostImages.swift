@@ -8,6 +8,8 @@ import UIKit
 struct PostImages: View {
     let bookID: UUID
     let images: [BookImageEntry]
+    /// The post the pictures belong to, shown under the picture full screen. Nil in the reader.
+    var post: ViewerPost? = nil
 
     @State private var viewing: ViewerStart?
 
@@ -32,7 +34,7 @@ struct PostImages: View {
             }
         }
         .fullScreenCover(item: $viewing) { start in
-            ImageViewer(bookID: bookID, images: images, startIndex: start.index) {
+            ImageViewer(bookID: bookID, images: images, startIndex: start.index, post: post) {
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
                 withTransaction(transaction) { viewing = nil }
@@ -99,13 +101,38 @@ struct PostImageTile: View {
     }
 }
 
-/// A book's pictures full screen, as on X: black behind, pinch or double-tap to zoom, swipe
-/// sideways between the post's pictures, swipe up or down to close. A tap shows or hides the
-/// close button.
+/// The post a picture belongs to, for the viewer's post panel (as on X's media viewer).
+@MainActor
+struct ViewerPost {
+    let bookID: UUID
+    let title: String
+    let author: String
+    let text: String
+    let citation: String
+    let isBookmarked: Bool
+    let actions: PostActions
+
+    init(post: FeedPost, isBookmarked: Bool, actions: PostActions) {
+        bookID = post.bookID
+        title = post.bookTitle
+        author = post.bookAuthor
+        text = post.segment.text
+        citation = ShareFormatter.citation(post)
+        self.isBookmarked = isBookmarked
+        self.actions = actions
+    }
+}
+
+/// A book's pictures full screen, as on X's media viewer: black behind, a back button and "⋯"
+/// at the top, and the post under the picture with its actions as capsules. There is no reply
+/// field: nothing in the app takes replies. Pinch or double-tap to zoom, swipe sideways between
+/// the post's pictures, swipe up or down to close. A tap shows or hides everything but the picture.
 @MainActor
 struct ImageViewer: View {
     let bookID: UUID
     let images: [BookImageEntry]
+    /// Nil in the reader, where a paragraph is not a post: the panel shows the description only.
+    let post: ViewerPost?
     let onClose: () -> Void
 
     @State private var index: Int
@@ -114,11 +141,14 @@ struct ImageViewer: View {
     /// 0 at rest, 1 when a swipe has taken the picture away.
     @State private var dragProgress: CGFloat = 0
     @State private var showsControls = true
+    /// The picture's description, opened with the "ALT" button.
+    @State private var showsAlt = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(bookID: UUID, images: [BookImageEntry], startIndex: Int, onClose: @escaping () -> Void) {
+    init(bookID: UUID, images: [BookImageEntry], startIndex: Int, post: ViewerPost? = nil, onClose: @escaping () -> Void) {
         self.bookID = bookID
         self.images = images
+        self.post = post
         self.onClose = onClose
         _index = State(initialValue: min(max(startIndex, 0), max(images.count - 1, 0)))
     }
@@ -127,6 +157,12 @@ struct ImageViewer: View {
         guard appeared, !closing else { return 0 }
         return Double(1 - min(dragProgress, 1) * 0.85)
     }
+
+    private var controlsOpacity: Double {
+        appeared && !closing ? Double(1 - min(dragProgress * 2, 1)) : 0
+    }
+
+    private var entry: BookImageEntry? { images[safe: index] }
 
     var body: some View {
         ZStack {
@@ -158,59 +194,202 @@ struct ImageViewer: View {
             .scaleEffect(appeared || reduceMotion ? 1 : 0.94)
 
             if showsControls {
-                VStack {
-                    HStack {
-                        Button(action: close) {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 36, height: 36)
-                                .background(Circle().fill(Color.black.opacity(0.55)))
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Close")
-                        .accessibilityIdentifier("imageViewer.close")
-                        Spacer()
-                        if images.count > 1 {
-                            Text("\(index + 1) of \(images.count)")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(Capsule().fill(Color.black.opacity(0.55)))
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    Spacer()
-                    if let alt = images[safe: index]?.alt, !alt.isEmpty {
-                        Text(alt)
-                            .font(.footnote)
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                            .background(Color.black.opacity(0.55))
-                            .accessibilityHidden(true)
-                    }
+                VStack(spacing: 0) {
+                    topBar
+                    Spacer(minLength: 0)
+                    bottomPanel
                 }
-                .opacity(appeared && !closing ? Double(1 - min(dragProgress * 2, 1)) : 0)
+                .opacity(controlsOpacity)
                 .transition(.opacity)
             }
         }
         .presentationBackground(.clear)
         .statusBarHidden()
-        .accessibilityAction(.escape, close)
+        .accessibilityAction(.escape) { close() }
+        .onChange(of: index) { showsAlt = false }
         .onAppear {
             withAnimation(.easeOut(duration: reduceMotion ? 0.15 : 0.22)) { appeared = true }
         }
     }
 
-    /// The close button and VoiceOver's escape: a short fade, then the cover goes.
-    private func close() {
+    // MARK: Top: back, page count, more
+
+    private var topBar: some View {
+        HStack {
+            Button { close() } label: {
+                ViewerCircleIcon(systemName: "arrow.left")
+            }
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("imageViewer.close")
+            Spacer()
+            if images.count > 1 {
+                Text("\(index + 1) of \(images.count)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(viewerChromeFill))
+                Spacer()
+            }
+            Menu {
+                if post != nil {
+                    Button { readInContext() } label: {
+                        Label("Read in context", systemImage: "text.book.closed")
+                    }
+                    Button { post?.actions.copy(true) } label: {
+                        Label("Copy text with citation", systemImage: "doc.on.doc")
+                    }
+                }
+                Button(action: copyPicture) {
+                    Label("Copy picture", systemImage: "photo.on.rectangle")
+                }
+            } label: {
+                ViewerCircleIcon(systemName: "ellipsis")
+            }
+            .accessibilityLabel("More")
+            .accessibilityIdentifier("imageViewer.more")
+        }
+        .padding(.horizontal, 8)
+    }
+
+    // MARK: Bottom: the post and its actions
+
+    private var bottomPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let alt = entry?.alt, !alt.isEmpty, showsAlt || post == nil {
+                Text(alt)
+                    .font(.footnote)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityHidden(true)
+            }
+            if let post {
+                Button { readInContext() } label: {
+                    postSummary(post)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(verbatim: "\(post.title), \(post.author). \(post.text)"))
+                .accessibilityHint("Reads the post in context")
+                .accessibilityIdentifier("imageViewer.post")
+            }
+            actionRow
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 40)
+        .padding(.bottom, 8)
+        .background {
+            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.8)], startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea(edges: .bottom)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// Avatar, bold title and grey author, then the text cut to two lines: X's post under the media.
+    private func postSummary(_ post: ViewerPost) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            AvatarView(title: post.title, author: post.author, size: 40, textStyle: .title3, bookID: post.bookID)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(post.title)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                    Text(post.author)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+                Text(post.text)
+                    .font(.subheadline)
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            if let post {
+                Button { readInContext() } label: {
+                    ViewerCapsule {
+                        Label("Read", systemImage: "text.book.closed")
+                    }
+                }
+                .accessibilityLabel("Read in context")
+                .accessibilityIdentifier("imageViewer.context")
+
+                Button(action: post.actions.bookmark) {
+                    ViewerCapsule {
+                        Image(systemName: post.isBookmarked ? "bookmark.fill" : "bookmark")
+                    }
+                }
+                .accessibilityLabel(post.isBookmarked ? "Remove bookmark" : "Bookmark")
+                .accessibilityIdentifier("imageViewer.bookmark")
+            }
+            if let entry {
+                let file = BookImageCache.shared.url(of: entry, bookID: bookID)
+                Group {
+                    if let post {
+                        ShareLink(item: file, message: Text(post.citation)) {
+                            ViewerCapsule { Image(systemName: "square.and.arrow.up") }
+                        }
+                    } else {
+                        ShareLink(item: file) {
+                            ViewerCapsule { Image(systemName: "square.and.arrow.up") }
+                        }
+                    }
+                }
+                .accessibilityLabel("Share picture")
+                .accessibilityIdentifier("imageViewer.share")
+            }
+            Spacer(minLength: 0)
+            if post != nil, let alt = entry?.alt, !alt.isEmpty {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showsAlt.toggle() }
+                } label: {
+                    ViewerCapsule {
+                        Text("ALT").font(.caption.weight(.heavy))
+                    }
+                }
+                .accessibilityLabel(showsAlt ? "Hide picture description" : "Show picture description")
+                .accessibilityIdentifier("imageViewer.alt")
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Closing
+
+    /// "Read in context": the reader opens over the feed once the viewer has gone, since a
+    /// sheet cannot open over this cover.
+    private func readInContext() {
+        guard let open = post?.actions.open else { return }
+        close(then: open)
+    }
+
+    private func copyPicture() {
+        guard let entry else { return }
+        Task {
+            if let image = await BookImageCache.shared.image(entry, bookID: bookID, pixels: max(entry.width, entry.height)) {
+                UIPasteboard.general.image = image
+            }
+        }
+    }
+
+    /// The back button and VoiceOver's escape: a short fade, then the cover goes.
+    private func close(then next: (() -> Void)? = nil) {
         guard !closing else { return }
         withAnimation(.easeIn(duration: 0.18)) { closing = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { onClose() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            onClose()
+            if let next {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: next)
+            }
+        }
     }
 
     /// The picture has already slid away.
@@ -218,6 +397,40 @@ struct ImageViewer: View {
         guard !closing else { return }
         withAnimation(.easeOut(duration: 0.12)) { closing = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { onClose() }
+    }
+}
+
+/// The see-through fill of the viewer's capsules.
+private let viewerChromeFill = Color.white.opacity(0.16)
+
+/// X's round buttons at the top of the media viewer.
+private struct ViewerCircleIcon: View {
+    let systemName: String
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 36, height: 36)
+            .background(Circle().fill(Color.black.opacity(0.55)))
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+    }
+}
+
+/// X's action capsules under the post in the media viewer.
+private struct ViewerCapsule<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .frame(minWidth: 52, minHeight: 36)
+            .background(Capsule().fill(viewerChromeFill))
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
     }
 }
 

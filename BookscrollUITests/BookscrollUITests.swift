@@ -430,7 +430,28 @@ final class BookscrollUITests: XCTestCase {
             picture.tap()
             XCTAssertTrue(viewer.waitForExistence(timeout: 5), "Round \(n + 1): the picture opens full screen")
             XCTAssertGreaterThan(viewer.frame.width, picture.frame.width, "Full screen is wider than the post")
-            if n == 0 { screenshot("picture-viewer") }
+            if n == 0 {
+                screenshot("picture-viewer")
+                // X's media viewer: the post and its actions under the picture, no reply field.
+                let summary = app.buttons["imageViewer.post"].firstMatch
+                XCTAssertTrue(summary.waitForExistence(timeout: 3), "The post shows under the picture")
+                XCTAssertFalse(summary.label.isEmpty)
+                XCTAssertTrue(app.buttons["imageViewer.more"].exists, "A ⋯ button at the top")
+                XCTAssertTrue(app.descendants(matching: .any)["imageViewer.share"].exists, "A share button")
+                XCTAssertEqual(app.textFields.count + app.textViews.count, 0, "No reply field")
+                let bookmark = app.buttons["imageViewer.bookmark"].firstMatch
+                XCTAssertTrue(bookmark.exists)
+                XCTAssertEqual(bookmark.label, "Bookmark")
+                bookmark.tap()
+                XCTAssertTrue(waitFor(bookmark, label: "Remove bookmark"), "The bookmark button bookmarks the post")
+                bookmark.tap()
+                XCTAssertTrue(waitFor(bookmark, label: "Bookmark"), "A second tap removes the bookmark")
+                // A tap on the viewer hides its buttons and a second tap shows them again.
+                viewer.tap()
+                waitUntilGone(summary)
+                viewer.tap()
+                XCTAssertTrue(summary.waitForExistence(timeout: 3))
+            }
             switch close {
             case "swipe down": viewer.swipeDown(velocity: .fast)
             case "swipe up": viewer.swipeUp(velocity: .fast)
@@ -443,6 +464,21 @@ final class BookscrollUITests: XCTestCase {
             XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5), "Round \(n + 1): \(close) goes back to the feed")
         }
 
+        // "Read" closes the viewer and opens the post in the reader.
+        if !picture.isHittable { drag(app, by: -120) }
+        picture.tap()
+        XCTAssertTrue(viewer.waitForExistence(timeout: 5))
+        app.buttons["imageViewer.context"].firstMatch.tap()
+        waitUntilGone(viewer)
+        let continueButton = app.buttons["Continue in feed from here"].firstMatch
+        XCTAssertTrue(continueButton.waitForExistence(timeout: 5), "Read opens the post in context")
+        app.buttons["Done"].firstMatch.tap()
+        waitUntilGone(continueButton)
+    }
+
+    private func waitFor(_ element: XCUIElement, label: String, timeout: TimeInterval = 3) -> Bool {
+        let predicate = NSPredicate(format: "label == %@", label)
+        return XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: predicate, object: element)], timeout: timeout) == .completed
     }
 
     func testTheBarsHideSmoothlyAtTheLargestTextSize() {

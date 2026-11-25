@@ -425,8 +425,12 @@ struct PostRow: View {
                 // and the next post goes on with the book.
                 let images = BookImageCache.shared.images(bookID: post.bookID, start: post.segment.charStart, end: post.segment.charEnd)
                 if !images.isEmpty {
-                    PostImages(bookID: post.bookID, images: images)
-                        .padding(.top, isTruncated ? 4 : 10)
+                    PostImages(
+                        bookID: post.bookID,
+                        images: images,
+                        post: ViewerPost(post: post, isBookmarked: isBookmarked, actions: actions)
+                    )
+                    .padding(.top, isTruncated ? 4 : 10)
                 }
             }
         }

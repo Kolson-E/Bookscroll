@@ -270,10 +270,15 @@ back. Finishing is a Library action only.
 **Pictures in books.** An EPUB's pictures show under the post they follow, as on X: the post's
 text, then the picture at full width with rounded corners (a picture taller than 4:5 is cut to
 4:5 in the feed; the whole picture opens with a tap). Its height is known before it loads, so the
-feed does not jump. Tap a picture to see it full screen on black: pinch or double-tap to zoom,
-swipe sideways between the pictures of one post, tap to show or hide the close button and the
-picture's description, and swipe up or down (or tap the close button) to go back. The reader
-shows the same pictures under their paragraphs. VoiceOver reads a picture's description.
+feed does not jump. Tap a picture to see it full screen on black, laid out as X's media viewer:
+a back button and "⋯" (read in context, copy the text with its citation, copy the picture) at the
+top, and under the picture the post's avatar, title and author and its first two lines, with
+capsule buttons to read it in context, bookmark it and share the picture. X's reply field is left
+out, because nothing in the app takes replies. "ALT" shows the picture's description. Pinch or
+double-tap to zoom, swipe sideways between the pictures of one post, tap to show or hide the
+buttons, and swipe up or down (or tap back) to go back. The reader shows the same pictures under
+their paragraphs; there the viewer shows the description in place of the post. VoiceOver reads a
+picture's description.
 
 **Covers and avatars.** The avatar of a book is its cover: the EPUB cover image (the
 `cover-image` item, else `<meta name="cover">`, else an image named "cover", else the picture on
@@ -597,7 +602,9 @@ library:
   easing, eased to the nearer end, and came back exactly to its place.
 - Make a reading list with two sets and read it in the feed.
 - A book's picture shows under its post at full width and in its shape, opens full screen with
-  a tap, and closes with a swipe down, a swipe up, and the close button.
+  a tap with the post, bookmark, share and "⋯" under and over it and no reply field, bookmarks and
+  unbookmarks the post, hides and shows its buttons with a tap, closes with a swipe down, a swipe
+  up, and the back button, and "Read" opens the post in the reader.
 - A long paragraph splits into numbered parts; double tap bookmarks a post.
 - Jump to a chapter; long press shows the peek and "Look up a word".
 - Highlight a post, find it in Saved › Highlights and open it in the reader; search the
