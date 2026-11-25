@@ -1,10 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "— %@" : {},
+    "“" : {},
     "%@" : {},
-    "%@ %lld" : {},
-    "%@ brightness" : {},
-    "%@ points" : {},
     "%@ · %@" : {
       "localizations" : {
         "en" : {
@@ -35,6 +34,9 @@
         }
       }
     },
+    "%@ %lld" : {},
+    "%@ brightness" : {},
+    "%@ points" : {},
     "%@, %lld" : {},
     "%@, %lld percent%@" : {
       "localizations" : {
@@ -118,6 +120,16 @@
         }
       }
     },
+    "%lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
     "%lld of %lld books" : {
       "localizations" : {
         "en" : {
@@ -176,12 +188,14 @@
     "All" : {},
     "Allow a Folder" : {},
     "Allow Another Folder" : {},
+    "ALT" : {},
     "Appearance" : {},
     "Author" : {},
     "Author (optional)" : {},
     "Auto picks, for each book, the smallest limit that fits 95% of its paragraphs in one post." : {},
     "Avatar" : {},
     "Back Up and Restore" : {},
+    "Bar trace" : {},
     "Blue" : {},
     "Book" : {},
     "Book not found" : {},
@@ -226,14 +240,16 @@
     "Continue from here" : {},
     "Continue in feed from here" : {},
     "Continue Reading" : {},
+    "Copy picture" : {},
     "Copy text" : {},
+    "Copy text with citation" : {},
     "Copy with citation" : {},
     "Create" : {},
     "Dark sepia" : {},
     "Day" : {},
+    "Delete “%@”?" : {},
     "Delete Set" : {},
     "Delete Shelf" : {},
-    "Delete “%@”?" : {},
     "Density" : {},
     "Dismiss" : {},
     "Dismiss error for %@" : {},
@@ -271,6 +287,7 @@
     "Group books, like “Holiday reading” or “Philosophy”. A book can be on more than one shelf, and a shelf can be read as its own feed." : {},
     "Hide book from Mix" : {},
     "Hide from Mix" : {},
+    "Hide picture description" : {},
     "Highlight" : {},
     "Highlight paragraph" : {},
     "Highlight. %@. %@%@, %lld percent." : {
@@ -367,8 +384,11 @@
     "Opens Jump to for this book" : {},
     "Opens the book here" : {},
     "Opens the book you read last at your place." : {},
+    "Opens the picture full screen" : {},
     "Paste Text" : {},
     "Percent" : {},
+    "Picture" : {},
+    "Picture: %@" : {},
     "Plan what you read next" : {},
     "Post font" : {},
     "Post style" : {},
@@ -377,6 +397,7 @@
     "Posts" : {},
     "pt" : {},
     "Put books in sets, like a playlist. The feed mixes the books of the first set. When every book in it is finished, the next set starts by itself." : {},
+    "Read" : {},
     "Read %@ in context" : {},
     "Read 1 Book" : {},
     "Read as Feed" : {},
@@ -401,6 +422,7 @@
     "Reading on the Lock Screen" : {},
     "Reading Stats" : {},
     "Reading Today" : {},
+    "Reads the post in context" : {},
     "Red" : {},
     "Remove bookmark" : {},
     "Remove Finished Sets" : {},
@@ -440,6 +462,7 @@
     "Share" : {},
     "Share as image" : {},
     "Share as text" : {},
+    "Share picture" : {},
     "Shelf" : {},
     "Shelf actions" : {},
     "Shelves" : {},
@@ -450,6 +473,7 @@
     "Show less from this book" : {},
     "Show more" : {},
     "Show more from this book" : {},
+    "Show picture description" : {},
     "Show saved posts" : {},
     "Shown as" : {},
     "Shows the books of this shelf, mixed, in the feed" : {},
@@ -520,9 +544,7 @@
       }
     },
     "Your library is empty" : {},
-    "Your speed is measured after 10 minutes of reading. Until then, times left use 200 words a minute." : {},
-    "— %@" : {},
-    "“" : {}
+    "Your speed is measured after 10 minutes of reading. Until then, times left use 200 words a minute." : {}
   },
   "version" : "1.0"
 }

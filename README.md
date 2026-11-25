@@ -423,7 +423,9 @@ than your finger; when a scroll stops part-way they ease to the nearer end in ab
 of a second, and they always show at the top of the feed. Layout changes of the feed and
 scrolls the app makes itself do not move them. The bars move by their layers' sublayer
 transform, which UIKit's own layout never sets, so a layout pass cannot knock them out of
-place. With VoiceOver on they stay in place (`ScrollChrome.swift`).
+place. When the app leaves the front (Home Screen, app switcher) the bars come back first, so
+the app comes back with them shown: a tab bar sent to the background while moved away stops
+selecting tabs on iOS 26. With VoiceOver on they stay in place (`ScrollChrome.swift`).
 
 ### Positions are offsets, not post indices
 
@@ -559,7 +561,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 265 tests):
+`BookscrollTests` (XCTest, 274 tests):
 
 | Area | File |
 |---|---|
@@ -589,7 +591,7 @@ property is named `passagesOnly` because that is what it means.
 | Reading list: sets read in order, finished books and done sets skipped, scrolling past a book's last post finishes it, set order and one set per book, statuses, backups | `ReadingListTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 25 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 27 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, Find Books (its folder picker, from the + menu and the empty Library), bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
@@ -599,7 +601,8 @@ library:
   scroll up. Four more tests drag, flick and turn back again and again (also at the largest
   text size, after the Home Screen and after another tab); the app records every frame and
   the tests check that the tab bar never moved faster than the content, never jumped while
-  easing, eased to the nearer end, and came back exactly to its place.
+  easing, eased to the nearer end, and came back exactly to its place. The bars come back shown
+  after the Home Screen, and the tabs work after it, with and without bar hiding.
 - Make a reading list with two sets and read it in the feed.
 - A book's picture shows under its post at full width and in its shape, opens full screen with
   a tap with the post, bookmark, share and "⋯" under and over it and no reply field, bookmarks and
