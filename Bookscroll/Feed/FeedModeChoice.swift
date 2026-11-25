@@ -14,7 +14,8 @@ enum FeedModeChoice {
         feedShelfID: String,
         focusShelfID: String,
         shelves: [ShelfRecord],
-        chosenBookIDs: String = ""
+        chosenBookIDs: String = "",
+        readingSets: [ReadingSet] = []
     ) -> FeedMode {
         if let id = UUID(uuidString: focusShelfID), let shelf = shelves.first(where: { $0.id == id }) {
             return .shelf(ShelfSelection(id: shelf.id, name: shelf.name, bookIDs: shelf.bookIDs))
@@ -30,7 +31,20 @@ enum FeedModeChoice {
             if ids.count == 1 { return .single(ids[0]) }
             if ids.count > 1 { return .shelf(chosenBooks(ids)) }
         }
+        if modeRaw == readingListTag, !readingSets.isEmpty {
+            return .readingList(readingList(readingSets))
+        }
         return .mix
+    }
+
+    /// The stored mode of the reading list.
+    static let readingListTag = "readingList"
+
+    static func readingList(_ sets: [ReadingSet]) -> ReadingListSelection {
+        ReadingListSelection(
+            sets: sets.map(\.bookIDs),
+            names: sets.map { ReadingListStore.displayName(of: $0, in: sets) }
+        )
     }
 
     /// The chosen books as a shelf-mode selection, named by how many there are.

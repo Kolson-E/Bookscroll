@@ -223,6 +223,7 @@ final class AppModel {
     var isImporterPresented = false
     /// Shows Find Books (the book files in the folders the reader allowed).
     var isFinderPresented = false
+    var isReadingListPresented = false
     var readerRequest: ReaderRequest?
     var shareRequest: ShareRequest?
     var jumpRequest: JumpRequest?
@@ -237,6 +238,7 @@ final class AppModel {
     let store: LibraryStore
     let marks: MarkStore
     let shelves: ShelfStore
+    let readingList: ReadingListStore
     let feed: FeedViewModel
     let importer: ImportManager
     let folderSync: FolderSync
@@ -260,6 +262,7 @@ final class AppModel {
         searchIndex: SearchIndex? = nil,
         folderSync: FolderSync? = nil,
         bookFinder: BookFinder? = nil,
+        readingList: ReadingListStore? = nil,
         stats: ReadingStats? = nil,
         platform: Bool = false
     ) {
@@ -269,6 +272,7 @@ final class AppModel {
         self.store = store
         self.marks = MarkStore(store: store)
         self.shelves = ShelfStore(context: container.mainContext)
+        self.readingList = readingList ?? ReadingListStore()
         self.feed = FeedViewModel(store: store)
         self.importer = ImportManager(container: container)
         self.folderSync = folderSync ?? FolderSync()
@@ -285,6 +289,11 @@ final class AppModel {
         importer.coverFolder = CoverCache.shared.folder
         feed.onRead = { [weak self] reads in
             self?.didRead(reads)
+        }
+        // Scrolling past a book's last post finishes it; in the reading list, the next set
+        // starts when every book of the set is finished.
+        feed.onReachedEnd = { [weak self] ids in
+            for id in ids { self?.setFinished(true, bookID: id) }
         }
         importer.onReplaced = { [weak self] old, new in
             self?.bookWasReplaced(old, by: new)
@@ -423,6 +432,10 @@ final class AppModel {
         isImporterPresented = true
     }
 
+    func presentReadingList() {
+        isReadingListPresented = true
+    }
+
     func presentFinder() {
         readerRequest = nil
         shareRequest = nil
@@ -481,6 +494,7 @@ final class AppModel {
     /// The new version takes the old one's shelves and One book selection; the old one goes.
     private func bookWasReplaced(_ old: UUID, by new: UUID) {
         shelves.replaceEverywhere(old, with: new)
+        readingList.replaceEverywhere(old, with: new)
         let defaults = UserDefaults.standard
         if defaults.string(forKey: "singleBookID") == old.uuidString {
             defaults.set(new.uuidString, forKey: "singleBookID")
@@ -692,6 +706,7 @@ final class AppModel {
             }
             store.forgetBook(id: id)
             shelves.removeEverywhere(id)
+            readingList.removeEverywhere(id)
             CoverStore.removeAll(bookID: id, in: CoverCache.shared.folder)
             CoverCache.shared.invalidate(id)
             libraryDidChange()
@@ -705,6 +720,7 @@ final class AppModel {
         store.save()
         let ids = store.allBooks().map(\.id)
         let shelfList = shelves.shelves
+        let readingSets = readingList.sets.map { (name: readingList.displayName(of: $0), bookIDs: $0.bookIDs) }
         let container = self.container
         let folder = CoverCache.shared.folder
         return try await Task.detached(priority: .userInitiated) {
@@ -719,7 +735,10 @@ final class AppModel {
             let shelves = shelfList.map { shelf in
                 LibraryBackup.ShelfBackup(name: shelf.name, books: shelf.bookIDs.compactMap { indexByID[$0] })
             }
-            return try LibraryBackup(createdAt: now, books: states, shelves: shelves).encoded()
+            let sets = readingSets.map { set in
+                LibraryBackup.ShelfBackup(name: set.name, books: set.bookIDs.compactMap { indexByID[$0] })
+            }
+            return try LibraryBackup(createdAt: now, books: states, shelves: shelves, readingList: sets).encoded()
         }.value
     }
 
@@ -778,6 +797,12 @@ final class AppModel {
                 shelves.create(name: shelf.name, bookIDs: ids)
             }
             shelfCount += 1
+        }
+        // Reading list sets go at the end; books already in the list stay in their set.
+        for set in backup.readingList ?? [] {
+            let ids = set.books.compactMap { $0 >= 0 && $0 < matches.count ? matches[$0] : nil }
+                .filter { readingList.set(containing: $0) == nil }
+            readingList.addSet(name: set.name, bookIDs: ids)
         }
         libraryDidChange()
         feed.reloadFromLibrary()

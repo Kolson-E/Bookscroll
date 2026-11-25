@@ -30,7 +30,8 @@ struct FeedView: View {
             feedShelfID: feedShelfID,
             focusShelfID: focusShelfID,
             shelves: app.shelves.shelves,
-            chosenBookIDs: chosenBookIDs
+            chosenBookIDs: chosenBookIDs,
+            readingSets: app.readingList.sets
         )
     }
 
@@ -51,6 +52,7 @@ struct FeedView: View {
                 case "single": return singleBookID
                 case "shelf": return Self.shelfTagPrefix + feedShelfID
                 case "books": return Self.chosenTag
+                case FeedModeChoice.readingListTag: return FeedModeChoice.readingListTag
                 default: return "mix"
                 }
             },
@@ -61,6 +63,8 @@ struct FeedView: View {
                     modeRaw = "mix"
                 } else if value == Self.chosenTag {
                     modeRaw = "books"
+                } else if value == FeedModeChoice.readingListTag {
+                    modeRaw = FeedModeChoice.readingListTag
                 } else if value.hasPrefix(Self.shelfTagPrefix) {
                     feedShelfID = String(value.dropFirst(Self.shelfTagPrefix.count))
                     modeRaw = "shelf"
@@ -136,6 +140,7 @@ struct FeedView: View {
         .onChange(of: chosenBookIDs) { configureFeed() }
         .onChange(of: focusShelfID) { configureFeed() }
         .onChange(of: app.shelves.shelves) { configureFeed() }
+        .onChange(of: app.readingList.sets) { configureFeed() }
         .onChange(of: AppSettings.shared.wordLimit) { configureFeed() }
         .onChange(of: feed.mode) { _, mode in
             if mode == .mix && modeRaw != "mix" { modeRaw = "mix" }
@@ -192,6 +197,24 @@ struct FeedView: View {
             MenuChoice(title: chosenMenuTitle, symbol: "checklist", isSelected: selection.wrappedValue == Self.chosenTag) {
                 isChoosingBooks = true
             }
+            Section {
+                MenuChoice(
+                    title: String(localized: "Reading list"),
+                    symbol: "list.number",
+                    isSelected: selection.wrappedValue == FeedModeChoice.readingListTag
+                ) {
+                    if app.readingList.sets.isEmpty {
+                        app.presentReadingList()
+                    } else {
+                        selection.wrappedValue = FeedModeChoice.readingListTag
+                    }
+                }
+                Button {
+                    app.presentReadingList()
+                } label: {
+                    Label(app.readingList.sets.isEmpty ? LocalizedStringKey("Make a Reading List\u{2026}") : LocalizedStringKey("Edit Reading List\u{2026}"), systemImage: "square.and.pencil")
+                }
+            }
             if !app.shelves.shelves.isEmpty {
                 Section("Shelf") {
                     ForEach(app.shelves.shelves) { shelf in
@@ -222,6 +245,7 @@ struct FeedView: View {
         case .mix: return "shuffle"
         case .single: return "book.closed"
         case .shelf: return "books.vertical"
+        case .readingList: return "list.number"
         }
     }
 
@@ -231,6 +255,7 @@ struct FeedView: View {
         case .single: return "One book: \(app.feed.title)"
         case let .shelf(shelf) where shelf.id == FeedModeChoice.chosenBooksID: return "Chosen books: \(shelf.name)"
         case let .shelf(shelf): return "Shelf: \(shelf.name)"
+        case .readingList: return "Reading list: \(app.feed.title)"
         }
     }
 
@@ -251,7 +276,7 @@ struct FeedView: View {
         switch app.feed.mode {
         case let .single(id): return [id]
         case let .shelf(shelf): return shelf.bookIDs
-        case .mix: return []
+        case .mix, .readingList: return []
         }
     }
 

@@ -292,6 +292,39 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertEqual(app.buttons["Post style"].value as? String, "Passages")
     }
 
+    func testReadingListReadsItsSetsInTheFeed() {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        // With no sets yet, the menu choice opens the editor.
+        openToolbarMenu(app, "Feed mode", choice: "Reading list").tap()
+        let addSet = app.buttons["readingList.addSet"].firstMatch
+        XCTAssertTrue(addSet.waitForExistence(timeout: 5), "An empty reading list opens the editor")
+
+        let books = app.buttons.matching(identifier: "choose.book")
+        for index in 0..<2 {
+            addSet.tap()
+            XCTAssertTrue(books.firstMatch.waitForExistence(timeout: 5))
+            books.element(boundBy: index).tap()
+            let save = app.buttons["choose.done"].firstMatch
+            XCTAssertTrue(save.waitForExistence(timeout: 5))
+            XCTAssertEqual(save.label, "Save Set (1)")
+            save.tap()
+            XCTAssertTrue(addSet.waitForExistence(timeout: 5))
+        }
+        XCTAssertTrue(app.staticTexts["Set 1"].exists)
+        XCTAssertTrue(app.staticTexts["Set 2"].exists)
+        screenshot("32-reading-list")
+
+        let read = app.buttons["readingList.read"].firstMatch
+        XCTAssertTrue(read.waitForExistence(timeout: 5))
+        read.tap()
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
+        waitForValue(app.buttons["Feed mode"].firstMatch, "Reading list: Set 1")
+
+        tab(app, "Shelves")
+        XCTAssertTrue(app.buttons["shelves.readingList"].waitForExistence(timeout: 5), "The Shelves tab opens the reading list")
+    }
+
     func testChooseBooksMixesOnlyTheChosenBooks() {
         let app = launch(sampleBooks: true)
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))

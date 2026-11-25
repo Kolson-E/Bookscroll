@@ -43,6 +43,9 @@ struct ShelvesView: View {
                     }
                 }
             }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                ReadingListEntry()
+            }
             .navigationTitle("Shelves")
             .themedNavigationBar()
             .navigationDestination(for: UUID.self) { id in
@@ -75,6 +78,57 @@ struct ShelvesView: View {
     private func startNaming() {
         newName = ""
         isNaming = true
+    }
+}
+
+/// The way into the reading list, above the shelves.
+@MainActor
+private struct ReadingListEntry: View {
+    @Environment(AppModel.self) private var app
+
+    private var detail: String {
+        let sets = app.readingList.sets
+        guard !sets.isEmpty else { return String(localized: "Read sets of books in order, like a playlist") }
+        _ = app.libraryVersion
+        let books = app.store.allBooks()
+        let finished = Set(books.filter { $0.finishedAt != nil }.map(\.id))
+        let statuses = ReadingListStore.statuses(of: sets, finished: finished, library: Set(books.map(\.id)))
+        guard let index = statuses.firstIndex(of: .current) else { return String(localized: "Every set is done") }
+        return String(localized: "Now: \(app.readingList.displayName(of: sets[index])) of \(sets.count) sets")
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Button { app.presentReadingList() } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "list.number")
+                        .font(.title3)
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 32)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reading List")
+                            .font(.headline)
+                            .foregroundStyle(Theme.primaryText)
+                        Text(detail)
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.secondaryText)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityIdentifier("shelves.readingList")
+            ThemedDivider()
+        }
+        .background(Theme.background)
     }
 }
 

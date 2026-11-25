@@ -8,6 +8,10 @@ enum FeedMode: Equatable, Sendable {
     /// Interleave the books of one shelf, like Mix. Mix filters (hidden, snoozed, finished)
     /// do not apply: the shelf is the reader's own choice.
     case shelf(ShelfSelection)
+    /// The reading list: the books of the first set with a book that is not finished, mixed
+    /// like a shelf. When every book of that set is finished or at its end, the next set
+    /// follows in the same timeline.
+    case readingList(ReadingListSelection)
 
     /// Mix and shelf mode interleave books; One book mode does not.
     var interleaves: Bool {
@@ -21,6 +25,18 @@ struct ShelfSelection: Equatable, Sendable {
     let id: UUID
     let name: String
     let bookIDs: [UUID]
+}
+
+/// The sets of the reading list, in order, as book ids, with the names they show.
+struct ReadingListSelection: Equatable, Sendable {
+    let sets: [[UUID]]
+    var names: [String] = []
+
+    /// The name of the set that holds the book.
+    func name(ofSetContaining bookID: UUID) -> String? {
+        guard let index = sets.firstIndex(where: { $0.contains(bookID) }), names.indices.contains(index) else { return nil }
+        return names[index]
+    }
 }
 
 /// One post in the timeline.
@@ -178,6 +194,8 @@ final class FeedEngine {
     private var positionByID: [String: Int] = [:]
     private var shownPrefix = 0
     private var leadingBook: UUID?
+    /// Books whose last post was shown since the last `takeCompletedBooks()`.
+    private var completedBooks: [UUID] = []
 
     init(
         source: SegmentSource,
@@ -322,6 +340,9 @@ final class FeedEngine {
             let post = posts[i]
             guard shownIDs.insert(post.id).inserted else { continue }
             let bookID = post.bookID
+            if isLastPost(post), books[bookID]?.isFinished == false, !completedBooks.contains(bookID) {
+                completedBooks.append(bookID)
+            }
             lastShownEnd[bookID] = max(lastShownEnd[bookID] ?? 0, post.segment.charEnd)
             if var book = books[bookID], post.segment.charStart > book.positionOffset {
                 book.positionOffset = post.segment.charStart
@@ -331,6 +352,13 @@ final class FeedEngine {
         }
         shownPrefix = last + 1
         return updates
+    }
+
+    /// The books whose last post scrolled past since the last call: the reader reached the
+    /// end, so the app marks them finished.
+    func takeCompletedBooks() -> [UUID] {
+        defer { completedBooks = [] }
+        return completedBooks
     }
 
     /// Rebuilds the list. Mix mode gets a new shuffle. Posts already shown in this session
@@ -390,7 +418,7 @@ final class FeedEngine {
                 isAtEnd = false
             }
         }
-        let active = Set(activeBooks())
+        let active = retainedBooks()
         let before = posts.count
         posts = posts.enumerated().filter { n, post in
             guard !removed.contains(post.bookID) else { return false }
@@ -419,7 +447,34 @@ final class FeedEngine {
         case let .shelf(shelf):
             let ids = Set(shelf.bookIDs)
             return bookOrder.filter { ids.contains($0) }
+        case let .readingList(list):
+            // The first set with a book still to read; finished books and books at their end
+            // in this session do not count.
+            for set in list.sets {
+                let open = set.filter { id in
+                    guard let book = books[id] else { return false }
+                    return !book.isFinished && !exhausted.contains(id)
+                }
+                if !open.isEmpty { return open }
+            }
+            return []
         }
+    }
+
+    /// Books whose unseen posts stay in the list when the library changes. In the reading
+    /// list, that is every book not finished: the last posts of a set stay while the next
+    /// set loads.
+    private func retainedBooks() -> Set<UUID> {
+        if case let .readingList(list) = mode {
+            return Set(list.sets.joined().filter { books[$0]?.isFinished == false })
+        }
+        return Set(activeBooks())
+    }
+
+    /// The post is the last piece of its book.
+    private func isLastPost(_ post: FeedPost) -> Bool {
+        guard let book = books[post.bookID], post.part == post.partCount else { return false }
+        return post.segment.index >= book.segmentCount(post.segment.style) - 1
     }
 
     /// Random book, weighted by `feedWeight` (Mix). One book mode has one candidate.

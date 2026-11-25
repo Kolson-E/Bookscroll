@@ -21,6 +21,8 @@ final class FeedViewModel {
     /// Called with the characters the feed moved past in each book (reading stats, Live
     /// Activity).
     @ObservationIgnored var onRead: (([UUID: Int]) -> Void)?
+    /// Called with the books whose last post the reader scrolled past.
+    @ObservationIgnored var onReachedEnd: (([UUID]) -> Void)?
     /// Top visible post, bound to the scroll view.
     var scrolledID: String?
     /// Settings › "Scroll back through the book": One book mode loads earlier posts at the top.
@@ -37,6 +39,13 @@ final class FeedViewModel {
             return books.first { $0.id == id }?.title ?? "Feed"
         case let .shelf(shelf):
             return shelf.name
+        case let .readingList(list):
+            // The set of the post at the top of the screen.
+            var top = posts.first?.bookID
+            if let id = scrolledID, let index = engine?.index(ofPost: id), posts.indices.contains(index) {
+                top = posts[index].bookID
+            }
+            return top.flatMap { list.name(ofSetContaining: $0) } ?? String(localized: "Reading List")
         case .mix:
             return "Feed"
         }
@@ -88,6 +97,8 @@ final class FeedViewModel {
         }
         if !read.isEmpty { onRead?(read) }
         if !updates.isEmpty { store.saveIfDue() }
+        let completed = engine.takeCompletedBooks()
+        if !completed.isEmpty { onReachedEnd?(completed) }
         if let index = engine.index(ofPost: id), index >= engine.posts.count - 12 {
             loadMore()
         }

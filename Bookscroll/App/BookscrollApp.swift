@@ -104,6 +104,10 @@ struct RootView: View {
             FindBooksView()
                 .environment(app)
         }
+        .sheet(isPresented: $app.isReadingListPresented) {
+            ReadingListView()
+                .environment(app)
+        }
         .sheet(item: $app.readerRequest) { request in
             ContextReaderView(model: request.model)
                 .environment(app)

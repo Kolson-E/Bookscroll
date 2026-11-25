@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// A backup of what the reader has done in Bookscroll: for every book its place, finish date,
-/// Mix settings, details, avatar photo and marks, and the shelves. The books' text is not in
+/// Mix settings, details, avatar photo and marks, the shelves and the reading list. The books' text is not in
 /// it: after a reinstall or on a new device, import the books again, then restore.
 struct LibraryBackup: Codable, Equatable, Sendable {
     struct ShelfBackup: Codable, Equatable, Sendable {
@@ -18,6 +18,9 @@ struct LibraryBackup: Codable, Equatable, Sendable {
     var createdAt: Date
     var books: [BookState]
     var shelves: [ShelfBackup]
+    /// The reading list's sets, in order (name and books). Nil in backups made before the
+    /// reading list.
+    var readingList: [ShelfBackup]? = nil
 
     func encoded() throws -> Data {
         let encoder = JSONEncoder()

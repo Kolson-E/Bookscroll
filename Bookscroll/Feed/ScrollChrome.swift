@@ -74,7 +74,9 @@ final class ScrollChromeView: UIView {
 
     private func attach() {
         guard scrollView == nil else { return }
-        guard let found = sequence(first: superview, next: { $0?.superview }).compactMap({ $0 as? UIScrollView }).first else { return }
+        var candidate = superview
+        while let view = candidate, !(view is UIScrollView) { candidate = view.superview }
+        guard let found = candidate as? UIScrollView else { return }
         scrollView = found
         found.panGestureRecognizer.addTarget(self, action: #selector(panChanged(_:)))
         observation = found.observe(\.contentOffset, options: [.old, .new]) { [weak self] _, change in
@@ -100,8 +102,8 @@ final class ScrollChromeView: UIView {
     /// Finds the bars of the screen that holds the feed.
     private func findBars() {
         guard navigationBar == nil || tabBar == nil else { return }
-        let start = sequence(first: self as UIResponder, next: { $0.next }).first { $0 is UIViewController } as? UIViewController
-        let controllers = Array(sequence(first: start, next: { $0?.parent }).compactMap { $0 })
+        guard let start = sequence(first: self as UIResponder, next: { $0.next }).first(where: { $0 is UIViewController }) as? UIViewController else { return }
+        let controllers = Array(sequence(first: start, next: { $0.parent }))
         if navigationBar == nil {
             navigationBar = controllers.lazy.compactMap { ($0 as? UINavigationController) ?? $0.navigationController }.first?.navigationBar
         }
