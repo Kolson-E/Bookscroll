@@ -4,6 +4,11 @@ name: CI
 # macOS minutes come out of a small monthly allowance; the TestFlight upload needs them more.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run only these tests (space-separated, for example BookscrollUITests/BookscrollUITests/testName). Empty: all tests."
+        required: false
+        default: ""
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -74,8 +79,11 @@ jobs:
         env:
           # xcodebuild passes TEST_RUNNER_* to the UI test runner without the prefix.
           TEST_RUNNER_SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
+          ONLY: ${{ inputs.only }}
         run: |
           set -o pipefail
+          FILTER=()
+          for test in $ONLY; do FILTER+=("-only-testing:$test"); done
           xcodebuild test \
             -project Bookscroll.xcodeproj \
             -scheme Bookscroll \
@@ -84,6 +92,7 @@ jobs:
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
+            "${FILTER[@]}" \
             > xcodebuild.log 2>&1 &
           BUILD_PID=$!
           tail -f xcodebuild.log | grep --line-buffered -E "error:|warning: .*\.swift|Test Case .*(passed|failed)|Executed [0-9]+ test|TEST (SUCCEEDED|FAILED)|BUILD (SUCCEEDED|FAILED)|AUDIT:|SCALE:|DEBUG:" &
