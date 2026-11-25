@@ -306,6 +306,10 @@ final class ScrollChromeView: UIView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.report() }
     }
 
+    private static func describe(_ rect: CGRect) -> String {
+        "\(Int(rect.minX)),\(Int(rect.minY)),\(Int(rect.width)),\(Int(rect.height))"
+    }
+
     private static func descendants(of view: UIView) -> [UIView] {
         var result: [UIView] = []
         var stack = view.subviews
@@ -509,6 +513,11 @@ final class ScrollChromeView: UIView {
                         sequence(first: control, next: { $0 === tabBar ? nil : $0.superview }).contains { !$0.isUserInteractionEnabled }
                     }
                     trace.hitPath += "|controls:\(controls.count)|blocked:\(blocked.count)"
+                    trace.hitPath += "|bar:\(Self.describe(tabBar.bounds))"
+                    for control in controls.prefix(2) {
+                        let frame = control.convert(control.bounds, to: tabBar)
+                        trace.hitPath += "|\(type(of: control)):\(Self.describe(frame)),a\(Int(control.alpha * 100)),h\(control.isHidden ? 1 : 0),t\(control.transform.isIdentity && CATransform3DIsIdentity(control.layer.transform) ? 1 : 0),in\(control.point(inside: control.convert(point, from: window), with: nil) ? 1 : 0),s\(type(of: control.superview!))"
+                    }
                 } else {
                     trace.hitPath = "nil"
                 }
