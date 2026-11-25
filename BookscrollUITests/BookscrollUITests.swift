@@ -158,7 +158,11 @@ final class BookscrollUITests: XCTestCase {
 
     private func assertFilesPickerAppearsAndDismiss(_ app: XCUIApplication, screenshotName: String?) {
         // The Files picker is a system view; its close button is "Cancel" or "Close" depending on the iOS version.
-        let close = app.buttons.matching(NSPredicate(format: "label IN %@ OR identifier IN %@", ["Cancel", "Close"], ["Cancel", "Close"])).firstMatch
+        // Find Books has its own Close button under the picker; it is not the picker's.
+        let close = app.buttons.matching(NSPredicate(
+            format: "(label IN %@ OR identifier IN %@) AND identifier != %@",
+            ["Cancel", "Close"], ["Cancel", "Close"], "find.close"
+        )).firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 20), "The Files picker did not appear")
         if let screenshotName { screenshot(screenshotName) }
         close.tap()
@@ -286,12 +290,15 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(app.buttons["choose.done"].waitForNonExistence(timeout: 5))
         selectAll.tap()
         XCTAssertEqual(app.buttons["choose.done"].label, "Mix 2 Books")
-        app.buttons["choose.saveShelf"].tap()
-        let name = app.textFields["choose.shelfName"].firstMatch
-        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        let saveShelf = app.buttons["choose.saveShelf"].firstMatch
+        saveShelf.tap()
+        let alert = app.alerts.firstMatch
+        if !alert.waitForExistence(timeout: 3) { saveShelf.tap() }
+        XCTAssertTrue(alert.waitForExistence(timeout: 5), "Save as Shelf asks for a name")
+        let name = alert.textFields.firstMatch
         name.tap()
         name.typeText("Evening")
-        app.alerts.buttons["Save"].tap()
+        alert.buttons["Save"].tap()
         waitForValue(app.buttons["Feed mode"].firstMatch, "Shelf: Evening")
     }
 
