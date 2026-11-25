@@ -355,7 +355,7 @@ struct PostRow: View {
     /// The colour bubble closes by itself after this time. UI tests on a slow runner get
     /// longer, so a test's tap outside the bubble is not raced by this timer.
     private static let bubbleSeconds: UInt64 =
-        ProcessInfo.processInfo.arguments.contains(UITestSupport.inMemoryArgument) ? 30 : 5
+        ProcessInfo.processInfo.arguments.contains("-UITestInMemoryStore") ? 30 : 5
     /// Gap between the avatar and the first button under it.
     private static let columnGap: CGFloat = 4
 
