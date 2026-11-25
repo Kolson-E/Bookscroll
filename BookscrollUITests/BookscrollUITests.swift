@@ -396,11 +396,14 @@ final class BookscrollUITests: XCTestCase {
         drag(app, by: 260)
         assertTabBar(app, hidden: true, "Reading down hides the tab bar")
 
-        // To the Home Screen and back: the bars are where they were and still follow.
+        // To the Home Screen and back: the bars come back shown and still follow.
         print("DEBUG: before the Home Screen: \(rawTrace(app))")
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 10))
+        assertTabBar(app, hidden: false, "Back from the Home Screen, the bars are shown, as after a launch")
+        drag(app, by: 220)
+        assertTabBar(app, hidden: true, "After the Home Screen, reading down hides the tab bar")
         drag(app, by: -160)
         assertTabBar(app, hidden: false, "After the Home Screen, scrolling up shows the tab bar")
         print("DEBUG: after the Home Screen: \(rawTrace(app))")

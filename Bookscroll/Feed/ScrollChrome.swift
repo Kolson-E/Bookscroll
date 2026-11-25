@@ -328,16 +328,18 @@ final class ScrollChromeView: UIView {
         bar.isUserInteractionEnabled = true
     }
 
-    /// To the Home Screen: the bars take taps again while the app is away (they stay where they
-    /// are). UIKit rebuilds parts of the tab bar for the app switcher's pictures, and parts
-    /// rebuilt while the bar refuses touches can keep refusing them after it takes them again.
+    /// The app leaves the front (Home Screen, app switcher): the bars come back in full first.
+    /// A tab bar that goes to the background moved away stops selecting tabs when it comes
+    /// back (iOS 26), even once it is back in place and takes touches. So the app is never
+    /// left with the bars away, and comes back with them shown, as after a launch.
     @objc private func appWillResignActive() {
         guard scrollView != nil else { return }
-        for bar in [navigationBar as UIView?, tabBar as UIView?].compactMap({ $0 }) {
-            bar.isUserInteractionEnabled = true
-            bar.accessibilityElementsHidden = false
-        }
-        appliedHidden = nil
+        restWork?.cancel()
+        restWork = nil
+        stopEasing()
+        motion.place(0)
+        apply(input: nil)
+        report()
     }
 
     /// Back from the Home Screen: the bars' state is set again from `motion`, in full.
@@ -514,6 +516,9 @@ final class ScrollChromeView: UIView {
                     }
                     trace.hitPath += "|controls:\(controls.count)|blocked:\(blocked.count)"
                     trace.hitPath += "|bar:\(Self.describe(tabBar.bounds))"
+                    for recognizer in tabBar.gestureRecognizers ?? [] {
+                        trace.hitPath += "|gr:\(type(of: recognizer)),e\(recognizer.isEnabled ? 1 : 0),s\(recognizer.state.rawValue)"
+                    }
                     for control in controls.prefix(2) {
                         let frame = control.convert(control.bounds, to: tabBar)
                         trace.hitPath += "|\(type(of: control)):\(Self.describe(frame)),a\(Int(control.alpha * 100)),h\(control.isHidden ? 1 : 0),t\(control.transform.isIdentity && CATransform3DIsIdentity(control.layer.transform) ? 1 : 0),in\(control.point(inside: control.convert(point, from: window), with: nil) ? 1 : 0),s\(type(of: control.superview!))"
