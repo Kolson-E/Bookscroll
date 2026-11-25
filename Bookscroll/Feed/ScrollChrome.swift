@@ -134,14 +134,17 @@ struct ScrollChromeTrace: Equatable, Sendable {
     var lastPan: CGFloat = 0
     var lastPanMoved: CGFloat = 0
     var restFromTop: CGFloat = 0
+    /// Diagnostics: how far the content moved by layout (not the reader), and by flicks.
+    var layoutMoved: CGFloat = 0
+    var flickMoved: CGFloat = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f path=%@",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f path=%@",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
             touchesOnTabBar, selectedTab, tapHitsControl, enabledItems,
-            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), hitPath
+            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), hitPath
         )
     }
 }
@@ -412,6 +415,7 @@ final class ScrollChromeView: UIView {
         let size = scrollView.contentSize
         let laidOut = size != lastContentSize
         lastContentSize = size
+        if laidOut, onTrace != nil { trace.layoutMoved += abs(new - old) }
         if new <= topOffset(scrollView) + 0.5 {
             // At the top (or pulled down to refresh): the bars show.
             restWork?.cancel()
@@ -422,6 +426,7 @@ final class ScrollChromeView: UIView {
         guard !scrollView.isTracking else { return }
         guard scrollView.isDecelerating else { return }
         // After a flick: the content's own movement, without layout jumps or the bounce.
+        if onTrace != nil { trace.flickMoved += abs(new - old) }
         if easeLink == nil, !laidOut, isInsideContent(old, scrollView), isInsideContent(new, scrollView),
            motion.scroll(by: new - old) {
             apply(input: new - old)

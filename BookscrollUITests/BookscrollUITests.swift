@@ -282,10 +282,10 @@ final class BookscrollUITests: XCTestCase {
 
     /// A slow drag of `distance` points (positive: reading down), held at the end so the
     /// content stops without a flick.
-    private func drag(_ app: XCUIApplication, by distance: CGFloat) {
+    private func drag(_ app: XCUIApplication, by distance: CGFloat, speed: CGFloat = 300) {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: distance > 0 ? 0.7 : 0.3))
         let end = start.withOffset(CGVector(dx: 0, dy: -distance))
-        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: XCUIGestureVelocity(300), thenHoldForDuration: 0.4)
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: XCUIGestureVelocity(speed), thenHoldForDuration: 0.4)
     }
 
     /// Lets the bars finish their ease, then checks where the tab bar rests: first by the
@@ -373,17 +373,19 @@ final class BookscrollUITests: XCTestCase {
     func testAScrollThatStopsPartWayEasesToTheNearerEnd() {
         let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        // Well away from the top, where the bars always show. Short moves are slow, so they
+        // end where the finger stops (a quick short drag can flick the feed on).
+        drag(app, by: 300)
         drag(app, by: 300)
         assertTabBar(app, hidden: true, "Away from the top, reading down hides the tab bar")
-        print("DEBUG: after reading down: \(rawTrace(app))")
-        drag(app, by: -25)
+        drag(app, by: -35, speed: 100)
         print("DEBUG: after a short scroll up: \(rawTrace(app))")
         assertTabBar(app, hidden: true, "A short scroll up eases back to hidden")
-        drag(app, by: -90)
+        drag(app, by: -90, speed: 150)
         assertTabBar(app, hidden: false, "More than half way up eases on to shown")
-        drag(app, by: 25)
+        drag(app, by: 35, speed: 100)
         assertTabBar(app, hidden: false, "A short scroll down eases back to shown")
-        drag(app, by: 90)
+        drag(app, by: 90, speed: 150)
         assertTabBar(app, hidden: true, "More than half way down eases on to hidden")
         let trace = barTrace(app)
         XCTAssertGreaterThan(trace["ease"] ?? 0, 0, "The bars eased: \(trace)")
