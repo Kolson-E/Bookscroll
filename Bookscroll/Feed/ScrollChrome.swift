@@ -163,6 +163,7 @@ struct ScrollChromeObserver: UIViewRepresentable {
 
     func updateUIView(_ view: ScrollChromeView, context: Context) {
         view.onTrace = onTrace
+        view.followScrollViewChange()
         view.isEnabled = isEnabled
     }
 
@@ -234,13 +235,29 @@ final class ScrollChromeView: UIView {
         }
     }
 
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        followScrollViewChange()
+    }
+
+    /// SwiftUI can move the feed's content into a new scroll view without the window
+    /// changing: the bars then follow the new one.
+    func followScrollViewChange() {
+        guard window != nil, let current = scrollView, enclosingScrollView() !== current else { return }
+        detach()
+        attach()
+    }
+
+    private func enclosingScrollView() -> UIScrollView? {
+        var candidate = superview
+        while let view = candidate, !(view is UIScrollView) { candidate = view.superview }
+        return candidate as? UIScrollView
+    }
+
     // MARK: Attach
 
     private func attach() {
-        guard scrollView == nil else { return }
-        var candidate = superview
-        while let view = candidate, !(view is UIScrollView) { candidate = view.superview }
-        guard let found = candidate as? UIScrollView else { return }
+        guard scrollView == nil, let found = enclosingScrollView() else { return }
         scrollView = found
         lastContentSize = found.contentSize
         trace.attaches += 1
