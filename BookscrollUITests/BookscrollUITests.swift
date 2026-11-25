@@ -317,6 +317,14 @@ final class BookscrollUITests: XCTestCase {
         screenshot("debug-tab-\(line)")
         print("DEBUG: tab \(name) did not open; trace \(barTrace(app))")
         for row in app.tabBars.firstMatch.debugDescription.split(separator: "\n").prefix(20) { print("DEBUG: \(row)") }
+        // Does a second tap work? (The first tap after the Home Screen may be lost.)
+        tab(app, name)
+        let second = app.navigationBars[name].waitForExistence(timeout: 3)
+        print("DEBUG: second tap opened \(name): \(second); trace \(barTrace(app))")
+        if !second {
+            app.tabBars.buttons[name].firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+            print("DEBUG: coordinate tap opened \(name): \(app.navigationBars[name].waitForExistence(timeout: 3)); trace \(barTrace(app))")
+        }
         XCTFail("The \(name) tab opens", file: file, line: line)
     }
 

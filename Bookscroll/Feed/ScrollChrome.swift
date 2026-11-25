@@ -117,12 +117,16 @@ struct ScrollChromeTrace: Equatable, Sendable {
     var isScreensTabBar = 1
     var tapReachesTabBar = 1
     var tabBarsSeen = 0
+    /// Diagnostics: touches that reached the tab bar, and the selected tab (-1: unknown).
+    var touchesOnTabBar = 0
+    var selectedTab = -1
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
-            restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen
+            restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
+            touchesOnTabBar, selectedTab
         )
     }
 }
@@ -169,6 +173,10 @@ final class ScrollChromeView: UIView {
     private weak var scrollView: UIScrollView?
     private weak var navigationBar: UINavigationBar?
     private weak var tabBar: UITabBar?
+    private weak var tabBarController: UITabBarController?
+    /// UI tests only: counts the touches that reach the tab bar, without taking them.
+    private var touchCounter: UILongPressGestureRecognizer?
+    private let touchCounterDelegate = SimultaneousGestureDelegate()
     private var offsetObservation: NSKeyValueObservation?
     /// The content size at the last scroll position change: a change means the feed laid out
     /// posts, and that frame's movement is not the reader's.
@@ -235,6 +243,8 @@ final class ScrollChromeView: UIView {
         offsetObservation = nil
         scrollView?.panGestureRecognizer.removeTarget(self, action: #selector(panChanged(_:)))
         NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        if let counter = touchCounter { counter.view?.removeGestureRecognizer(counter) }
+        touchCounter = nil
         let hadBars = navigationBar != nil || tabBar != nil
         for bar in [navigationBar as UIView?, tabBar as UIView?].compactMap({ $0 }) { Self.reset(bar) }
         if hadBars { report() }
@@ -254,17 +264,37 @@ final class ScrollChromeView: UIView {
         if let start = sequence(first: self as UIResponder, next: { $0.next }).first(where: { $0 is UIViewController }) as? UIViewController {
             let controllers = Array(sequence(first: start, next: { $0.parent }))
             let foundNavigation = controllers.lazy.compactMap { ($0 as? UINavigationController) ?? $0.navigationController }.first?.navigationBar
-            let foundTab = controllers.lazy.compactMap { ($0 as? UITabBarController) ?? $0.tabBarController }.first?.tabBar
+            let foundController = controllers.lazy.compactMap { ($0 as? UITabBarController) ?? $0.tabBarController }.first
+            let foundTab = foundController?.tabBar
+            tabBarController = foundController
             if let old = navigationBar, old !== foundNavigation { Self.reset(old) }
             if let old = tabBar, old !== foundTab { Self.reset(old) }
             if foundNavigation !== navigationBar || foundTab !== tabBar { appliedHidden = nil }
             navigationBar = foundNavigation
             tabBar = foundTab
         }
+        if onTrace != nil, let tabBar, touchCounter?.view !== tabBar {
+            if let old = touchCounter { old.view?.removeGestureRecognizer(old) }
+            let counter = UILongPressGestureRecognizer(target: self, action: #selector(tabBarTouched(_:)))
+            counter.minimumPressDuration = 0
+            counter.cancelsTouchesInView = false
+            counter.delaysTouchesBegan = false
+            counter.delaysTouchesEnded = false
+            counter.delegate = touchCounterDelegate
+            tabBar.addGestureRecognizer(counter)
+            touchCounter = counter
+        }
         motion.setDistances(
             navigation: navigationBar?.bounds.height ?? 0,
             tab: tabBar.map { $0.bounds.height + ScrollChromeMotion.tabShadowRoom } ?? 0
         )
+    }
+
+    @objc private func tabBarTouched(_ recognizer: UILongPressGestureRecognizer) {
+        guard recognizer.state == .began else { return }
+        trace.touchesOnTabBar += 1
+        report()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.report() }
     }
 
     /// A bar back in its place, visible and taking taps.
@@ -441,6 +471,7 @@ final class ScrollChromeView: UIView {
         }
         if let tabBar { seenTabBars.insert(ObjectIdentifier(tabBar)) }
         trace.tabBarsSeen = seenTabBars.count
+        trace.selectedTab = tabBarController?.selectedIndex ?? -1
         let summary = trace.summary
         // Not inside a SwiftUI update.
         DispatchQueue.main.async { [weak self] in
@@ -508,5 +539,13 @@ final class ScrollChromeView: UIView {
         }
         strip.frame = CGRect(x: 0, y: 0, width: host.bounds.width, height: max(0, navigationBar.frame.minY))
         strip.backgroundColor = UIColor(Theme.background)
+    }
+}
+
+/// Lets the UI tests' touch counter see touches without getting in the way of the bar's own.
+@MainActor
+private final class SimultaneousGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }

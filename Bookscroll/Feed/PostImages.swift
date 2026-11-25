@@ -412,7 +412,7 @@ private struct ViewerCircleIcon: View {
             .font(.system(size: 17, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: 36, height: 36)
-            .background(Circle().fill(Color.black.opacity(0.55)))
+            .background(Circle().fill(Color(white: 0.16).opacity(0.85)))
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
     }
