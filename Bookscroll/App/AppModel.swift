@@ -709,6 +709,8 @@ final class AppModel {
             readingList.removeEverywhere(id)
             CoverStore.removeAll(bookID: id, in: CoverCache.shared.folder)
             CoverCache.shared.invalidate(id)
+            BookImageStore.remove(bookID: id, in: BookImageCache.shared.root)
+            BookImageCache.shared.invalidate(id)
             libraryDidChange()
         }
     }
@@ -816,7 +818,7 @@ final class AppModel {
     var storageLocations: StorageReport.Locations {
         let configuration = container.configurations.first
         let database = configuration.flatMap { $0.isStoredInMemoryOnly ? nil : $0.url }
-        return StorageReport.Locations(database: database, searchIndex: searchIndex?.fileURL, covers: CoverCache.shared.folder)
+        return StorageReport.Locations(database: database, searchIndex: searchIndex?.fileURL, covers: CoverCache.shared.folder, bookImages: BookImageCache.shared.root)
     }
 
     /// Measures the space the app uses, off the main thread.

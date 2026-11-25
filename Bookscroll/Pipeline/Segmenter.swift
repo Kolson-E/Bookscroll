@@ -9,6 +9,17 @@ struct SegmentedBook: Sendable {
     var totalCharacters: Int
     var paragraphs: [SegmentDraft]
     var passages: [SegmentDraft]
+    /// Where the book's images are: each at the end of the text of the paragraph it follows.
+    var imageAnchors: [ImageAnchor] = []
+}
+
+/// An image's place in the normalized text: `offset` is the end of the text of the paragraph
+/// before the image. The post whose range holds the offset (`charStart < offset <= charEnd`)
+/// shows the image under its text.
+struct ImageAnchor: Equatable, Codable, Sendable {
+    var offset: Int
+    /// Index into `ParsedBook.images`.
+    var image: Int
 }
 
 /// Builds the normalized text and cuts it into paragraph and passage segments.
@@ -49,23 +60,42 @@ enum Segmenter {
         }
 
         let passages = passageSegments(paragraphs: paragraphs, starts: starts, total: total, normalized: normalized)
+        var anchors: [ImageAnchor] = []
+        for (i, paragraph) in paragraphs.enumerated() {
+            let end = starts[i] + paragraph.text.utf16.count
+            anchors += paragraph.images.map { ImageAnchor(offset: end, image: $0) }
+        }
         return SegmentedBook(
             normalizedText: normalized,
             totalCharacters: total,
             paragraphs: paragraphSegments,
-            passages: passages
+            passages: passages,
+            imageAnchors: anchors
         )
     }
 
     /// Normalizes paragraph text: trims every line, removes empty lines, and drops paragraphs
     /// without letters or digits. After this step a paragraph never contains a blank line,
     /// so the blank-line separator is unambiguous.
+    /// The images of a dropped paragraph go to the paragraph before it (or, at the start of
+    /// the book, to the first paragraph kept).
     static func clean(_ paragraphs: [ParsedParagraph]) -> [ParsedParagraph] {
-        paragraphs.compactMap { paragraph in
+        var result: [ParsedParagraph] = []
+        var waitingImages: [Int] = []
+        for paragraph in paragraphs {
             let text = normalizeParagraphText(paragraph.text)
-            guard TextUtils.hasLetterOrDigit(text) else { return nil }
-            return ParsedParagraph(text: text, chapter: paragraph.chapter)
+            guard TextUtils.hasLetterOrDigit(text) else {
+                if result.isEmpty {
+                    waitingImages += paragraph.images
+                } else {
+                    result[result.count - 1].images += paragraph.images
+                }
+                continue
+            }
+            result.append(ParsedParagraph(text: text, chapter: paragraph.chapter, images: waitingImages + paragraph.images))
+            waitingImages = []
         }
+        return result
     }
 
     static func normalizeParagraphText(_ text: String) -> String {
@@ -83,6 +113,7 @@ enum Segmenter {
         var words: Int
         var paragraph: Int
         var endsParagraph: Bool
+        var imageFollows: Bool
     }
 
     private static func passageSegments(
@@ -105,13 +136,14 @@ enum Segmenter {
                     end: isLast ? paragraphEnd : starts[i] + localEnd,
                     words: TextUtils.wordCount(TextUtils.substring(text, from: localStart, to: localEnd)),
                     paragraph: i,
-                    endsParagraph: isLast
+                    endsParagraph: isLast,
+                    imageFollows: isLast && !paragraph.images.isEmpty
                 ))
             }
         }
 
         let groups = PassageChunker.chunk(units.map {
-            PassageChunker.Unit(words: $0.words, endsParagraph: $0.endsParagraph, chapter: paragraphs[$0.paragraph].chapter)
+            PassageChunker.Unit(words: $0.words, endsParagraph: $0.endsParagraph, chapter: paragraphs[$0.paragraph].chapter, imageFollows: $0.imageFollows)
         })
 
         let full = normalized as NSString
@@ -139,16 +171,20 @@ enum Segmenter {
 /// - A passage never exceeds 130 words, unless a single sentence does.
 /// - A passage closes at a paragraph end once it holds 40 or more words.
 /// - A passage never spans a chapter change.
+/// - A passage ends at an image: the image shows under it, and the next passage continues.
 enum PassageChunker {
     struct Unit: Equatable {
         var words: Int
         var endsParagraph: Bool
         var chapter: String
+        /// An image comes right after this sentence (the end of its paragraph).
+        var imageFollows: Bool
 
-        init(words: Int, endsParagraph: Bool, chapter: String = "") {
+        init(words: Int, endsParagraph: Bool, chapter: String = "", imageFollows: Bool = false) {
             self.words = words
             self.endsParagraph = endsParagraph
             self.chapter = chapter
+            self.imageFollows = imageFollows
         }
     }
 
@@ -173,7 +209,7 @@ enum PassageChunker {
                 }
             }
             words += unit.words
-            if unit.endsParagraph && words >= minimumWordsAtParagraphEnd {
+            if unit.imageFollows || (unit.endsParagraph && words >= minimumWordsAtParagraphEnd) {
                 result.append(start..<(i + 1))
                 start = i + 1
                 words = 0

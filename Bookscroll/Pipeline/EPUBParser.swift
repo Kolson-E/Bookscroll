@@ -97,20 +97,44 @@ enum EPUBBookParser {
         }
 
         var paragraphs: [ParsedParagraph] = []
+        var imageRefs: [ImageReference] = []
+        /// Images before the first paragraph: they follow the first paragraph.
+        var leadingImages: [Int] = []
         var label = ""
         let count = package.spinePaths.count
         for (position, path) in package.spinePaths.enumerated() {
-            progress(Double(position) / Double(count))
+            progress(Double(position) / Double(count) * 0.9)
             try autoreleasepool {
                 guard let html = try archive.text(at: path) else { return }
-                let blocks = HTMLTextExtractor.blocks(from: html)
-                paragraphs += paragraphsForDocument(
+                let blocks = HTMLTextExtractor.blocks(from: html, images: true)
+                let document = itemsForDocument(
                     blocks: blocks,
                     navigationLabel: navigationLabels[path],
                     carriedLabel: &label
                 )
+                // A short cover page's image is the cover, not an illustration.
+                let isCoverPage = document.isShort && package.coverPagePaths.contains(path)
+                let directory = EPUBPath.directory(of: path)
+                for item in document.items {
+                    switch item {
+                    case var .paragraph(paragraph):
+                        paragraph.images = leadingImages
+                        leadingImages = []
+                        paragraphs.append(paragraph)
+                    case let .image(image):
+                        let imagePath = EPUBPath.resolve(image.source, relativeTo: directory)
+                        guard !isCoverPage, imagePath != package.coverPath else { continue }
+                        imageRefs.append(ImageReference(path: imagePath, alt: image.alt))
+                        if paragraphs.isEmpty {
+                            leadingImages.append(imageRefs.count - 1)
+                        } else {
+                            paragraphs[paragraphs.count - 1].images.append(imageRefs.count - 1)
+                        }
+                    }
+                }
             }
         }
+        let images = loadImages(imageRefs, from: archive, paragraphs: &paragraphs)
         progress(1)
 
         let title = package.title.map(TextUtils.singleLine).flatMap { $0.isEmpty ? nil : $0 } ?? fallbackTitle
@@ -123,8 +147,47 @@ enum EPUBBookParser {
             paragraphs: paragraphs,
             passagesOnly: false,
             note: nil,
-            cover: cover
+            cover: cover,
+            images: images
         )
+    }
+
+    /// An image the text points to, before it is read from the archive.
+    struct ImageReference: Equatable {
+        var path: String
+        var alt: String
+    }
+
+    /// The same image this many times or more is decoration (an ornament at each chapter).
+    static let decorationRepeats = 3
+
+    /// Reads the images into a temporary folder and renumbers the paragraphs' image lists.
+    /// Missing, unreadable, tiny and repeated images are left out.
+    static func loadImages(_ refs: [ImageReference], from archive: EPUBArchive, paragraphs: inout [ParsedParagraph]) -> [ParsedImage] {
+        guard !refs.isEmpty else { return [] }
+        var uses: [String: Int] = [:]
+        for ref in refs { uses[ref.path, default: 0] += 1 }
+        let folder = BookImageStore.makeStagingFolder()
+        var images: [ParsedImage] = []
+        var newIndex: [Int: Int] = [:]
+        var prepared: [String: ParsedImage?] = [:]
+        for (index, ref) in refs.enumerated() where uses[ref.path, default: 0] < decorationRepeats {
+            let image: ParsedImage? = autoreleasepool {
+                if let done = prepared[ref.path] { return done.map { ParsedImage(file: $0.file, width: $0.width, height: $0.height, alt: ref.alt) } }
+                let result = (try? archive.data(at: ref.path))
+                    .flatMap { BookImageStore.prepare($0, name: "\(images.count)", in: folder) }
+                    .map { ParsedImage(file: $0.file, width: $0.width, height: $0.height, alt: ref.alt) }
+                prepared[ref.path] = .some(result)
+                return result
+            }
+            guard let image else { continue }
+            newIndex[index] = images.count
+            images.append(image)
+        }
+        for n in paragraphs.indices where !paragraphs[n].images.isEmpty {
+            paragraphs[n].images = paragraphs[n].images.compactMap { newIndex[$0] }
+        }
+        return images
     }
 
     /// The image on the book's cover page, for books that do not declare a cover image.
@@ -139,6 +202,12 @@ enum EPUBBookParser {
         return nil
     }
 
+    /// A paragraph or an image of one spine document, in reading order.
+    enum DocumentItem: Equatable {
+        case paragraph(ParsedParagraph)
+        case image(HTMLImage)
+    }
+
     /// Turns the blocks of one spine document into paragraphs with chapter labels.
     /// Documents under 40 words (cover, table of contents) give no paragraphs.
     static func paragraphsForDocument(
@@ -146,8 +215,23 @@ enum EPUBBookParser {
         navigationLabel: String?,
         carriedLabel: inout String
     ) -> [ParsedParagraph] {
+        itemsForDocument(blocks: blocks, navigationLabel: navigationLabel, carriedLabel: &carriedLabel).items.compactMap {
+            if case let .paragraph(paragraph) = $0 { return paragraph }
+            return nil
+        }
+    }
+
+    /// The paragraphs and images of one spine document. A document under 40 words (cover,
+    /// table of contents, a page with only a picture) gives its images only (`isShort`).
+    static func itemsForDocument(
+        blocks: [HTMLBlock],
+        navigationLabel: String?,
+        carriedLabel: inout String
+    ) -> (items: [DocumentItem], isShort: Bool) {
         let words = blocks.reduce(0) { $0 + TextUtils.wordCount($1.text) }
-        guard words >= 40 else { return [] }
+        guard words >= 40 else {
+            return (blocks.compactMap { $0.image.map(DocumentItem.image) }, true)
+        }
 
         if let heading = blocks.first(where: { ($0.headingLevel ?? 99) <= 3 && TextUtils.hasLetterOrDigit($0.text) }) {
             carriedLabel = cleanLabel(heading.text)
@@ -155,10 +239,12 @@ enum EPUBBookParser {
             carriedLabel = navigationLabel
         }
 
-        var result: [ParsedParagraph] = []
+        var result: [DocumentItem] = []
         var headingRun: [String] = []
         for block in blocks {
-            if block.isHeading {
+            if let image = block.image {
+                result.append(.image(image))
+            } else if block.isHeading {
                 let text = cleanLabel(block.text)
                 guard TextUtils.hasLetterOrDigit(text) else { continue }
                 headingRun.append(text)
@@ -166,10 +252,10 @@ enum EPUBBookParser {
             } else {
                 headingRun.removeAll()
                 guard TextUtils.hasLetterOrDigit(block.text) else { continue }
-                result.append(ParsedParagraph(text: block.text, chapter: carriedLabel))
+                result.append(.paragraph(ParsedParagraph(text: block.text, chapter: carriedLabel)))
             }
         }
-        return result
+        return (result, false)
     }
 
     static func cleanLabel(_ text: String) -> String {

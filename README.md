@@ -267,6 +267,14 @@ changes between redraws. Books never opened sort after the ones you read, newest
 the Library, and count as complete in the progress sort. **Mark as Not Finished** brings a book
 back. Finishing is a Library action only.
 
+**Pictures in books.** An EPUB's pictures show under the post they follow, as on X: the post's
+text, then the picture at full width with rounded corners (a picture taller than 4:5 is cut to
+4:5 in the feed; the whole picture opens with a tap). Its height is known before it loads, so the
+feed does not jump. Tap a picture to see it full screen on black: pinch or double-tap to zoom,
+swipe sideways between the pictures of one post, tap to show or hide the close button and the
+picture's description, and swipe up or down (or tap the close button) to go back. The reader
+shows the same pictures under their paragraphs. VoiceOver reads a picture's description.
+
 **Covers and avatars.** The avatar of a book is its cover: the EPUB cover image (the
 `cover-image` item, else `<meta name="cover">`, else an image named "cover", else the picture on
 the cover page: the guide's cover page or the first spine page, even when it is not linear, if it
@@ -484,9 +492,22 @@ The search screen comes in a later phase; this part is the engine.
   `script` and `style` removed. Each block element (`p`, `div`, `blockquote`, `li`, `h1`–`h6`,
   and structural containers) is one paragraph; `br` is a line break inside it, so poetry keeps
   its lines. Named and numeric entities are decoded. Spine items under 40 words (cover, contents)
-  are skipped. Chapter label: first `h1`–`h3` of the document, otherwise the EPUB 3 navigation
+  give no text. Chapter label: first `h1`–`h3` of the document, otherwise the EPUB 3 navigation
   document (or the EPUB 2 NCX). Every heading updates the label for the paragraphs after it;
   headings are never posts.
+- **EPUB pictures** (`img` and SVG `image`): each picture goes after the paragraph it is in or
+  follows, so its post shows the text and then the picture, and the next post goes on with the
+  book. A Passages post ends at a picture. A picture before any text follows the first
+  paragraph; a page with only a picture (under 40 words) adds its picture after the last
+  paragraph before it. Left out: the cover (the cover image and a short cover page), inline
+  `data:` images, files that are missing or that ImageIO cannot read (SVG files), pictures under
+  40 pixels on a side (rules, ornaments), and any picture used three times or more (chapter
+  ornaments). Pictures over 2048 pixels or 2 MB are scaled down (JPEG, or PNG with
+  transparency); others keep their bytes. They are files in
+  `Application Support/BookImages/<book id>/`, with `images.json` listing each picture's place
+  (the end of the text before it), size and alternative text, so the database does not grow.
+  Other formats have no pictures. A book imported before pictures were supported gets them with
+  **Replace File…** (same file).
 - **PDF**: PDFKit line selections with their geometry. A new paragraph starts on a vertical gap
   over 1.5 × the page's median line spacing, an indented line, or after a line that ends in
   terminal punctuation and is shorter than 80% of the median line width. Hyphenated line ends are
@@ -539,6 +560,7 @@ property is named `passagesOnly` because that is what it means.
 |---|---|
 | Paragraph segmentation, passage chunker, tiling, style switch, marks | `SegmentationTests.swift` |
 | HTML to text | `HTMLTextTests.swift` |
+| Pictures: images after their block's text, placement after the paragraph before (dropped paragraphs, pictures before any text), Passages end at a picture, only the last part of a split post shows it, scaling and format, the cache's range lookup and decoding, an EPUB with a cover, a tiny picture, a missing file, a repeated ornament and a picture page, stored files under exactly one post in both styles, deletion | `BookImageTests.swift` |
 | EPUB paths, OPF/NCX/nav parsing, end-to-end import into SwiftData, DRM and error cases | `EPUBTests.swift` |
 | PDF paragraph detection on a generated PDF (headers, footers, hyphenation, page break, outline), scanned PDF, two-column order, headings by type size, drop caps, ligatures | `PDFTests.swift` |
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
@@ -574,6 +596,8 @@ library:
   the tests check that the tab bar never moved faster than the content, never jumped while
   easing, eased to the nearer end, and came back exactly to its place.
 - Make a reading list with two sets and read it in the feed.
+- A book's picture shows under its post at full width and in its shape, opens full screen with
+  a tap, and closes with a swipe down, a swipe up, and the close button.
 - A long paragraph splits into numbered parts; double tap bookmarks a post.
 - Jump to a chapter; long press shows the peek and "Look up a word".
 - Highlight a post, find it in Saved › Highlights and open it in the reader; search the

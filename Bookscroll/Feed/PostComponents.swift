@@ -421,6 +421,13 @@ struct PostRow: View {
                         .foregroundStyle(Theme.accent)
                         .buttonStyle(.borderless)
                 }
+                // The book's pictures after this text, as on X: the post ends at the picture
+                // and the next post goes on with the book.
+                let images = BookImageCache.shared.images(bookID: post.bookID, start: post.segment.charStart, end: post.segment.charEnd)
+                if !images.isEmpty {
+                    PostImages(bookID: post.bookID, images: images)
+                        .padding(.top, isTruncated ? 4 : 10)
+                }
             }
         }
         .padding(.horizontal, horizontalPadding)

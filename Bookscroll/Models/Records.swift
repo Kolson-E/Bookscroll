@@ -4,6 +4,18 @@ import Foundation
 struct ParsedParagraph: Equatable, Sendable {
     var text: String
     var chapter: String
+    /// Images that come right after this paragraph, as indices into `ParsedBook.images`.
+    /// The paragraph's post shows them under its text, and the next post continues the book.
+    var images: [Int] = []
+}
+
+/// An image of a book, found by a parser and kept as a file until the book is stored.
+struct ParsedImage: Equatable, Sendable {
+    /// The image file (in a temporary folder until the book is stored).
+    var file: URL
+    var width: Int
+    var height: Int
+    var alt: String
 }
 
 /// Output of a format parser (EPUB, PDF, text formats, pasted text).
@@ -17,6 +29,8 @@ struct ParsedBook: Sendable {
     var note: String?
     /// Cover image data as found in the file (EPUB cover image, first PDF page). Nil when none.
     var cover: Data? = nil
+    /// Images in the text (EPUB). Paragraphs point to them.
+    var images: [ParsedImage] = []
 }
 
 /// A segment computed at import, before it is stored.

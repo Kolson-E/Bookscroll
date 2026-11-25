@@ -1,12 +1,22 @@
 import Foundation
 
-/// One block of text from an (X)HTML document.
+/// One block of text from an (X)HTML document, or an image.
 struct HTMLBlock: Equatable {
     var text: String
     /// 1...6 for h1–h6, nil for body text.
     var headingLevel: Int?
+    /// Set on an image block (its text is empty).
+    var image: HTMLImage? = nil
 
     var isHeading: Bool { headingLevel != nil }
+}
+
+/// An image in an (X)HTML document: `img src`, or an SVG `image` (`xlink:href`).
+struct HTMLImage: Equatable {
+    /// The reference as written in the document.
+    var source: String
+    /// The image's alternative text; may be empty.
+    var alt: String
 }
 
 /// Converts (X)HTML to a list of blocks.
@@ -17,6 +27,8 @@ struct HTMLBlock: Equatable {
 ///   ends the current block, so each one becomes its own paragraph. Nested blocks never merge.
 /// - `br` is a line break inside the current block.
 /// - Runs of whitespace collapse to one space. Character references are decoded.
+/// - With `images`, each image becomes an image block right after the block it is in, so an
+///   image inside a paragraph comes after the paragraph's text.
 enum HTMLTextExtractor {
     static let paragraphElements: Set<String> = [
         "p", "div", "blockquote", "li", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -31,7 +43,7 @@ enum HTMLTextExtractor {
 
     static let skippedElements: Set<String> = ["head", "script", "style", "noscript", "template"]
 
-    static func blocks(from html: String) -> [HTMLBlock] {
+    static func blocks(from html: String, images: Bool = false) -> [HTMLBlock] {
         var builder = BlockBuilder()
         var skipStack: [String] = []
 
@@ -57,11 +69,13 @@ enum HTMLTextExtractor {
             }
 
             switch token {
-            case let .start(name, _, selfClosing):
+            case let .start(name, attributes, selfClosing):
                 if skippedElements.contains(name) {
                     if !selfClosing { skipStack.append(name) }
                 } else if name == "br" {
                     builder.lineBreak()
+                } else if images, let image = image(name: name, attributes: attributes) {
+                    builder.addImage(image)
                 } else if boundaryElements.contains(name) {
                     builder.flush()
                     if !selfClosing && name != "hr" {
@@ -81,6 +95,20 @@ enum HTMLTextExtractor {
         return builder.blocks
     }
 
+    /// The image an `img` or SVG `image` element shows. Inline `data:` images are left out.
+    static func image(name: String, attributes: [String: String]) -> HTMLImage? {
+        let source: String?
+        switch OPFParser.localName(name) {
+        case "img": source = attributes["src"]
+        case "image": source = attributes["xlink:href"] ?? attributes["href"]
+        default: return nil
+        }
+        guard let source = source?.trimmingCharacters(in: .whitespacesAndNewlines), !source.isEmpty,
+              !source.lowercased().hasPrefix("data:") else { return nil }
+        let alt = TextUtils.singleLine(attributes["alt"] ?? "")
+        return HTMLImage(source: source, alt: alt)
+    }
+
     static func headingLevel(of element: String) -> Int? {
         guard element.count == 2, element.first == "h", let digit = element.last?.wholeNumberValue,
               (1...6).contains(digit) else { return nil }
@@ -94,6 +122,12 @@ private struct BlockBuilder {
     private var pendingSpace = false
     private var stack: [String] = []
     private var preformattedDepth = 0
+    /// Images met inside the current block: they follow its text.
+    private var pendingImages: [HTMLImage] = []
+
+    mutating func addImage(_ image: HTMLImage) {
+        pendingImages.append(image)
+    }
 
     mutating func open(_ name: String) {
         stack.append(name)
@@ -136,8 +170,13 @@ private struct BlockBuilder {
         let text = String(buffer).trimmingCharacters(in: .whitespacesAndNewlines)
         buffer = String.UnicodeScalarView()
         pendingSpace = false
-        guard !text.isEmpty else { return }
-        let level = stack.reversed().lazy.compactMap(HTMLTextExtractor.headingLevel(of:)).first
-        blocks.append(HTMLBlock(text: text, headingLevel: level))
+        if !text.isEmpty {
+            let level = stack.reversed().lazy.compactMap(HTMLTextExtractor.headingLevel(of:)).first
+            blocks.append(HTMLBlock(text: text, headingLevel: level))
+        }
+        for image in pendingImages {
+            blocks.append(HTMLBlock(text: "", headingLevel: nil, image: image))
+        }
+        pendingImages.removeAll()
     }
 }

@@ -40,13 +40,15 @@ struct StorageReport: Equatable, Sendable {
         var database: URL?
         var searchIndex: URL?
         var covers: URL
+        /// The images inside books (`BookImageStore`), counted with the covers.
+        var bookImages: URL? = nil
     }
 
     /// Measures the files. Runs file system calls; call it off the main thread.
     static func measure(books: [BookFacts], at locations: Locations) -> StorageReport {
         let database = locations.database.map(sqliteSize) ?? 0
         let searchIndex = locations.searchIndex.map(sqliteSize) ?? 0
-        let covers = size(of: locations.covers)
+        let covers = size(of: locations.covers) + (locations.bookImages.map(size(of:)) ?? 0)
         let totalCharacters = books.reduce(0) { $0 + max($1.characters, 0) }
         let shared = database + searchIndex
         var usages = books.map { book -> BookUsage in
@@ -55,6 +57,7 @@ struct StorageReport: Equatable, Sendable {
                 : 0
             let images = size(of: CoverStore.url(bookID: book.id, photo: false, in: locations.covers))
                 + size(of: CoverStore.url(bookID: book.id, photo: true, in: locations.covers))
+                + (locations.bookImages.map { size(of: BookImageStore.folder(bookID: book.id, in: $0)) } ?? 0)
             return BookUsage(id: book.id, title: book.title, author: book.author, format: book.format, bytes: share + images)
         }
         usages.sort { a, b in

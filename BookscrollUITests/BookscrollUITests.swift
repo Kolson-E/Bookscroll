@@ -405,6 +405,46 @@ final class BookscrollUITests: XCTestCase {
         assertSmoothTrace(app, minimumRests: 1)
     }
 
+    // MARK: Pictures
+
+    /// A book's picture shows under the post it follows, keeps its shape, opens full screen with
+    /// a tap, and closes with a swipe down, a swipe up, or the close button.
+    func testABookPictureOpensFullScreenAndSwipesAway() {
+        let app = launch(sampleBooks: true, extra: ["-UITestSampleImages"])
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        let picture = app.descendants(matching: .any)["post.image"].firstMatch
+        var tries = 0
+        while !(picture.exists && picture.isHittable) && tries < 10 {
+            drag(app, by: 200)
+            tries += 1
+        }
+        XCTAssertTrue(picture.isHittable, "A picture shows under a post")
+        XCTAssertGreaterThan(picture.frame.width, 250, "Full width of the text column")
+        XCTAssertEqual(picture.frame.height / picture.frame.width, 800.0 / 1200.0, accuracy: 0.03, "It keeps its shape")
+        XCTAssertEqual(picture.label, "Picture: Hills under a yellow sun")
+        screenshot("picture-in-post")
+
+        let viewer = app.descendants(matching: .any)["imageViewer.image"].firstMatch
+        for (n, close) in ["swipe down", "swipe up", "close button"].enumerated() {
+            if !picture.isHittable { drag(app, by: -120) }
+            picture.tap()
+            XCTAssertTrue(viewer.waitForExistence(timeout: 5), "Round \(n + 1): the picture opens full screen")
+            XCTAssertGreaterThan(viewer.frame.width, picture.frame.width, "Full screen is wider than the post")
+            if n == 0 { screenshot("picture-viewer") }
+            switch close {
+            case "swipe down": viewer.swipeDown(velocity: .fast)
+            case "swipe up": viewer.swipeUp(velocity: .fast)
+            default:
+                let button = app.buttons["imageViewer.close"].firstMatch
+                XCTAssertTrue(button.waitForExistence(timeout: 3))
+                button.tap()
+            }
+            waitUntilGone(viewer)
+            XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5), "Round \(n + 1): \(close) goes back to the feed")
+        }
+
+    }
+
     func testTheBarsHideSmoothlyAtTheLargestTextSize() {
         let app = launch(
             sampleBooks: true,

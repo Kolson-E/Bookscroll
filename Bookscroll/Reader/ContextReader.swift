@@ -107,6 +107,11 @@ struct ContextReaderView: View {
                                         app.marks.removeHighlights(bookID: model.book.id, start: paragraph.charStart + range.location, end: paragraph.charStart + NSMaxRange(range))
                                     }
                                 )
+                                let images = BookImageCache.shared.images(bookID: model.book.id, start: paragraph.charStart, end: paragraph.charEnd)
+                                if !images.isEmpty {
+                                    PostImages(bookID: model.book.id, images: images)
+                                        .padding(.top, 4)
+                                }
                             }
                             .id(paragraph.index)
                             .onAppear { paragraphAppeared(paragraph, proxy: proxy) }

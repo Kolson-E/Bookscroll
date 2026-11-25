@@ -90,6 +90,12 @@ enum BookImporter {
         replacing: UUID? = nil,
         report: @escaping (Double) -> Void
     ) throws -> UUID {
+        // The images wait in a temporary folder; they move to the book's folder below.
+        defer {
+            for folder in Set(parsed.images.map { $0.file.deletingLastPathComponent() }) {
+                try? FileManager.default.removeItem(at: folder)
+            }
+        }
         let segmented = Segmenter.segment(parsed.paragraphs)
         guard !segmented.paragraphs.isEmpty else { throw BookImportError.noText }
         report(0.75)
@@ -105,6 +111,7 @@ enum BookImporter {
         if let cover = parsed.cover {
             CoverStore.save(cover, bookID: id)
         }
+        BookImageStore.save(parsed.images, anchors: segmented.imageAnchors, bookID: id)
         return id
     }
 }

@@ -14,7 +14,7 @@ struct StorageView: View {
                     .accessibilityIdentifier("storage.total")
                 UsageRow(title: "Library", detail: "Book text, marks and reading places", bytes: report?.database)
                 UsageRow(title: "Search index", detail: "Rebuilt from the library when needed", bytes: report?.searchIndex)
-                UsageRow(title: "Covers and photos", bytes: report?.covers)
+                UsageRow(title: "Covers, photos and pictures", bytes: report?.covers)
             } header: {
                 SectionHeader("On This iPhone")
             } footer: {
