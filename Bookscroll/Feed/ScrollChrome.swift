@@ -105,11 +105,18 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// Times the bars came to rest hidden, and shown.
     var restsHidden = 0
     var restsShown = 0
+    /// Where the tab bar rests now: 0 shown, 1 hidden, 0.5 part-way.
+    var restState: Double = 0
+    /// How far the tab bar's content is moved down now, in points.
+    var restOffset: CGFloat = 0
+    /// 1 when the tab bar takes taps now.
+    var restTaps = 1
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d",
-            frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d",
+            frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
+            restState, Double(restOffset), restTaps
         )
     }
 }
@@ -204,6 +211,7 @@ final class ScrollChromeView: UIView {
         scrollView = found
         lastContentSize = found.contentSize
         found.panGestureRecognizer.addTarget(self, action: #selector(panChanged(_:)))
+        NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
         offsetObservation = found.observe(\.contentOffset, options: [.old, .new]) { [weak self] _, change in
             guard let old = change.oldValue?.y, let new = change.newValue?.y else { return }
             MainActor.assumeIsolated { self?.offsetChanged(from: old, to: new) }
@@ -219,6 +227,10 @@ final class ScrollChromeView: UIView {
         offsetObservation?.invalidate()
         offsetObservation = nil
         scrollView?.panGestureRecognizer.removeTarget(self, action: #selector(panChanged(_:)))
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        let hadBars = navigationBar != nil || tabBar != nil
+        for bar in [navigationBar as UIView?, tabBar as UIView?].compactMap({ $0 }) { Self.reset(bar) }
+        if hadBars { report() }
         scrollView = nil
         statusStrip?.removeFromSuperview()
         statusStrip = nil
@@ -229,21 +241,41 @@ final class ScrollChromeView: UIView {
     }
 
     /// Finds the bars of the screen that holds the feed, and their sizes.
+    /// Looked up again at each touch: UIKit can put new bars in place (after the Home Screen,
+    /// for example), and a bar that is no longer the screen's bar goes back to normal.
     private func findBars() {
-        if navigationBar == nil || tabBar == nil,
-           let start = sequence(first: self as UIResponder, next: { $0.next }).first(where: { $0 is UIViewController }) as? UIViewController {
+        if let start = sequence(first: self as UIResponder, next: { $0.next }).first(where: { $0 is UIViewController }) as? UIViewController {
             let controllers = Array(sequence(first: start, next: { $0.parent }))
-            if navigationBar == nil {
-                navigationBar = controllers.lazy.compactMap { ($0 as? UINavigationController) ?? $0.navigationController }.first?.navigationBar
-            }
-            if tabBar == nil {
-                tabBar = controllers.lazy.compactMap { ($0 as? UITabBarController) ?? $0.tabBarController }.first?.tabBar
-            }
+            let foundNavigation = controllers.lazy.compactMap { ($0 as? UINavigationController) ?? $0.navigationController }.first?.navigationBar
+            let foundTab = controllers.lazy.compactMap { ($0 as? UITabBarController) ?? $0.tabBarController }.first?.tabBar
+            if let old = navigationBar, old !== foundNavigation { Self.reset(old) }
+            if let old = tabBar, old !== foundTab { Self.reset(old) }
+            if foundNavigation !== navigationBar || foundTab !== tabBar { appliedHidden = nil }
+            navigationBar = foundNavigation
+            tabBar = foundTab
         }
         motion.setDistances(
             navigation: navigationBar?.bounds.height ?? 0,
             tab: tabBar.map { $0.bounds.height + ScrollChromeMotion.tabShadowRoom } ?? 0
         )
+    }
+
+    /// A bar back in its place, visible and taking taps.
+    private static func reset(_ bar: UIView) {
+        bar.layer.sublayerTransform = CATransform3DIdentity
+        bar.alpha = 1
+        bar.accessibilityElementsHidden = false
+        bar.isUserInteractionEnabled = true
+    }
+
+    /// Back from the Home Screen: the bars' state is set again from `motion`, in full.
+    @objc private func appBecameActive() {
+        guard scrollView != nil else { return }
+        findBars()
+        appliedHidden = nil
+        appliedStrip = nil
+        apply(input: nil)
+        report()
     }
 
     // MARK: Scrolling
@@ -366,7 +398,7 @@ final class ScrollChromeView: UIView {
     }
 
     private func didRest() {
-        guard let onTrace else { return }
+        guard onTrace != nil else { return }
         if motion.isShown {
             trace.restsShown += 1
             if let tabBar, tabBar.layer.sublayerTransform.m42 != 0 || !tabBar.transform.isIdentity || tabBar.alpha != 1 {
@@ -375,7 +407,20 @@ final class ScrollChromeView: UIView {
         } else if motion.isHidden {
             trace.restsHidden += 1
         }
-        onTrace(trace.summary)
+        report()
+    }
+
+    /// Tells the UI tests where the tab bar is now (only when they ask for it).
+    private func report() {
+        guard onTrace != nil else { return }
+        trace.restState = motion.isShown ? 0 : motion.isHidden ? 1 : 0.5
+        trace.restOffset = tabBar?.layer.sublayerTransform.m42 ?? 0
+        trace.restTaps = tabBar?.isUserInteractionEnabled == false ? 0 : 1
+        let summary = trace.summary
+        // Not inside a SwiftUI update.
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated { self?.onTrace?(summary) }
+        }
     }
 
     // MARK: Applying
@@ -411,6 +456,8 @@ final class ScrollChromeView: UIView {
                 bar.accessibilityElementsHidden = hidden
                 bar.isUserInteractionEnabled = !hidden
             }
+            // The bars' buttons came or went: assistive apps (and UI tests) read the screen again.
+            UIAccessibility.post(notification: .layoutChanged, argument: nil)
         }
 
         if onTrace != nil, let input, let tabBar {

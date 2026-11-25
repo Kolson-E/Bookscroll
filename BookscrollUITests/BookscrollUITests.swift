@@ -284,10 +284,40 @@ final class BookscrollUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: end, withVelocity: XCUIGestureVelocity(300), thenHoldForDuration: 0.4)
     }
 
-    /// Lets the bars finish their ease, then checks where the tab bar rests.
+    /// Lets the bars finish their ease, then checks where the tab bar rests: first by the
+    /// app's own report (its layer and whether it takes taps), then as the tests see it.
+    /// A failure prints both, with a screenshot.
     private func assertTabBar(_ app: XCUIApplication, hidden: Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line) {
+        let wanted: Double = hidden ? 1 : 0
         RunLoop.current.run(until: Date().addingTimeInterval(0.6))
-        XCTAssertTrue(waitUntilHidden(app.tabBars.buttons["Library"].firstMatch, hidden), message, file: file, line: line)
+        let deadline = Date().addingTimeInterval(4)
+        var trace = barTrace(app)
+        while trace["state"] != wanted && Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+            trace = barTrace(app)
+        }
+        let button = app.tabBars.buttons["Library"].firstMatch
+        let seen = waitUntilHidden(button, hidden)
+        if trace["state"] != wanted || !seen {
+            screenshot("debug-bars-\(line)")
+            print("DEBUG: bars at line \(line): trace \(trace); button exists \(button.exists)")
+            if button.exists { print("DEBUG: button frame \(button.frame) hittable \(button.isHittable)") }
+            for row in app.tabBars.firstMatch.debugDescription.split(separator: "\n").prefix(20) { print("DEBUG: \(row)") }
+        }
+        XCTAssertEqual(trace["state"], wanted, "\(message) (the app's report: \(trace))", file: file, line: line)
+        XCTAssertEqual(trace["taps"], hidden ? 0 : 1, "\(message): taps", file: file, line: line)
+        XCTAssertEqual(trace["offset"] ?? -1, hidden ? 99 : 0, accuracy: hidden ? 40 : 0.5, "\(message): offset", file: file, line: line)
+        XCTAssertTrue(seen, "\(message) (as the tests see it)", file: file, line: line)
+    }
+
+    /// Opens a tab; a failure prints the bars' state.
+    private func openTab(_ app: XCUIApplication, _ name: String, file: StaticString = #filePath, line: UInt = #line) {
+        tab(app, name)
+        guard !app.navigationBars[name].waitForExistence(timeout: 5) else { return }
+        screenshot("debug-tab-\(line)")
+        print("DEBUG: tab \(name) did not open; trace \(barTrace(app))")
+        for row in app.tabBars.firstMatch.debugDescription.split(separator: "\n").prefix(20) { print("DEBUG: \(row)") }
+        XCTFail("The \(name) tab opens", file: file, line: line)
     }
 
     /// What every bar test checks at the end: the tab bar never moved faster than the
@@ -363,8 +393,7 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5)
 
         // Another tab and back: the feed starts with the bars shown, and they hide again.
-        tab(app, "Library")
-        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
+        openTab(app, "Library")
         XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5, "Other tabs get the tab bar in its place")
         tab(app, "Feed")
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
