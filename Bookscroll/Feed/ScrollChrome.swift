@@ -158,14 +158,16 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// Counts reports across all feeds, so the UI tests read the newest one when SwiftUI
     /// keeps an old feed's report on screen for a moment.
     var sequence = 0
+    /// Diagnostics: times SwiftUI said VoiceOver was on.
+    var voiceOverReports = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f kept=%d seq=%d path=%@",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f layout=%.0f flick=%.0f kept=%d seq=%d vo=%d path=%@",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
             touchesOnTabBar, selectedTab, tapHitsControl, enabledItems,
-            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), layoutFramesKept, sequence, hitPath
+            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), Double(layoutMoved), Double(flickMoved), layoutFramesKept, sequence, voiceOverReports, hitPath
         )
     }
 }
@@ -175,6 +177,8 @@ struct ScrollChromeTrace: Equatable, Sendable {
 struct ScrollChromeObserver: UIViewRepresentable {
     /// Off: the bars stay in place (VoiceOver, UI tests).
     var isEnabled: Bool
+    /// For the UI tests' report: what SwiftUI says about VoiceOver.
+    var voiceOverEnabled = false
     /// UI tests only: the trace each time the bars come to rest.
     var onTrace: ((String) -> Void)?
 
@@ -184,6 +188,7 @@ struct ScrollChromeObserver: UIViewRepresentable {
 
     func updateUIView(_ view: ScrollChromeView, context: Context) {
         view.onTrace = onTrace
+        view.noteVoiceOver(voiceOverEnabled)
         view.followScrollViewChange()
         view.isEnabled = isEnabled
     }
@@ -257,6 +262,13 @@ final class ScrollChromeView: UIView {
         } else {
             attach()
         }
+    }
+
+    private var lastVoiceOver = false
+
+    func noteVoiceOver(_ on: Bool) {
+        if on, !lastVoiceOver, onTrace != nil { trace.voiceOverReports += 1 }
+        lastVoiceOver = on
     }
 
     override func didMoveToSuperview() {
