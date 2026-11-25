@@ -111,12 +111,18 @@ struct ScrollChromeTrace: Equatable, Sendable {
     var restOffset: CGFloat = 0
     /// 1 when the tab bar takes taps now.
     var restTaps = 1
+    /// Diagnostics: tab bars in the window, whether the bar moved is the screen's bar, and
+    /// whether a tap on the bar reaches it.
+    var tabBarsInWindow = 0
+    var isScreensTabBar = 1
+    var tapReachesTabBar = 1
+    var tabBarsSeen = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
-            restState, Double(restOffset), restTaps
+            restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen
         )
     }
 }
@@ -158,6 +164,7 @@ final class ScrollChromeView: UIView {
 
     private(set) var motion = ScrollChromeMotion()
     private var trace = ScrollChromeTrace()
+    private var seenTabBars: Set<ObjectIdentifier> = []
 
     private weak var scrollView: UIScrollView?
     private weak var navigationBar: UINavigationBar?
@@ -416,6 +423,24 @@ final class ScrollChromeView: UIView {
         trace.restState = motion.isShown ? 0 : motion.isHidden ? 1 : 0.5
         trace.restOffset = tabBar?.layer.sublayerTransform.m42 ?? 0
         trace.restTaps = tabBar?.isUserInteractionEnabled == false ? 0 : 1
+        if let window {
+            var bars: [UITabBar] = []
+            var stack: [UIView] = [window]
+            while let view = stack.popLast() {
+                if let bar = view as? UITabBar, !bar.isHidden, bar.alpha > 0 { bars.append(bar) }
+                stack.append(contentsOf: view.subviews)
+            }
+            trace.tabBarsInWindow = bars.count
+            trace.isScreensTabBar = bars.contains { $0 === tabBar } ? 1 : 0
+            if let tabBar, tabBar.window != nil {
+                let point = tabBar.convert(CGPoint(x: tabBar.bounds.width * 0.3, y: 20), to: window)
+                trace.tapReachesTabBar = window.hitTest(point, with: nil)?.isDescendant(of: tabBar) == true ? 1 : 0
+            } else {
+                trace.tapReachesTabBar = 0
+            }
+        }
+        if let tabBar { seenTabBars.insert(ObjectIdentifier(tabBar)) }
+        trace.tabBarsSeen = seenTabBars.count
         let summary = trace.summary
         // Not inside a SwiftUI update.
         DispatchQueue.main.async { [weak self] in
