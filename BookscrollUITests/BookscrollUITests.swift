@@ -265,6 +265,135 @@ final class BookscrollUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
     }
 
+    /// The app's own record of how the bars moved (`ScrollChromeTrace`), as numbers.
+    private func barTrace(_ app: XCUIApplication) -> [String: Double] {
+        let text = (app.descendants(matching: .any)["feed.barTrace"].firstMatch.value as? String) ?? ""
+        var values: [String: Double] = [:]
+        for pair in text.split(separator: " ") {
+            let parts = pair.split(separator: "=")
+            if parts.count == 2, let number = Double(parts[1]) { values[String(parts[0])] = number }
+        }
+        return values
+    }
+
+    /// A slow drag of `distance` points (positive: reading down), held at the end so the
+    /// content stops without a flick.
+    private func drag(_ app: XCUIApplication, by distance: CGFloat) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: distance > 0 ? 0.7 : 0.3))
+        let end = start.withOffset(CGVector(dx: 0, dy: -distance))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: XCUIGestureVelocity(300), thenHoldForDuration: 0.4)
+    }
+
+    /// Lets the bars finish their ease, then checks where the tab bar rests.
+    private func assertTabBar(_ app: XCUIApplication, hidden: Bool, _ message: String, file: StaticString = #filePath, line: UInt = #line) {
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        XCTAssertTrue(waitUntilHidden(app.tabBars.buttons["Library"].firstMatch, hidden), message, file: file, line: line)
+    }
+
+    /// What every bar test checks at the end: the tab bar never moved faster than the
+    /// content, never jumped while easing, and always came back to its exact place.
+    private func assertSmoothTrace(_ app: XCUIApplication, minimumRests: Double, file: StaticString = #filePath, line: UInt = #line) {
+        let trace = barTrace(app)
+        let text = String(describing: trace)
+        XCTAssertGreaterThan(trace["frames"] ?? 0, 20, "The bars followed the scroll: \(text)", file: file, line: line)
+        XCTAssertEqual(trace["faster"], 0, "The tab bar never moved faster than the content: \(text)", file: file, line: line)
+        XCTAssertEqual(trace["notBack"], 0, "The tab bar always came back to its place: \(text)", file: file, line: line)
+        XCTAssertLessThanOrEqual(trace["ease"] ?? .infinity, 2200, "The ease never jumped: \(text)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(trace["hidden"] ?? 0, minimumRests, "Rests hidden: \(text)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(trace["shown"] ?? 0, minimumRests, "Rests shown: \(text)", file: file, line: line)
+    }
+
+    func testTheTabBarFollowsTheFingerAndNeverJumps() {
+        let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        let libraryTab = app.tabBars.buttons["Library"].firstMatch
+        XCTAssertTrue(waitUntilHidden(libraryTab, false))
+        let home = libraryTab.frame
+
+        // Slow reading, turning back, and flicks both ways, again and again.
+        for round in 1...4 {
+            drag(app, by: 220)
+            assertTabBar(app, hidden: true, "Round \(round): reading down hides the tab bar")
+            drag(app, by: -160)
+            assertTabBar(app, hidden: false, "Round \(round): scrolling up brings it back")
+            app.swipeUp(velocity: .fast)
+            assertTabBar(app, hidden: true, "Round \(round): a flick down the feed hides it")
+            app.swipeDown(velocity: .fast)
+            assertTabBar(app, hidden: false, "Round \(round): a flick back up shows it")
+        }
+        XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5, "The tab bar is back exactly in its place")
+        XCTAssertEqual(libraryTab.frame.height, home.height, accuracy: 0.5)
+        assertSmoothTrace(app, minimumRests: 8)
+        tab(app, "Library")
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5), "The tab bar works after all that")
+    }
+
+    func testAScrollThatStopsPartWayEasesToTheNearerEnd() {
+        let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        drag(app, by: 300)
+        assertTabBar(app, hidden: true, "Away from the top, reading down hides the tab bar")
+        drag(app, by: -25)
+        assertTabBar(app, hidden: true, "A short scroll up eases back to hidden")
+        drag(app, by: -90)
+        assertTabBar(app, hidden: false, "More than half way up eases on to shown")
+        drag(app, by: 25)
+        assertTabBar(app, hidden: false, "A short scroll down eases back to shown")
+        drag(app, by: 90)
+        assertTabBar(app, hidden: true, "More than half way down eases on to hidden")
+        let trace = barTrace(app)
+        XCTAssertGreaterThan(trace["ease"] ?? 0, 0, "The bars eased: \(trace)")
+        assertSmoothTrace(app, minimumRests: 2)
+    }
+
+    func testTheBarsKeepWorkingAfterOtherTabsAndTheHomeScreen() {
+        let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        let libraryTab = app.tabBars.buttons["Library"].firstMatch
+        let home = libraryTab.frame
+        drag(app, by: 260)
+        assertTabBar(app, hidden: true, "Reading down hides the tab bar")
+
+        // To the Home Screen and back: the bars are where they were and still follow.
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 10))
+        drag(app, by: -160)
+        assertTabBar(app, hidden: false, "After the Home Screen, scrolling up shows the tab bar")
+        XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5)
+
+        // Another tab and back: the feed starts with the bars shown, and they hide again.
+        tab(app, "Library")
+        XCTAssertTrue(app.navigationBars["Library"].waitForExistence(timeout: 5))
+        XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5, "Other tabs get the tab bar in its place")
+        tab(app, "Feed")
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
+        assertTabBar(app, hidden: false, "Back in the feed, the tab bar shows")
+        drag(app, by: 220)
+        assertTabBar(app, hidden: true, "And it still hides while reading down")
+        drag(app, by: -160)
+        assertTabBar(app, hidden: false, "And comes back")
+        assertSmoothTrace(app, minimumRests: 1)
+    }
+
+    func testTheBarsHideSmoothlyAtTheLargestTextSize() {
+        let app = launch(
+            sampleBooks: true,
+            extra: ["-UITestHideBars", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        )
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        let libraryTab = app.tabBars.buttons["Library"].firstMatch
+        let home = libraryTab.frame
+        for round in 1...2 {
+            drag(app, by: 260)
+            assertTabBar(app, hidden: true, "Round \(round): reading down hides the tab bar")
+            drag(app, by: -200)
+            assertTabBar(app, hidden: false, "Round \(round): scrolling up shows it")
+        }
+        XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5)
+        assertSmoothTrace(app, minimumRests: 2)
+    }
+
     func testPostStyleAndOneBookThread() {
         // Word limit off, so the long paragraph stays one post and "Show more" appears.
         let app = launch(sampleBooks: true, extra: ["-wordLimit", "0"])

@@ -14,10 +14,13 @@ struct FeedView: View {
     /// The bars hide while you read, as on X; not with VoiceOver, and not in UI tests unless
     /// a test asks for it.
     private var hidesBarsOnScroll: Bool {
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("-UITestInMemoryStore") && !arguments.contains("-UITestHideBars") { return false }
+        if ProcessInfo.processInfo.arguments.contains("-UITestInMemoryStore") && !Self.tracesBars { return false }
         return !voiceOverEnabled
     }
+
+    /// UI tests of the bars: the app reports how the bars moved (see `ScrollChromeTrace`).
+    private static let tracesBars = ProcessInfo.processInfo.arguments.contains("-UITestHideBars")
+    @State private var barTrace = ""
 
     private var selectedStyle: PostStyle { PostStyle(rawValue: styleRaw) ?? .paragraph }
 
@@ -105,6 +108,16 @@ struct FeedView: View {
                 }
             }
             .background(Theme.background)
+            .overlay(alignment: .topLeading) {
+                if Self.tracesBars {
+                    Color.clear
+                        .frame(width: 2, height: 2)
+                        .accessibilityElement()
+                        .accessibilityLabel("Bar trace")
+                        .accessibilityValue(barTrace)
+                        .accessibilityIdentifier("feed.barTrace")
+                }
+            }
             .navigationTitle(feed.title)
             .navigationBarTitleDisplayMode(.inline)
             .themedNavigationBar()
@@ -171,9 +184,12 @@ struct FeedView: View {
             }
             .scrollTargetLayout()
             .background(alignment: .top) {
-                ScrollChromeObserver(isEnabled: hidesBarsOnScroll)
-                    .frame(width: 0, height: 0)
-                    .accessibilityHidden(true)
+                ScrollChromeObserver(
+                    isEnabled: hidesBarsOnScroll,
+                    onTrace: Self.tracesBars ? { barTrace = $0 } : nil
+                )
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
             }
         }
         .scrollPosition(id: $feed.scrolledID)

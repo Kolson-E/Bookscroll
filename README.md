@@ -405,9 +405,12 @@ changed or deleted; books can be reordered or taken out. A book is in one set on
 reading list is in backups (`Shelves/ReadingList.swift`, `ReadingListView.swift`).
 
 As on X, the feed's navigation bar and the tab bar move away while you read down and come
-back when you scroll up. They follow your finger, go to the nearer end when a scroll stops
-part-way, and always show at the top of the feed. With VoiceOver on they stay in place
-(`ScrollChrome.swift`).
+back when you scroll up. They move point for point with the content, never faster or slower
+than your finger; when a scroll stops part-way they ease to the nearer end in about a quarter
+of a second, and they always show at the top of the feed. Layout changes of the feed and
+scrolls the app makes itself do not move them. The bars move by their layers' sublayer
+transform, which UIKit's own layout never sets, so a layout pass cannot knock them out of
+place. With VoiceOver on they stay in place (`ScrollChrome.swift`).
 
 ### Positions are offsets, not post indices
 
@@ -530,7 +533,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 255 tests):
+`BookscrollTests` (XCTest, 265 tests):
 
 | Area | File |
 |---|---|
@@ -555,17 +558,21 @@ property is named `passagesOnly` because that is what it means.
 | Settings defaults and storage, the ten fonts (installed, fallback), themes and per-theme brightness, palette and accent contrast at every brightness (WCAG), citation | `AppearanceTests.swift` |
 | Word-limit splitting, Auto limit, resume inside a split paragraph, chapter starts, Mix filters and weights, Jump to, peek | `SplitAndFilterTests.swift` |
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
+| Bars that hide on scroll: point-for-point movement, ends, jumps ignored, 20,000 random scrolls, the ease at 30/60/120 fps (no overshoot, no turning back, no jumps, exact end) | `ScrollChromeTests.swift` |
 | Reading list: sets read in order, finished books and done sets skipped, scrolling past a book's last post finishes it, set order and one set per book, statuses, backups | `ReadingListTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 21 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 25 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, Find Books (its folder picker, from the + menu and the empty Library), bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
   post style and One book thread, swipe to delete.
 - Settings: theme, accent and focus mode change the feed.
 - The navigation and tab bars hide while you read down the feed and come back when you
-  scroll up.
+  scroll up. Four more tests drag, flick and turn back again and again (also at the largest
+  text size, after the Home Screen and after another tab); the app records every frame and
+  the tests check that the tab bar never moved faster than the content, never jumped while
+  easing, eased to the nearer end, and came back exactly to its place.
 - Make a reading list with two sets and read it in the feed.
 - A long paragraph splits into numbered parts; double tap bookmarks a post.
 - Jump to a chapter; long press shows the peek and "Look up a word".
