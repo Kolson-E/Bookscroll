@@ -221,6 +221,8 @@ final class AppModel {
     var selectedTab: Tab = .feed
     /// Shows the Files picker. The Library toolbar and both empty states set it.
     var isImporterPresented = false
+    /// Shows Find Books (the book files in the folders the reader allowed).
+    var isFinderPresented = false
     var readerRequest: ReaderRequest?
     var shareRequest: ShareRequest?
     var jumpRequest: JumpRequest?
@@ -238,6 +240,7 @@ final class AppModel {
     let feed: FeedViewModel
     let importer: ImportManager
     let folderSync: FolderSync
+    let bookFinder: BookFinder
     let stats: ReadingStats
     let spotlight: SpotlightIndexer
     let widgets: WidgetBridge
@@ -256,6 +259,7 @@ final class AppModel {
         container: ModelContainer,
         searchIndex: SearchIndex? = nil,
         folderSync: FolderSync? = nil,
+        bookFinder: BookFinder? = nil,
         stats: ReadingStats? = nil,
         platform: Bool = false
     ) {
@@ -268,6 +272,7 @@ final class AppModel {
         self.feed = FeedViewModel(store: store)
         self.importer = ImportManager(container: container)
         self.folderSync = folderSync ?? FolderSync()
+        self.bookFinder = bookFinder ?? BookFinder()
         self.stats = stats ?? ReadingStats(fileURL: nil)
         self.spotlight = SpotlightIndexer(enabled: platform)
         self.widgets = WidgetBridge(url: platform ? SharedContainer.snapshotURL : nil)
@@ -418,6 +423,33 @@ final class AppModel {
         isImporterPresented = true
     }
 
+    func presentFinder() {
+        readerRequest = nil
+        shareRequest = nil
+        isFinderPresented = true
+    }
+
+    /// File names of the books in the library, lowercased (Find Books marks these).
+    var libraryFileNames: Set<String> {
+        Set(store.allBooks().compactMap { $0.sourceFileName?.lowercased() })
+    }
+
+    /// Imports files chosen in Find Books and shows the Library, where their progress
+    /// appears. A book already in the library is skipped without an error.
+    func importFound(_ files: [FoundBookFile]) {
+        guard !files.isEmpty else { return }
+        selectedTab = .library
+        var order: [URL] = []
+        var byFolder: [URL: [URL]] = [:]
+        for file in files {
+            if byFolder[file.folder] == nil { order.append(file.folder) }
+            byFolder[file.folder, default: []].append(file.url)
+        }
+        for folder in order {
+            importer.enqueue(byFolder[folder] ?? [], scope: folder, skipsDuplicates: true)
+        }
+    }
+
     /// Result of the Files picker.
     func handleImporterResult(_ result: Result<[URL], Error>) {
         switch result {
@@ -452,6 +484,10 @@ final class AppModel {
         let defaults = UserDefaults.standard
         if defaults.string(forKey: "singleBookID") == old.uuidString {
             defaults.set(new.uuidString, forKey: "singleBookID")
+        }
+        let chosen = FeedModeChoice.bookIDs(from: defaults.string(forKey: FeedModeChoice.chosenBooksKey) ?? "")
+        if chosen.contains(old) {
+            defaults.set(FeedModeChoice.storage(chosen.map { $0 == old ? new : $0 }), forKey: FeedModeChoice.chosenBooksKey)
         }
         deleteBook(id: old)
     }

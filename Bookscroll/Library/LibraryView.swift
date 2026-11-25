@@ -83,15 +83,24 @@ struct LibraryView: View {
                     .accessibilityIdentifier("library.paste")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        app.presentImporter()
+                    Menu {
+                        Button {
+                            app.presentFinder()
+                        } label: {
+                            Label("Find Books on This iPhone", systemImage: "doc.text.magnifyingglass")
+                        }
+                        Button {
+                            app.presentImporter()
+                        } label: {
+                            Label("Choose Files", systemImage: "folder")
+                        }
+                        .keyboardShortcut("o", modifiers: .command)
                     } label: {
                         Label("Import", systemImage: "plus")
                     }
                     .accessibilityLabel("Import books")
-                    .accessibilityHint("Opens Files to pick books")
+                    .accessibilityHint("Find books on this iPhone, or choose files")
                     .accessibilityIdentifier("library.import")
-                    .keyboardShortcut("o", modifiers: .command)
                 }
             }
         }
@@ -213,6 +222,12 @@ private struct BookList: View {
                     .buttonStyle(.borderedProminent)
                     .accessibilityHint("Opens Files to pick books")
                     .accessibilityIdentifier("library.empty.import")
+                    Button { app.presentFinder() } label: {
+                        Label("Find Books on This iPhone", systemImage: "doc.text.magnifyingglass")
+                    }
+                    .buttonStyle(.bordered)
+                    .accessibilityHint("Lists the books in the folders you allow")
+                    .accessibilityIdentifier("library.empty.find")
                 }
             } else if books.isEmpty && !allBooks.isEmpty {
                 ContentUnavailableView {

@@ -100,6 +100,10 @@ struct RootView: View {
         ) { result in
             app.handleImporterResult(result)
         }
+        .sheet(isPresented: $app.isFinderPresented) {
+            FindBooksView()
+                .environment(app)
+        }
         .sheet(item: $app.readerRequest) { request in
             ContextReaderView(model: request.model)
                 .environment(app)

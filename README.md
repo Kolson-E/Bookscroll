@@ -191,7 +191,8 @@ the Books library. Import DRM-free files instead:
 
 | Way in | How |
 |---|---|
-| Files picker | Library tab → **+**, or **Import Books** on the empty Feed or Library screen. Pick one or more files from iCloud Drive, On My iPhone or any file provider. |
+| Find Books on This iPhone | Library tab → **+** → **Find Books on This iPhone**, or the same button on the empty Feed or Library screen. iOS lets an app read only the folders you pick, and no app can search the whole iPhone, so you allow a folder once (for example Downloads, iCloud Drive or On My iPhone; you can allow several). Each time Find Books opens it lists every EPUB, PDF, text, Markdown, HTML and RTF file in those folders and their subfolders, grouped by folder, with format, size and subfolder. Search by file name, tick files or **Select All**, then **Import**. Books whose file name is already in the library are marked and cannot be ticked. Files still in iCloud are listed and download when imported. Swipe left on a folder to stop looking in it. |
+| Files picker | Library tab → **+** → **Choose Files**, or **Import Books** on the empty Feed or Library screen. Pick one or more files from iCloud Drive, On My iPhone or any file provider. The picker's **Recents** and search also find book files. |
 | Open in Bookscroll | In Files, Mail, Safari downloads or another app: Share → **Bookscroll**. The app opens on the Library tab and imports the file. |
 | A folder | In the Files picker, pick a folder: every book file in it and its subfolders is queued. Books already in the library are skipped without an error. |
 | Synced folder | Settings › **Synced folder** › **Choose Folder…**. Each new book file in that folder (and its subfolders) is imported when the app opens or comes back to the front, or on **Sync Now**. A file is imported once, by its path. Removing a file does not delete the book; a deleted book is not imported again. iCloud files that are not downloaded yet are asked to download and come in on the next sync. |
@@ -236,7 +237,7 @@ and a word count. **Add** queues it like a file import.
 
 | Tab | What it does |
 |---|---|
-| Feed | The timeline. Toolbar left: **Mix all books**, a **Shelf**, or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
+| Feed | The timeline. Toolbar left: **Mix all books**, **Choose books…** (tick any set of books: two or more are mixed, one is read straight through; **Select All** and **Save as Shelf** are in the sheet; the menu then shows **Chosen books (n)…**), a **Shelf**, or **One book**. Toolbar right: **Jump to** (One book mode), then **Paragraphs** or **Passages** and **Focus mode**. Pull to refresh reshuffles the mix. |
 | Library | Import, see cover, title, author, format, progress and Mix status, swipe to delete. **Sort and filter** (toolbar left): sort by recently read, recently added, title, author or progress; show all books, reading, not started, finished or hidden from Mix; EPUB, PDF or text formats only. **Reading Stats** (toolbar left): reading time today and this week, words today, streak, a chart of the last 14 days, speed, total time, books finished this year, and the time left in each book you are reading. **Paste Text** (toolbar right) adds text as a book. Touch and hold a book for **Jump to…**, **Mark as Finished**, **Edit Details…** (with **Replace File…**: a new version of the book takes over its place, marks, details and shelves; where the text changed they go to the nearest matching words), **Hide from Mix**, **Snooze**, and **How often** (less, normal, more). **Search** finds books by title or author and paragraphs by their words (all words must match; the last word can be the start of a word). A paragraph opens the reader there. |
 | Shelves | Your own groups of books (a book can be on more than one shelf). **New Shelf**, rename, reorder, delete (the books stay in the library). In a shelf: **Add or Remove Books…**, reorder, swipe to remove, and **Read as Feed**: a Mix of only the shelf's books. In the Library, touch and hold a book for **Add to Shelf**. |
 | Saved | **Bookmarks** (your saved places, as a feed) and **Highlights**, newest first. Under Bookmarks, colour chips (All, No highlight, Yellow, Red, Blue, each with its count) show only the bookmarks of one colour. A highlight shows the exact text; tap it to read around it. Touch and hold for Copy with citation, Share as image, Remove highlight. |
@@ -515,7 +516,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 240 tests):
+`BookscrollTests` (XCTest, 245 tests):
 
 | Area | File |
 |---|---|
@@ -526,6 +527,7 @@ property is named `passagesOnly` because that is what it means.
 | Feed: no repeats, never stalls, position advances only when shown, one-book mode, threads | `FeedEngineTests.swift` |
 | Store key queries, position clamping, chunked deletion, duplicates, ordinals | `StoreTests.swift` |
 | Files picker, staging, Open in Bookscroll, import queue | `ImportTests.swift` |
+| Find Books (files in allowed folders and subfolders, iCloud files, library matches, remembered folders) and the feed's chosen books | `FindAndChooseTests.swift` |
 | Text anchors (same text, moved text, lost text, nearest of several), Replace File (place, marks, details, shelves), backup and restore (no copies on a second restore, missing books), matching rules, file errors | `ReadingStateTests.swift` |
 | Folder scan (subfolders, hidden files, iCloud placeholders), synced folder (each file once, kept across launches, stop, missing folder), quiet duplicates, folder import | `FolderSyncTests.swift` |
 | Storage totals, write-ahead log, per-book shares that add up to the total, order, missing files | `StorageTests.swift` |
@@ -541,10 +543,10 @@ property is named `passagesOnly` because that is what it means.
 | Highlights (exact range, merge, remove, across paragraphs, delete), Saved lists, Library search, share card styles and themes | `MarksAndSearchTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 18 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 19 tests) drive the app on a simulator with a seeded in-memory
 library:
 
-- Empty library, Files picker, bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
+- Empty library, Files picker, Find Books (its folder picker, from the + menu and the empty Library), bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
   post style and One book thread, swipe to delete.
 - Settings: theme, accent and focus mode change the feed.
 - A long paragraph splits into numbered parts; double tap bookmarks a post.
@@ -554,6 +556,7 @@ library:
 - Mark a book as finished, filter the Library to finished books, and rename a book in Edit
   Details (with audits of the filtered Library and the details sheet).
 - Make a shelf, add a book, and read the shelf as a feed.
+- Choose books: tick two books for a mixed feed, Select None and Select All, Save as Shelf.
 - Paste text as a book; it shows in the Library and in the Feed mode menu (with an audit of
   the Paste Text sheet).
 - `performAccessibilityAudit()` on the feed, library, Shelves, Saved, Settings, Storage, Synced folder, Back Up and Restore, and reader screens in the

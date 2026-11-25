@@ -7,19 +7,29 @@ enum FolderScan {
     /// package contents are skipped. An iCloud file that is not downloaded yet is asked to
     /// download and is left for the next scan.
     static func bookFiles(in folder: URL) -> [URL] {
+        bookFiles(in: folder, includingNotDownloaded: false).map(\.url)
+    }
+
+    /// Supported book files in `folder` and its subfolders, in path order. With
+    /// `includingNotDownloaded`, a file still in iCloud is listed too (at the path it will
+    /// have), with `isDownloaded` false; a coordinated read downloads it. Either way it is
+    /// asked to start downloading.
+    static func bookFiles(in folder: URL, includingNotDownloaded: Bool) -> [(url: URL, isDownloaded: Bool)] {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isHiddenKey]
         guard let enumerator = FileManager.default.enumerator(
             at: folder,
             includingPropertiesForKeys: keys,
             options: [.skipsPackageDescendants]
         ) else { return [] }
-        var files: [URL] = []
+        var files: [(url: URL, isDownloaded: Bool)] = []
         for case let url as URL in enumerator {
             let name = url.lastPathComponent
             if let placeholder = iCloudPlaceholderTarget(name) {
                 // ".Book.epub.icloud" stands for "Book.epub", which is still in iCloud.
                 if BookFormat.fromExtension((placeholder as NSString).pathExtension) != nil {
-                    try? FileManager.default.startDownloadingUbiquitousItem(at: url.deletingLastPathComponent().appendingPathComponent(placeholder))
+                    let target = url.deletingLastPathComponent().appendingPathComponent(placeholder)
+                    try? FileManager.default.startDownloadingUbiquitousItem(at: target)
+                    if includingNotDownloaded { files.append((target, false)) }
                 }
                 continue
             }
@@ -29,9 +39,9 @@ enum FolderScan {
                 continue
             }
             guard values?.isRegularFile == true, BookFormat.fromExtension(url.pathExtension) != nil else { continue }
-            files.append(url)
+            files.append((url, true))
         }
-        return files.sorted { $0.path.localizedStandardCompare($1.path) == .orderedAscending }
+        return files.sorted { $0.url.path.localizedStandardCompare($1.url.path) == .orderedAscending }
     }
 
     /// "Book.epub" for ".Book.epub.icloud", else nil.
@@ -44,7 +54,9 @@ enum FolderScan {
     /// The path of `file` inside `folder`, such as "Novels/Book.epub".
     static func relativePath(of file: URL, in folder: URL) -> String {
         let base = folder.standardizedFileURL.resolvingSymlinksInPath().path
-        let path = file.standardizedFileURL.resolvingSymlinksInPath().path
+        // The parent is resolved, not the file: a file still in iCloud does not exist yet.
+        let path = file.deletingLastPathComponent().standardizedFileURL.resolvingSymlinksInPath()
+            .appendingPathComponent(file.lastPathComponent).path
         let prefix = base.hasSuffix("/") ? base : base + "/"
         return path.hasPrefix(prefix) ? String(path.dropFirst(prefix.count)) : file.lastPathComponent
     }

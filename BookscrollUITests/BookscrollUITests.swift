@@ -138,8 +138,22 @@ final class BookscrollUITests: XCTestCase {
         assertFilesPickerAppearsAndDismiss(app, screenshotName: nil)
 
         tab(app, "Library")
-        tapToolbarButton(app, "library.import")
+        openToolbarMenu(app, "Import books", choice: "Choose Files").tap()
         assertFilesPickerAppearsAndDismiss(app, screenshotName: nil)
+
+        // Find Books explains why it needs a folder and offers to allow one.
+        openToolbarMenu(app, "Import books", choice: "Find Books on This iPhone").tap()
+        let allow = app.buttons["find.allowFolder"].firstMatch
+        XCTAssertTrue(allow.waitForExistence(timeout: 5))
+        screenshot("03a-find-books")
+        allow.tap()
+        assertFilesPickerAppearsAndDismiss(app, screenshotName: nil)
+        XCTAssertTrue(allow.waitForExistence(timeout: 10), "Find Books stays open after Cancel")
+        app.buttons["find.close"].firstMatch.tap()
+        XCTAssertTrue(libraryImport.waitForExistence(timeout: 10))
+        app.buttons["library.empty.find"].firstMatch.tap()
+        XCTAssertTrue(allow.waitForExistence(timeout: 5), "The empty Library opens Find Books too")
+        app.buttons["find.close"].firstMatch.tap()
     }
 
     private func assertFilesPickerAppearsAndDismiss(_ app: XCUIApplication, screenshotName: String?) {
@@ -241,6 +255,49 @@ final class BookscrollUITests: XCTestCase {
         openToolbarMenu(app, "Feed mode", choice: "Mix all books").tap()
         XCTAssertTrue(app.navigationBars["Feed"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.buttons["Post style"].value as? String, "Passages")
+    }
+
+    func testChooseBooksMixesOnlyTheChosenBooks() {
+        let app = launch(sampleBooks: true)
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        openToolbarMenu(app, "Feed mode", choice: "Choose books\u{2026}").tap()
+        let books = app.buttons.matching(identifier: "choose.book")
+        XCTAssertTrue(books.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(books.count, 2, "Every library book is listed")
+        books.element(boundBy: 0).tap()
+        XCTAssertTrue(app.buttons["choose.done"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["choose.done"].label, "Read 1 Book")
+        books.element(boundBy: 1).tap()
+        XCTAssertEqual(app.buttons["choose.done"].label, "Mix 2 Books")
+        XCTAssertTrue(books.element(boundBy: 0).isSelected)
+        screenshot("10a-choose-books")
+        app.buttons["choose.done"].tap()
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 5))
+        waitForValue(app.buttons["Feed mode"].firstMatch, "Chosen books: 2 books")
+        XCTAssertTrue(app.navigationBars["2 books"].waitForExistence(timeout: 5))
+
+        // The sheet starts with the chosen books. Select None, Select All, then keep the set
+        // as a shelf.
+        openToolbarMenu(app, "Feed mode", choice: "Chosen books (2)\u{2026}").tap()
+        let selectAll = app.buttons["choose.selectAll"].firstMatch
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5))
+        XCTAssertEqual(selectAll.label, "Select None")
+        selectAll.tap()
+        XCTAssertTrue(app.buttons["choose.done"].waitForNonExistence(timeout: 5))
+        selectAll.tap()
+        XCTAssertEqual(app.buttons["choose.done"].label, "Mix 2 Books")
+        app.buttons["choose.saveShelf"].tap()
+        let name = app.textFields["choose.shelfName"].firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText("Evening")
+        app.alerts.buttons["Save"].tap()
+        waitForValue(app.buttons["Feed mode"].firstMatch, "Shelf: Evening")
+    }
+
+    private func waitForValue(_ element: XCUIElement, _ value: String, timeout: TimeInterval = 5) {
+        let match = expectation(for: NSPredicate(format: "value == %@", value), evaluatedWith: element)
+        wait(for: [match], timeout: timeout)
     }
 
     func testSwipeToDeleteRemovesTheBookEverywhere() {

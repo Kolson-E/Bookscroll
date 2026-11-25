@@ -7,6 +7,8 @@ struct FeedView: View {
     @AppStorage("feedMode") private var modeRaw = "mix"
     @AppStorage("singleBookID") private var singleBookID = ""
     @AppStorage("feedShelfID") private var feedShelfID = ""
+    @AppStorage(FeedModeChoice.chosenBooksKey) private var chosenBookIDs = ""
+    @State private var isChoosingBooks = false
 
     private var selectedStyle: PostStyle { PostStyle(rawValue: styleRaw) ?? .paragraph }
 
@@ -18,7 +20,8 @@ struct FeedView: View {
             singleBookID: singleBookID,
             feedShelfID: feedShelfID,
             focusShelfID: focusShelfID,
-            shelves: app.shelves.shelves
+            shelves: app.shelves.shelves,
+            chosenBookIDs: chosenBookIDs
         )
     }
 
@@ -28,6 +31,7 @@ struct FeedView: View {
     }
 
     private static let shelfTagPrefix = "shelf:"
+    private static let chosenTag = "books"
 
     /// "mix", a book id, or "shelf:" and a shelf id. Drives the mode picker.
     private var modeSelection: Binding<String> {
@@ -37,6 +41,7 @@ struct FeedView: View {
                 switch modeRaw {
                 case "single": return singleBookID
                 case "shelf": return Self.shelfTagPrefix + feedShelfID
+                case "books": return Self.chosenTag
                 default: return "mix"
                 }
             },
@@ -45,6 +50,8 @@ struct FeedView: View {
                 focusShelfID = ""
                 if value == "mix" {
                     modeRaw = "mix"
+                } else if value == Self.chosenTag {
+                    modeRaw = "books"
                 } else if value.hasPrefix(Self.shelfTagPrefix) {
                     feedShelfID = String(value.dropFirst(Self.shelfTagPrefix.count))
                     modeRaw = "shelf"
@@ -73,6 +80,12 @@ struct FeedView: View {
                         .buttonStyle(.borderedProminent)
                         .accessibilityHint("Opens Files to pick books")
                         .accessibilityIdentifier("feed.empty.import")
+                        Button { app.presentFinder() } label: {
+                            Label("Find Books on This iPhone", systemImage: "doc.text.magnifyingglass")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityHint("Lists the books in the folders you allow")
+                        .accessibilityIdentifier("feed.empty.find")
                     }
                 } else {
                     timeline
@@ -98,11 +111,20 @@ struct FeedView: View {
                 }
             }
         }
+        .sheet(isPresented: $isChoosingBooks) {
+            ChooseFeedBooksSheet(
+                initial: chosenForSheet,
+                onChoose: chooseBooks,
+                onSaveShelf: saveShelf
+            )
+            .environment(app)
+        }
         .task { configureFeed() }
         .onChange(of: styleRaw) { configureFeed() }
         .onChange(of: modeRaw) { configureFeed() }
         .onChange(of: singleBookID) { configureFeed() }
         .onChange(of: feedShelfID) { configureFeed() }
+        .onChange(of: chosenBookIDs) { configureFeed() }
         .onChange(of: focusShelfID) { configureFeed() }
         .onChange(of: app.shelves.shelves) { configureFeed() }
         .onChange(of: AppSettings.shared.wordLimit) { configureFeed() }
@@ -153,6 +175,9 @@ struct FeedView: View {
             MenuChoice(title: "Mix all books", symbol: "shuffle", isSelected: selection.wrappedValue == "mix") {
                 selection.wrappedValue = "mix"
             }
+            MenuChoice(title: chosenMenuTitle, symbol: "checklist", isSelected: selection.wrappedValue == Self.chosenTag) {
+                isChoosingBooks = true
+            }
             if !app.shelves.shelves.isEmpty {
                 Section("Shelf") {
                     ForEach(app.shelves.shelves) { shelf in
@@ -190,8 +215,48 @@ struct FeedView: View {
         switch app.feed.mode {
         case .mix: return "Mix all books"
         case .single: return "One book: \(app.feed.title)"
+        case let .shelf(shelf) where shelf.id == FeedModeChoice.chosenBooksID: return "Chosen books: \(shelf.name)"
         case let .shelf(shelf): return "Shelf: \(shelf.name)"
         }
+    }
+
+    /// "Choose Books…", or the chosen books while they show.
+    private var chosenMenuTitle: String {
+        if modeRaw == "books", focusShelf == nil {
+            let count = FeedModeChoice.bookIDs(from: chosenBookIDs).count
+            if count > 1 { return String(localized: "Chosen books (\(count))\u{2026}") }
+        }
+        return String(localized: "Choose books\u{2026}")
+    }
+
+    /// The books the Choose Books sheet starts with: the last chosen set, or the book or
+    /// shelf showing now.
+    private var chosenForSheet: [UUID] {
+        let stored = FeedModeChoice.bookIDs(from: chosenBookIDs)
+        if modeRaw == "books", !stored.isEmpty { return stored }
+        switch app.feed.mode {
+        case let .single(id): return [id]
+        case let .shelf(shelf): return shelf.bookIDs
+        case .mix: return []
+        }
+    }
+
+    private func chooseBooks(_ ids: [UUID]) {
+        focusShelfID = ""
+        chosenBookIDs = FeedModeChoice.storage(ids)
+        if ids.count == 1 {
+            singleBookID = ids[0].uuidString
+            modeRaw = "single"
+        } else {
+            modeRaw = ids.isEmpty ? "mix" : "books"
+        }
+    }
+
+    private func saveShelf(_ name: String, _ ids: [UUID]) {
+        guard let id = app.shelves.create(name: name, bookIDs: ids) else { return }
+        focusShelfID = ""
+        feedShelfID = id.uuidString
+        modeRaw = "shelf"
     }
 
     /// The book of One book mode; nil in Mix.
