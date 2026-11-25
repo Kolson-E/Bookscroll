@@ -127,13 +127,21 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// Diagnostics: the views a tap on the tab bar's second button goes through, from the
     /// view hit up to the tab bar, as Class:takesTouches.
     var hitPath = "-"
+    /// Diagnostics: attaches and detaches, the finger's movement in the last pan and how far it
+    /// moved the bars, and the distance from the top at the last rest.
+    var attaches = 0
+    var detaches = 0
+    var lastPan: CGFloat = 0
+    var lastPanMoved: CGFloat = 0
+    var restFromTop: CGFloat = 0
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d path=%@",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d att=%d det=%d pan=%.0f panMoved=%.0f fromTop=%.0f path=%@",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
-            touchesOnTabBar, selectedTab, tapHitsControl, enabledItems, hitPath
+            touchesOnTabBar, selectedTab, tapHitsControl, enabledItems,
+            attaches, detaches, Double(lastPan), Double(lastPanMoved), Double(restFromTop), hitPath
         )
     }
 }
@@ -232,6 +240,7 @@ final class ScrollChromeView: UIView {
         guard let found = candidate as? UIScrollView else { return }
         scrollView = found
         lastContentSize = found.contentSize
+        trace.attaches += 1
         found.panGestureRecognizer.addTarget(self, action: #selector(panChanged(_:)))
         NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
@@ -242,6 +251,7 @@ final class ScrollChromeView: UIView {
     }
 
     func detach() {
+        if scrollView != nil { trace.detaches += 1 }
         restWork?.cancel()
         restWork = nil
         stopEasing()
@@ -379,12 +389,17 @@ final class ScrollChromeView: UIView {
             restWork?.cancel()
             findBars()
             lastFingerY = fingerY
+            trace.lastPan = 0
+            trace.lastPanMoved = 0
         case .changed:
             let delta = lastFingerY - fingerY
             lastFingerY = fingerY
+            trace.lastPan += delta
+            let before = motion.hidden
             if isInsideContent(scrollView.contentOffset.y, scrollView), motion.scroll(by: delta) {
                 apply(input: delta)
             }
+            trace.lastPanMoved += motion.hidden - before
         case .ended, .cancelled, .failed:
             scheduleRest()
         default:
@@ -431,6 +446,7 @@ final class ScrollChromeView: UIView {
             return
         }
         let fromTop = scrollView.contentOffset.y - topOffset(scrollView)
+        trace.restFromTop = fromTop
         ease(to: motion.restingPoint(distanceFromTop: fromTop))
     }
 
