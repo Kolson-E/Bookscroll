@@ -115,7 +115,6 @@ enum Theme {
     static var primaryText: Color { color(\.primary) }
     static var secondaryText: Color { color(\.secondary) }
     static var separator: Color { color(\.separator) }
-    static var threadLine: Color { color(\.threadLine) }
     /// Background of the tapped post in the reader. Opaque, so text on it keeps full contrast.
     static var highlight: Color { color(\.highlight) }
     /// Background of the reader's own highlights. Opaque; primary text keeps 7:1 or more.
@@ -350,7 +349,6 @@ struct PostRow: View {
     private static let topTrailingInset: CGFloat = 80
     /// Height of one button under the avatar (the minimum touch target).
     private static let columnButtonHeight: CGFloat = 44
-    private static let columnButtonCount: CGFloat = 2
     /// The colour bubble closes by itself after this many seconds.
     /// The colour bubble closes by itself after this time. UI tests on a slow runner get
     /// longer, so a test's tap outside the bubble is not raced by this timer.
@@ -386,9 +384,6 @@ struct PostRow: View {
                 ThemedDivider()
             }
             content
-                .overlay(alignment: .topLeading) {
-                    if !focusMode { threadLines }
-                }
             if !post.threadContinuesBelow || focusMode {
                 ThemedDivider()
             }
@@ -803,27 +798,6 @@ struct PostRow: View {
         .font(.subheadline)
         .buttonStyle(.borderless)
         .frame(width: avatarSize)
-    }
-
-    /// Thin vertical line through the avatar column that joins the posts of a thread.
-    private var threadLines: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Theme.threadLine)
-                .frame(width: 2, height: max(0, topPadding - 2))
-                .opacity(post.continuesThread ? 1 : 0)
-            // The avatar and the buttons under it.
-            Color.clear
-                .frame(width: 2, height: avatarSize + Self.columnGap + Self.columnButtonHeight * Self.columnButtonCount + 4)
-            Rectangle()
-                .fill(Theme.threadLine)
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-                .opacity(post.threadContinuesBelow ? 1 : 0)
-        }
-        .padding(.leading, horizontalPadding + avatarSize / 2 - 1)
-        .accessibilityHidden(true)
-        .allowsHitTesting(false)
     }
 
     private var accessibilityText: String {

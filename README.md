@@ -390,8 +390,8 @@ Hiding or snoozing a book removes its unseen posts at once; posts you already sa
 opens on the book of the last post you had at the top, so a mode switch or a relaunch
 returns to the same place.
 
-In One book mode, consecutive posts from the same chapter form a thread joined by a line
-through the avatars; a chapter change breaks the thread and shows a chapter row. One book mode
+In One book mode, consecutive posts from the same chapter form a thread, with no divider
+between them; a chapter change breaks the thread and shows a chapter row. One book mode
 always gives the book in order: every post follows the one before it, with nothing skipped.
 In Mix mode and Saved, tapping a post (or its book button) opens it in context.
 

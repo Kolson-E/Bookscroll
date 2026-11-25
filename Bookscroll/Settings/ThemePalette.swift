@@ -11,7 +11,6 @@ struct ThemePalette: Equatable {
     var primary: UInt32
     var secondary: UInt32
     var separator: UInt32
-    var threadLine: UInt32
     /// Background of the tapped post in the reader.
     var highlight: UInt32
     /// Background of the reader's own highlights and of yellow bookmarks.
@@ -42,7 +41,6 @@ struct ThemePalette: Equatable {
             primary: mix(\.primary),
             secondary: mix(\.secondary),
             separator: mix(\.separator),
-            threadLine: mix(\.threadLine),
             highlight: mix(\.highlight),
             marker: mix(\.marker),
             redMarker: mix(\.redMarker),
@@ -65,7 +63,6 @@ struct ThemePalette: Equatable {
                 primary: primary,
                 secondary: secondary,
                 separator: mix(background, 0xFFFFFF, 0.16),
-                threadLine: mix(background, 0xFFFFFF, 0.18),
                 highlight: mix(background, 0xFF8A3D, 0.25),
                 marker: mix(background, 0xFFD400, 0.28),
                 redMarker: mix(background, 0xF4212E, 0.3),
@@ -82,7 +79,6 @@ struct ThemePalette: Equatable {
             primary: primary,
             secondary: secondary,
             separator: mix(background, 0x000000, 0.07),
-            threadLine: mix(background, 0x000000, 0.15),
             highlight: mix(background, 0xFFB070, 0.3),
             marker: mix(background, 0xFFE15C, 0.5),
             redMarker: mix(background, 0xFF9A9A, 0.4),
@@ -127,7 +123,6 @@ struct ThemePalette: Equatable {
         primary: PaletteHex.darkPrimary,
         secondary: PaletteHex.darkSecondary,
         separator: 0x2F3336,
-        threadLine: 0x333639,
         highlight: PaletteHex.darkHighlight,
         marker: PaletteHex.darkMarker,
         redMarker: PaletteHex.darkRedMarker,
@@ -145,7 +140,6 @@ struct ThemePalette: Equatable {
         primary: PaletteHex.lightPrimary,
         secondary: PaletteHex.lightSecondary,
         separator: 0xEFF3F4,
-        threadLine: 0xCFD9DE,
         highlight: PaletteHex.lightHighlight,
         marker: PaletteHex.lightMarker,
         redMarker: PaletteHex.lightRedMarker,
@@ -163,7 +157,6 @@ struct ThemePalette: Equatable {
         primary: PaletteHex.sepiaPrimary,
         secondary: PaletteHex.sepiaSecondary,
         separator: 0xE3D5BC,
-        threadLine: 0xD9C9AC,
         highlight: PaletteHex.sepiaHighlight,
         marker: PaletteHex.sepiaMarker,
         redMarker: PaletteHex.sepiaRedMarker,
