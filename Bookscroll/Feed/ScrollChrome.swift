@@ -124,13 +124,16 @@ struct ScrollChromeTrace: Equatable, Sendable {
     /// 0 a disabled control, -1 no control. And the number of enabled tab items.
     var tapHitsControl = -1
     var enabledItems = 0
+    /// Diagnostics: the views a tap on the tab bar's second button goes through, from the
+    /// view hit up to the tab bar, as Class:takesTouches.
+    var hitPath = "-"
 
     var summary: String {
         String(
-            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d",
+            format: "frames=%d faster=%d ease=%.0f notBack=%d hidden=%d shown=%d state=%.1f offset=%.1f taps=%d bars=%d same=%d hit=%d seen=%d touches=%d tab=%d control=%d items=%d path=%@",
             frames, fasterThanContent, Double(fastestEase), notBackInPlace, restsHidden, restsShown,
             restState, Double(restOffset), restTaps, tabBarsInWindow, isScreensTabBar, tapReachesTabBar, tabBarsSeen,
-            touchesOnTabBar, selectedTab, tapHitsControl, enabledItems
+            touchesOnTabBar, selectedTab, tapHitsControl, enabledItems, hitPath
         )
     }
 }
@@ -231,6 +234,7 @@ final class ScrollChromeView: UIView {
         lastContentSize = found.contentSize
         found.panGestureRecognizer.addTarget(self, action: #selector(panChanged(_:)))
         NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
         offsetObservation = found.observe(\.contentOffset, options: [.old, .new]) { [weak self] _, change in
             guard let old = change.oldValue?.y, let new = change.newValue?.y else { return }
             MainActor.assumeIsolated { self?.offsetChanged(from: old, to: new) }
@@ -247,6 +251,7 @@ final class ScrollChromeView: UIView {
         offsetObservation = nil
         scrollView?.panGestureRecognizer.removeTarget(self, action: #selector(panChanged(_:)))
         NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.willResignActiveNotification, object: nil)
         if let counter = touchCounter { counter.view?.removeGestureRecognizer(counter) }
         touchCounter = nil
         let hadBars = navigationBar != nil || tabBar != nil
@@ -301,12 +306,34 @@ final class ScrollChromeView: UIView {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.report() }
     }
 
+    private static func descendants(of view: UIView) -> [UIView] {
+        var result: [UIView] = []
+        var stack = view.subviews
+        while let next = stack.popLast() {
+            result.append(next)
+            stack.append(contentsOf: next.subviews)
+        }
+        return result
+    }
+
     /// A bar back in its place, visible and taking taps.
     private static func reset(_ bar: UIView) {
         bar.layer.sublayerTransform = CATransform3DIdentity
         bar.alpha = 1
         bar.accessibilityElementsHidden = false
         bar.isUserInteractionEnabled = true
+    }
+
+    /// To the Home Screen: the bars take taps again while the app is away (they stay where they
+    /// are). UIKit rebuilds parts of the tab bar for the app switcher's pictures, and parts
+    /// rebuilt while the bar refuses touches can keep refusing them after it takes them again.
+    @objc private func appWillResignActive() {
+        guard scrollView != nil else { return }
+        for bar in [navigationBar as UIView?, tabBar as UIView?].compactMap({ $0 }) {
+            bar.isUserInteractionEnabled = true
+            bar.accessibilityElementsHidden = false
+        }
+        appliedHidden = nil
     }
 
     /// Back from the Home Screen: the bars' state is set again from `motion`, in full.
@@ -473,6 +500,18 @@ final class ScrollChromeView: UIView {
                 let control = hit.flatMap { view in sequence(first: view, next: { $0.superview }).first { $0 is UIControl } } as? UIControl
                 trace.tapHitsControl = control.map { $0.isEnabled && $0.isUserInteractionEnabled ? 1 : 0 } ?? -1
                 trace.enabledItems = tabBar.items?.filter(\.isEnabled).count ?? 0
+                if let hit {
+                    let chain = sequence(first: hit, next: { $0 === tabBar ? nil : $0.superview })
+                    trace.hitPath = chain.map { "\(type(of: $0)):\($0.isUserInteractionEnabled ? 1 : 0)" }.joined(separator: ">")
+                    // The tab bar's buttons and their containers.
+                    let controls = Self.descendants(of: tabBar).filter { $0 is UIControl }
+                    let blocked = controls.filter { control in
+                        sequence(first: control, next: { $0 === tabBar ? nil : $0.superview }).contains { !$0.isUserInteractionEnabled }
+                    }
+                    trace.hitPath += "|controls:\(controls.count)|blocked:\(blocked.count)"
+                } else {
+                    trace.hitPath = "nil"
+                }
             } else {
                 trace.tapReachesTabBar = 0
             }

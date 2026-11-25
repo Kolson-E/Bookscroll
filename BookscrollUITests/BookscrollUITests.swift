@@ -266,6 +266,10 @@ final class BookscrollUITests: XCTestCase {
     }
 
     /// The app's own record of how the bars moved (`ScrollChromeTrace`), as numbers.
+    private func rawTrace(_ app: XCUIApplication) -> String {
+        (app.descendants(matching: .any)["feed.barTrace"].firstMatch.value as? String) ?? "none"
+    }
+
     private func barTrace(_ app: XCUIApplication) -> [String: Double] {
         let text = (app.descendants(matching: .any)["feed.barTrace"].firstMatch.value as? String) ?? ""
         var values: [String: Double] = [:]
@@ -315,7 +319,7 @@ final class BookscrollUITests: XCTestCase {
         tab(app, name)
         guard !app.navigationBars[name].waitForExistence(timeout: 5) else { return }
         screenshot("debug-tab-\(line)")
-        print("DEBUG: tab \(name) did not open; trace \(barTrace(app))")
+        print("DEBUG: tab \(name) did not open; trace \(rawTrace(app))")
         for row in app.tabBars.firstMatch.debugDescription.split(separator: "\n").prefix(20) { print("DEBUG: \(row)") }
         // Does a second tap work? (The first tap after the Home Screen may be lost.)
         tab(app, name)
@@ -393,11 +397,13 @@ final class BookscrollUITests: XCTestCase {
         assertTabBar(app, hidden: true, "Reading down hides the tab bar")
 
         // To the Home Screen and back: the bars are where they were and still follow.
+        print("DEBUG: before the Home Screen: \(rawTrace(app))")
         XCUIDevice.shared.press(.home)
         app.activate()
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 10))
         drag(app, by: -160)
         assertTabBar(app, hidden: false, "After the Home Screen, scrolling up shows the tab bar")
+        print("DEBUG: after the Home Screen: \(rawTrace(app))")
         XCTAssertEqual(libraryTab.frame.minY, home.minY, accuracy: 0.5)
 
         // Another tab and back: the feed starts with the bars shown, and they hide again.
