@@ -594,7 +594,7 @@ property is named `passagesOnly` because that is what it means.
 | Reading list: sets read in order, finished books and done sets skipped, scrolling past a book's last post finishes it, set order and one set per book, statuses, backups | `ReadingListTests.swift` |
 | Library sort and filter, title and author filing, finished books and Mix, language detection, cover storage and cache, EPUB covers (declared or from the cover page) and PDF covers, file facts, edit details, avatar photos, shelves and the shelf feed | `LibraryTests.swift` |
 
-`BookscrollUITests` (XCUITest, 27 tests) drive the app on a simulator with a seeded in-memory
+`BookscrollUITests` (XCUITest, 28 tests) drive the app on a simulator with a seeded in-memory
 library:
 
 - Empty library, Files picker, Find Books (its folder picker, from the + menu and the empty Library), bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
@@ -605,7 +605,8 @@ library:
   text size, after the Home Screen and after another tab); the app records every frame and
   the tests check that the tab bar never moved faster than the content, never jumped while
   easing, eased to the nearer end, and came back exactly to its place. The bars come back shown
-  after the Home Screen, and the tabs work after it, with and without bar hiding.
+  after the Home Screen, and the tabs work after it, with and without bar hiding. Drags and
+  flicks past the top come to rest with the bars shown.
 - Make a reading list with two sets and read it in the feed.
 - A book's picture shows under its post at full width and in its shape, opens full screen with
   a tap with the post, bookmark, share and "⋯" under and over it and no reply field, bookmarks and

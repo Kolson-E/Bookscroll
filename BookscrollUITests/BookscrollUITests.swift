@@ -401,6 +401,24 @@ final class BookscrollUITests: XCTestCase {
         assertSmoothTrace(app, minimumRests: 2)
     }
 
+    /// Scrolling up past the top with the bars already shown: the bounce at the top ends in
+    /// a rest (it used to leave the bars without one, so nothing was recorded).
+    func testScrollingPastTheTopComesToRestShown() {
+        let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
+        XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
+        for round in 1...2 {
+            drag(app, by: 260)
+            assertTabBar(app, hidden: true, "Round \(round): reading down hides the tab bar")
+            drag(app, by: -450)
+            assertTabBar(app, hidden: false, "Round \(round): a drag past the top rests shown")
+            drag(app, by: 260)
+            assertTabBar(app, hidden: true, "Round \(round): hidden again")
+            app.swipeDown(velocity: .fast)
+            assertTabBar(app, hidden: false, "Round \(round): a flick to the top rests shown")
+        }
+        assertSmoothTrace(app, minimumRests: 4)
+    }
+
     func testTheBarsKeepWorkingAfterOtherTabsAndTheHomeScreen() {
         let app = launch(sampleBooks: true, extra: ["-UITestHideBars"])
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
