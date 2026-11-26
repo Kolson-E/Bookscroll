@@ -19,11 +19,11 @@ final class AppearanceTests: XCTestCase {
     // MARK: Settings
 
     @MainActor
-    func testDefaultsAreNightBlueComfortableSansWithDoubleTap() {
+    func testDefaultsAreNightWhiteComfortableSansWithDoubleTap() {
         let settings = AppSettings(defaults: defaults)
         XCTAssertEqual(settings.theme, .night)
         XCTAssertEqual(settings.theme.colorScheme, .dark)
-        XCTAssertEqual(settings.accent, .blue)
+        XCTAssertEqual(settings.accent, .white)
         XCTAssertEqual(settings.density, .comfortable)
         XCTAssertEqual(settings.postTypeface, .sans)
         XCTAssertEqual(settings.readerTypeface, .serif)
@@ -127,7 +127,7 @@ final class AppearanceTests: XCTestCase {
         let settings = AppSettings(defaults: defaults)
         XCTAssertTrue(settings.focusMode)
         XCTAssertFalse(settings.doubleTapToBookmark)
-        XCTAssertEqual(settings.accent, .blue, "Unknown values fall back to the default")
+        XCTAssertEqual(settings.accent, .white, "Unknown values fall back to the default")
         XCTAssertEqual(settings.theme, .night)
     }
 
@@ -157,6 +157,27 @@ final class AppearanceTests: XCTestCase {
         XCTAssertEqual(night.background, 0x000000)
         XCTAssertEqual(night.accent(.blue), AccentChoice.blue.hex.dark)
         XCTAssertEqual(AppTheme.light.palette(brightness: 1).accent(.yellow), AccentChoice.yellow.hex.light)
+    }
+
+    /// White is white on dark themes and X's near-black on light ones, at every brightness, so
+    /// it can always be seen; it is first in the picker.
+    func testTheWhiteAccentIsWhiteOnDarkThemesAndDarkOnLightOnes() {
+        XCTAssertEqual(AccentChoice.allCases.first, .white)
+        XCTAssertEqual(AccentChoice.allCases.count, 7)
+        XCTAssertEqual(AccentChoice.white.title, "White")
+        XCTAssertEqual(AppTheme.night.palette(brightness: 0).accent(.white), 0xFFFFFF)
+        XCTAssertEqual(AppTheme.light.palette(brightness: 1).accent(.white), 0x0F1419)
+        for theme in AppTheme.allCases where theme.hasBrightness {
+            for step in 0...10 {
+                let palette = theme.palette(brightness: Double(step) / 10)
+                let shade = palette.accent(.white)
+                if palette.isDark {
+                    XCTAssertEqual(shade, 0xFFFFFF, "\(theme) \(step)")
+                } else {
+                    XCTAssertGreaterThanOrEqual(PaletteHex.contrast(shade, 0xFFFFFF), 15, "\(theme) \(step): near-black")
+                }
+            }
+        }
     }
 
     func testBrightnessGoesFromDarkToLight() {

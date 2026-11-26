@@ -122,6 +122,11 @@ enum Theme {
     static var accent: Color { accent(AppSettings.shared.accent) }
     /// The shade of `choice` that reads as text on the current background.
     static func accent(_ choice: AccentChoice) -> Color { color { $0.accent(choice) } }
+    /// The colour of a switch that is on. A switch's knob is white, so with the White accent
+    /// switches keep iOS's green; with any other accent they use the accent.
+    static var switchTint: Color {
+        AppSettings.shared.accent == .white ? Color(uiColor: .systemGreen) : accent
+    }
 
     /// Text background of a bookmark in `color`; nil for a bookmark without a highlight.
     static func bookmarkHighlight(_ color: MarkColor) -> Color? {

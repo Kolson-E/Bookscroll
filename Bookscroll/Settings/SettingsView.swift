@@ -52,9 +52,12 @@ struct SettingsView: View {
                     ChoiceRow(title: "Maximum words per post", value: settings.wordLimit.title) { openChoice = .wordLimit }
                         .accessibilityIdentifier("settings.wordLimit")
                     Toggle("Focus mode", isOn: $settings.focusMode)
+                        .tint(Theme.switchTint)
                         .accessibilityIdentifier("settings.focusMode")
                     Toggle("Double-tap to bookmark", isOn: $settings.doubleTapToBookmark)
+                        .tint(Theme.switchTint)
                     Toggle("Scroll back through the book", isOn: $settings.scrollBackInOneBook)
+                        .tint(Theme.switchTint)
                         .accessibilityIdentifier("settings.scrollBack")
                 } header: {
                     SectionHeader("Posts")
@@ -85,6 +88,7 @@ struct SettingsView: View {
 
                 Section {
                     Toggle("Reading on the Lock Screen", isOn: $settings.liveActivity)
+                        .tint(Theme.switchTint)
                         .accessibilityIdentifier("settings.liveActivity")
                 } header: {
                     SectionHeader("Lock Screen")
@@ -167,7 +171,7 @@ struct SettingsView: View {
     }
 }
 
-/// X's six accent swatches. Each swatch is a button with its colour name for VoiceOver.
+/// The seven accent swatches. Each swatch is a button with its colour name for VoiceOver.
 @MainActor
 private struct AccentPicker: View {
     @Binding var selection: AccentChoice

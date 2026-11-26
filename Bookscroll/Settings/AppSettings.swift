@@ -35,11 +35,13 @@ enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
-/// X's six accent colours. Each has a bright shade for dark backgrounds and a deep shade for
-/// light backgrounds. A theme made lighter or darker with its brightness slider moves the
+/// White, the default, then X's six accent colours. Each has a bright shade for dark backgrounds
+/// and a deep shade for light backgrounds. White is white on dark themes and X's near-black on
+/// light themes, where white could not be seen. A theme made lighter or darker with its brightness slider moves the
 /// shade further only as needed to keep 4.5:1 (`ThemePalette.accent(_:)`), so the accent can
 /// always colour text.
 enum AccentChoice: String, CaseIterable, Identifiable {
+    case white
     case blue
     case yellow
     case pink
@@ -54,6 +56,7 @@ enum AccentChoice: String, CaseIterable, Identifiable {
     /// sRGB hex for dark backgrounds and for light backgrounds.
     var hex: (dark: UInt32, light: UInt32) {
         switch self {
+        case .white: return (0xFFFFFF, 0x0F1419)
         case .blue: return (0x1D9BF0, 0x0B6BB0)
         case .yellow: return (0xFFD400, 0x7A5F00)
         case .pink: return (0xF91880, 0xC2135F)
@@ -268,7 +271,7 @@ final class AppSettings {
         self.defaults = defaults
         theme = defaults.string(forKey: Key.theme).flatMap(AppTheme.init) ?? .night
         themeBrightness = (defaults.dictionary(forKey: Key.themeBrightness) ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
-        accent = defaults.string(forKey: Key.accent).flatMap(AccentChoice.init) ?? .blue
+        accent = defaults.string(forKey: Key.accent).flatMap(AccentChoice.init) ?? .white
         density = defaults.string(forKey: Key.density).flatMap(Density.init) ?? .comfortable
         postTypeface = defaults.string(forKey: Key.postTypeface).flatMap(Typeface.init) ?? .sans
         readerTypeface = defaults.string(forKey: Key.readerTypeface).flatMap(Typeface.init) ?? .serif

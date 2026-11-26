@@ -120,6 +120,7 @@ struct BookDetailsSheet: View {
                             .foregroundStyle(Theme.secondaryText)
                     }
                 }
+                .tint(Theme.switchTint)
                 .accessibilityIdentifier("details.showsCover")
             } header: {
                 SectionHeader("Avatar")

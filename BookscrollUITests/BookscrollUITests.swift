@@ -833,8 +833,10 @@ final class BookscrollUITests: XCTestCase {
         screenshot("15a-settings-sepia-darker")
         reset.tap()
         XCTAssertFalse(reset.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["accent.white"].isSelected, "White is the default accent")
         app.buttons["accent.orange"].tap()
         XCTAssertTrue(app.buttons["accent.orange"].isSelected)
+        XCTAssertFalse(app.buttons["accent.white"].isSelected)
         screenshot("15-settings-sepia")
 
         let focus = app.switches["settings.focusMode"].firstMatch
