@@ -460,7 +460,13 @@ final class ScrollChromeView: UIView {
         if new <= topOffset(scrollView) + 0.5 {
             // At the top (or pulled down to refresh): the bars show.
             restWork?.cancel()
-            if !motion.isShown || easeLink != nil { ease(to: 0) }
+            if !motion.isShown || easeLink != nil {
+                ease(to: 0)
+            } else if !scrollView.isTracking {
+                // Already shown (a flick up shows them on the way): still come to rest once
+                // the bounce at the top ends, so the rest is counted and reported.
+                scheduleRest()
+            }
             return
         }
         // The finger drives the bars while it is down (see `panChanged`).
