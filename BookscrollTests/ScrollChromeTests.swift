@@ -188,6 +188,6 @@ final class ScrollChromeTests: XCTestCase {
         trace.frames = 12
         trace.fastestEase = 1500.4
         trace.restsHidden = 2
-        XCTAssertEqual(trace.summary, "frames=12 faster=0 ease=1500 notBack=0 hidden=2 shown=0 state=0.0 offset=0.0 taps=1 bars=0 same=1 hit=1 seen=0 touches=0 tab=-1 control=-1 items=0 att=0 det=0 pan=0 panMoved=0 fromTop=0 layout=0 flick=0 kept=0 seq=0 vo=0 path=-")
+        XCTAssertEqual(trace.summary, "frames=12 faster=0 ease=1500 notBack=0 hidden=2 shown=0 state=0.0 offset=0.0 taps=1 bars=0 same=1 hit=1 seen=0 touches=0 tab=-1 control=-1 items=0 att=0 det=0 pan=0 panMoved=0 fromTop=0 layout=0 flick=0 kept=0 seq=0 path=-")
     }
 }

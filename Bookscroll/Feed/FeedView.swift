@@ -12,12 +12,9 @@ struct FeedView: View {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
 
     /// The bars hide while you read, as on X; not with VoiceOver, and not in UI tests unless
-    /// a test asks for it. The bar tests ignore VoiceOver: on the test simulator, after the
-    /// accessibility audits, SwiftUI can report it on for a moment, which put the bars back
-    /// and stopped them in the middle of a test.
+    /// a test asks for it.
     private var hidesBarsOnScroll: Bool {
-        if Self.tracesBars { return true }
-        if ProcessInfo.processInfo.arguments.contains("-UITestInMemoryStore") { return false }
+        if ProcessInfo.processInfo.arguments.contains("-UITestInMemoryStore") && !Self.tracesBars { return false }
         return !voiceOverEnabled
     }
 
@@ -189,7 +186,6 @@ struct FeedView: View {
             .background(alignment: .top) {
                 ScrollChromeObserver(
                     isEnabled: hidesBarsOnScroll,
-                    voiceOverEnabled: voiceOverEnabled,
                     onTrace: Self.tracesBars ? { barTrace = $0 } : nil
                 )
                 .frame(width: 0, height: 0)
