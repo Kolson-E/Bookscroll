@@ -353,7 +353,7 @@ and accents 4.5:1, icons 3:1, primary text on highlights 7:1) is moved just far 
 |---|---|
 | Theme | Night (pure black), Light, Sepia, Dark sepia, Sage, Dusk, System |
 | Brightness | Per theme, 0–100% (not for System). Defaults: Night 0% (pure black), Light 100% (white), Sepia 80% (the earlier sepia), Dark sepia 40%, Sage 75%, Dusk 40%. |
-| Accent colour | White (the default), then X's six: blue, yellow, pink, purple, orange, green. White is white on dark themes and X's near-black on light themes, where white could not be seen; with White, switches stay iOS green because a switch's knob is white. The six each have a bright shade for dark themes and a deep shade for light themes; at other brightness levels the shade moves only as far as needed, so accent text always reaches 4.5:1. |
+| Accent colour | White (the default), then X's six: blue, yellow, pink, purple, orange, green. White is white on dark themes and X's near-black on light themes, where white could not be seen. "Show more" stays X's blue with every accent; with White, switches stay iOS green because a switch's knob is white. The six each have a bright shade for dark themes and a deep shade for light themes; at other brightness levels the shade moves only as far as needed, so accent text always reaches 4.5:1. |
 | Density | Comfortable, Compact |
 | Post font | Sans (X style), New York, Georgia, Charter, Iowan Old Style, Palatino, Athelas, Baskerville, Hoefler Text, Seravek |
 | Post text size | 16.5 pt (10–40, steps of 0.5) |

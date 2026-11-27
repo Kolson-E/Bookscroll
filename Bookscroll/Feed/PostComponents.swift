@@ -423,7 +423,9 @@ struct PostRow: View {
                         .accessibilityHint("Shows the whole post")
                         .accessibilityIdentifier("post.showMore")
                         .font(.system(size: textSize, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
+                        // Always X's blue, whatever the accent, as on X. The theme's readable
+                        // shade of blue, so it keeps 4.5:1.
+                        .foregroundStyle(Theme.accent(.blue))
                         .buttonStyle(.borderless)
                 }
                 // The book's pictures after this text, as on X: the post ends at the picture
