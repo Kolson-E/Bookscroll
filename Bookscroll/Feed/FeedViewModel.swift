@@ -25,7 +25,8 @@ final class FeedViewModel {
     @ObservationIgnored var onReachedEnd: (([UUID]) -> Void)?
     /// Top visible post, bound to the scroll view.
     var scrolledID: String?
-    /// Settings › "Scroll back through the book": One book mode loads earlier posts at the top.
+    /// Settings › "Scroll back through the book": One book mode loads earlier posts back to the
+    /// start of the book, not only to the start of the chapter.
     @ObservationIgnored var scrollsBack: @MainActor () -> Bool = { AppSettings.shared.scrollBackInOneBook }
 
     init(store: LibraryStore, defaults: UserDefaults = .standard) {
@@ -72,12 +73,15 @@ final class FeedViewModel {
         if index <= 2 { loadEarlier() }
     }
 
-    /// One book mode with "Scroll back through the book" on: puts earlier posts above the list
-    /// and keeps the post at the top of the screen where it is.
+    /// One book mode: puts earlier posts above the list, back to the start of the chapter (or
+    /// of the book with "Scroll back through the book"), and keeps the post at the top of the
+    /// screen where it is.
     func loadEarlier() {
-        guard let engine, case .single = mode, scrollsBack(), engine.hasEarlierPosts else { return }
+        guard let engine, case .single = mode else { return }
+        let wholeBook = scrollsBack()
+        guard wholeBook ? engine.hasEarlierPosts : engine.hasEarlierPostsInChapter else { return }
         let top = scrolledID
-        guard engine.loadEarlier() > 0 else { return }
+        guard engine.loadEarlier(withinChapter: !wholeBook) > 0 else { return }
         sync()
         scrolledID = top
     }

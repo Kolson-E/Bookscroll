@@ -202,6 +202,29 @@ final class AppFlowTests: XCTestCase {
 
     // MARK: Feed position
 
+    /// One book mode scrolls back to the start of the chapter; with "Scroll back through the
+    /// book" on, to the start of the book. The place stays where it was.
+    func testOneBookModeScrollsBackToTheChapterStart() throws {
+        let (app, ids) = try makeApp(books: [("Alpha", 80)])
+        let book = try XCTUnwrap(app.store.feedBook(id: ids[0]))
+        let place = try XCTUnwrap(app.store.segments(book: book, style: .paragraph, from: 30, limit: 1).first)
+        app.store.setPosition(bookID: ids[0], offset: place.charStart)
+        app.feed.scrollsBack = { false }
+        app.feed.configure(style: .paragraph, mode: .single(ids[0]))
+        XCTAssertEqual(app.feed.posts.first?.segment.index, 30)
+
+        app.feed.postAppeared(try XCTUnwrap(app.feed.posts.first?.id))
+        XCTAssertEqual(app.feed.posts.first?.segment.index, 24, "Chapters are 12 paragraphs: chapter 3 starts at 24")
+        XCTAssertEqual(app.feed.posts.first?.segment.chapter, place.chapter)
+        app.feed.postAppeared(try XCTUnwrap(app.feed.posts.first?.id))
+        XCTAssertEqual(app.feed.posts.first?.segment.index, 24, "No further than the chapter")
+        XCTAssertEqual(app.store.book(id: ids[0])?.positionOffset, place.charStart, "The place does not move back")
+
+        app.feed.scrollsBack = { true }
+        app.feed.postAppeared(try XCTUnwrap(app.feed.posts.first?.id))
+        XCTAssertEqual(app.feed.posts.first?.segment.index, 0, "With the setting on, back to the start of the book")
+    }
+
     func testScrollingSavesPositionsOnlyForShownPosts() throws {
         let (app, ids) = try makeApp(books: [("Alpha", 80)])
         app.feed.configure(style: .paragraph, mode: .single(ids[0]))

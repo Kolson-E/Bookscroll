@@ -252,14 +252,29 @@ final class FeedEngine {
         return first.segment.charStart > 0
     }
 
-    /// One book mode ("Scroll back through the book"): puts up to `count` posts from before the
-    /// first post above it, in book order. They count as already shown, because they are behind
-    /// the reader's place, so the place never moves back and reading time is not counted again.
+    /// One book mode: there are earlier posts in the first post's own chapter, so scrolling up
+    /// can go back to the start of the chapter.
+    var hasEarlierPostsInChapter: Bool {
+        guard hasEarlierPosts, case let .single(bookID) = mode, let book = books[bookID], let first = posts.first else { return false }
+        if first.part > 1 { return true }
+        guard first.segment.index > 0,
+              let previous = source.segments(book: book, style: first.segment.style, from: first.segment.index - 1, limit: 1).first
+        else { return false }
+        return previous.chapter == first.segment.chapter
+    }
+
+    /// One book mode: puts up to `count` posts from before the first post above it, in book
+    /// order. With `withinChapter` it stops at the start of the first post's chapter (the
+    /// default); without it ("Scroll back through the book") it goes on to the start of the
+    /// book. They count as already shown, because they are behind the reader's place, so the
+    /// place never moves back and reading time is not counted again.
     /// Returns the number of posts added.
     @discardableResult
-    func loadEarlier(_ count: Int = FeedEngine.pageSize) -> Int {
+    func loadEarlier(_ count: Int = FeedEngine.pageSize, withinChapter: Bool = false) -> Int {
         guard hasEarlierPosts, case let .single(bookID) = mode, let book = books[bookID], let first = posts.first else { return 0 }
         let bookStyle = first.segment.style
+        let chapter = first.segment.chapter
+        var reachedChapterStart = false
         let limit = wordLimit.limit(for: book)
         var earlier: [PostPiece] = []
         // Parts of the first post's own segment that come before it.
@@ -268,10 +283,14 @@ final class FeedEngine {
                 .filter { $0.segment.charEnd <= first.segment.charStart }
         }
         var upper = first.segment.index
-        while earlier.count < count && upper > 0 {
+        while earlier.count < count && upper > 0 && !reachedChapterStart {
             let from = max(0, upper - FeedEngine.fetchBatchSize)
-            let batch = source.segments(book: book, style: bookStyle, from: from, limit: upper - from)
+            var batch = source.segments(book: book, style: bookStyle, from: from, limit: upper - from)
             guard !batch.isEmpty else { break }
+            if withinChapter, let last = batch.lastIndex(where: { $0.chapter != chapter }) {
+                batch.removeSubrange(...last)
+                reachedChapterStart = true
+            }
             earlier = batch.flatMap { PostPiece.pieces(of: $0, limit: limit, splitter: splitter) } + earlier
             upper = from
         }

@@ -247,6 +247,48 @@ final class FeedEngineTests: XCTestCase {
         XCTAssertEqual(engine.posts.map(\.segment.index), Array(0..<engine.posts.count), "Loading on below continues the same run")
     }
 
+    /// One book mode without "Scroll back through the book": back to the start of the chapter,
+    /// a page at a time, and no further.
+    func testOneBookScrollsBackToTheStartOfTheChapter() throws {
+        let library = makeLibrary(bookCount: 1, paragraphs: 120, chapterEvery: 50)
+        var book = library.books[0]
+        book.positionOffset = library.segmented[book.id]!.paragraphs[95].charStart
+        let engine = FeedEngine(source: library.source, books: [book], style: .paragraph, mode: .single(book.id), seed: 1)
+        engine.loadMore()
+        XCTAssertEqual(engine.posts.first?.segment.index, 95)
+        XCTAssertTrue(engine.hasEarlierPostsInChapter)
+
+        XCTAssertEqual(engine.loadEarlier(withinChapter: true), FeedEngine.pageSize, "A page at a time")
+        XCTAssertEqual(engine.posts.first?.segment.index, 65)
+        XCTAssertTrue(engine.hasEarlierPostsInChapter)
+        XCTAssertEqual(engine.loadEarlier(withinChapter: true), 15, "Stops at the chapter's first paragraph")
+        XCTAssertEqual(engine.posts.first?.segment.index, 50)
+        XCTAssertEqual(engine.posts.first?.chapterHeader, "Chapter 2")
+        XCTAssertEqual(engine.posts.first?.startsChapter, true, "The chapter's first post says so")
+        XCTAssertFalse(engine.hasEarlierPostsInChapter)
+        XCTAssertTrue(engine.hasEarlierPosts, "The book goes on before the chapter")
+        XCTAssertEqual(engine.loadEarlier(withinChapter: true), 0)
+        let indices = engine.posts.map(\.segment.index)
+        XCTAssertEqual(indices, Array(50..<(50 + indices.count)), "One unbroken run from the chapter's start")
+
+        // "Scroll back through the book" goes on past the chapter.
+        XCTAssertEqual(engine.loadEarlier(), FeedEngine.pageSize)
+        XCTAssertEqual(engine.posts.first?.segment.index, 20)
+    }
+
+    func testAChapterStartHasNothingEarlierInItsChapter() throws {
+        let library = makeLibrary(bookCount: 1, paragraphs: 40, chapterEvery: 10)
+        var book = library.books[0]
+        book.positionOffset = library.segmented[book.id]!.paragraphs[20].charStart
+        let engine = FeedEngine(source: library.source, books: [book], style: .paragraph, mode: .single(book.id), seed: 1)
+        engine.loadMore()
+        XCTAssertEqual(engine.posts.first?.segment.index, 20)
+        XCTAssertTrue(engine.hasEarlierPosts)
+        XCTAssertFalse(engine.hasEarlierPostsInChapter)
+        XCTAssertEqual(engine.loadEarlier(withinChapter: true), 0)
+        XCTAssertEqual(engine.posts.first?.segment.index, 20)
+    }
+
     func testEarlierPostsGetChapterHeadersAndThreads() throws {
         let library = makeLibrary(bookCount: 1, paragraphs: 12, chapterEvery: 3)
         var book = library.books[0]
@@ -290,6 +332,8 @@ final class FeedEngineTests: XCTestCase {
         let engine = FeedEngine(source: library.source, books: books, style: .paragraph, mode: .mix, seed: 3)
         engine.loadMore()
         XCTAssertFalse(engine.hasEarlierPosts)
+        XCTAssertFalse(engine.hasEarlierPostsInChapter)
         XCTAssertEqual(engine.loadEarlier(), 0)
+        XCTAssertEqual(engine.loadEarlier(withinChapter: true), 0)
     }
 }

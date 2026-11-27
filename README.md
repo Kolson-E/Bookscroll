@@ -361,7 +361,7 @@ and accents 4.5:1, icons 3:1, primary text on highlights 7:1) is moved just far 
 | Maximum words per post | Auto, Off, 60, 80, 120, 200 |
 | Focus mode | Off. On: posts show only their text. |
 | Double-tap to bookmark | On |
-| Scroll back through the book | Off. On: in One book mode, scrolling up past the first post loads earlier posts, a page at a time, back to the start of the book. Your place stays at the furthest post you read, so the feed still opens there and reading time is not counted again. |
+| Scroll back through the book | Off: in One book mode, scrolling up past the first post loads earlier posts, a page at a time, back to the start of its chapter. On: back to the start of the book. Your place stays at the furthest post you read, so the feed still opens there and reading time is not counted again. |
 
 `PaletteHex` holds every text and background colour; a unit test checks each text colour
 against each background it is used on (WCAG AA, 4.5:1).
@@ -567,7 +567,7 @@ property is named `passagesOnly` because that is what it means.
 
 ## Tests
 
-`BookscrollTests` (XCTest, 277 tests):
+`BookscrollTests` (XCTest, 280 tests):
 
 | Area | File |
 |---|---|
