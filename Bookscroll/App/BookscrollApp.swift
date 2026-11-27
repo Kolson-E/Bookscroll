@@ -74,24 +74,28 @@ struct RootView: View {
         let settings = AppSettings.shared
         TabView(selection: $app.selectedTab) {
             FeedView()
+                .themedTabBar()
                 .tabItem { Label("Feed", systemImage: "text.bubble") }
                 .tag(AppModel.Tab.feed)
             LibraryView()
+                .themedTabBar()
                 .tabItem { Label("Library", systemImage: "books.vertical") }
                 .tag(AppModel.Tab.library)
             ShelvesView()
+                .themedTabBar()
                 .tabItem { Label("Shelves", systemImage: "rectangle.stack") }
                 .tag(AppModel.Tab.shelves)
             SavedView()
+                .themedTabBar()
                 .tabItem { Label("Saved", systemImage: "bookmark") }
                 .tag(AppModel.Tab.saved)
             SettingsView()
+                .themedTabBar()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
                 .tag(AppModel.Tab.settings)
         }
         .tint(Theme.accent)
         .preferredColorScheme(settings.theme.colorScheme)
-        .toolbarBackground(Theme.background, for: .tabBar)
         .fileImporter(
             isPresented: $app.isImporterPresented,
             // A folder imports the books inside it.
@@ -153,5 +157,15 @@ struct RootView: View {
                 app.sceneDidLeaveForeground(toBackground: phase == .background)
             }
         }
+    }
+}
+
+private extension View {
+    /// X's tab bar: solid in the theme's background (black on Night, white on Light) with a
+    /// hairline on top, not iOS's grey blur. SwiftUI reads the tab bar's background from each
+    /// tab's own view, so every tab sets it.
+    func themedTabBar() -> some View {
+        toolbarBackground(Theme.background, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
     }
 }

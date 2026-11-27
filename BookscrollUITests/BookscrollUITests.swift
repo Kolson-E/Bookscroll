@@ -23,6 +23,23 @@ final class BookscrollUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: "post").firstMatch
     }
 
+    /// The colour at a point of the screen (in points), as 0...255 sRGB.
+    private func screenColor(_ app: XCUIApplication, at point: CGPoint) -> [Int] {
+        let image = XCUIScreen.main.screenshot().image
+        guard let cg = image.cgImage, app.frame.width > 0,
+              let space = CGColorSpace(name: CGColorSpace.sRGB) else { return [] }
+        let scale = CGFloat(cg.width) / app.frame.width
+        let x = Int(point.x * scale), y = Int(point.y * scale)
+        var data = [UInt8](repeating: 0, count: 4)
+        let drawn: Bool = data.withUnsafeMutableBytes { bytes in
+            guard let context = CGContext(data: bytes.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                          space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: -x, y: y - cg.height + 1, width: cg.width, height: cg.height))
+            return true
+        }
+        return drawn ? data.prefix(3).map(Int.init) : []
+    }
+
     private func waitUntilGone(_ element: XCUIElement, timeout: TimeInterval = 10) {
         let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: element)
         wait(for: [gone], timeout: timeout)
@@ -819,6 +836,13 @@ final class BookscrollUITests: XCTestCase {
         let app = launch(sampleBooks: true)
         XCTAssertTrue(firstPost(app).waitForExistence(timeout: 15))
         screenshot("14-feed-night-default")
+        // X's tab bar: solid black on Night, not iOS's grey blur.
+        let bar = app.tabBars.firstMatch.frame
+        for x in [bar.minX + 4, bar.maxX - 4] {
+            let color = screenColor(app, at: CGPoint(x: x, y: bar.midY))
+            XCTAssertEqual(color.count, 3)
+            XCTAssertLessThanOrEqual(color.max() ?? 255, 8, "The tab bar is black on Night: \(color)")
+        }
         tab(app, "Settings")
         let sepia = app.buttons["Sepia"].firstMatch
         XCTAssertTrue(sepia.waitForExistence(timeout: 5))

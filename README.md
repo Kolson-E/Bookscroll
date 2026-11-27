@@ -417,6 +417,9 @@ not finished in the Library or the reading list. Sets can be renamed, moved up o
 changed or deleted; books can be reordered or taken out. A book is in one set only. The
 reading list is in backups (`Shelves/ReadingList.swift`, `ReadingListView.swift`).
 
+As on X, the tab bar is solid in the theme's background (black on Night, white on Light) with
+a hairline on top, not iOS's grey blur.
+
 As on X, the feed's navigation bar and the tab bar move away while you read down and come
 back when you scroll up. They move point for point with the content, never faster or slower
 than your finger; when a scroll stops part-way they ease to the nearer end on a critically
@@ -599,7 +602,7 @@ library:
 
 - Empty library, Files picker, Find Books (its folder picker, from the + menu and the empty Library), bookmark, bookmark colours in Saved, Saved tab, read in context, Continue in feed,
   post style and One book thread, swipe to delete.
-- Settings: theme, accent and focus mode change the feed.
+- Settings: theme, accent and focus mode change the feed. White is the default accent, and the tab bar is solid black on Night.
 - The navigation and tab bars hide while you read down the feed and come back when you
   scroll up. Four more tests drag, flick and turn back again and again (also at the largest
   text size, after the Home Screen and after another tab); the app records every frame and
